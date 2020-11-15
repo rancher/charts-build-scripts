@@ -5,16 +5,13 @@ go 1.13
 replace k8s.io/client-go => k8s.io/client-go v0.18.0
 
 require (
-	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
-	github.com/google/go-cmp v0.3.1 // indirect
-	github.com/hashicorp/golang-lru v0.5.3 // indirect
-	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
-	github.com/rancher/lasso v0.0.0-20200905045615-7fcb07d6a20b
-	github.com/rancher/wrangler v0.7.2
-	github.com/sirupsen/logrus v1.4.2
+	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
+	github.com/kr/text v0.2.0 // indirect
+	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
+	github.com/sirupsen/logrus v1.6.0
+	github.com/stretchr/testify v1.5.1 // indirect
 	github.com/urfave/cli v1.22.2
-	golang.org/x/tools v0.0.0-20191017205301-920acffc3e65 // indirect
-	google.golang.org/appengine v1.6.1 // indirect
-	k8s.io/apimachinery v0.18.8
-	k8s.io/client-go v0.18.8
+	golang.org/x/sys v0.0.0-20201015000850-e3ed0017c211 // indirect
+	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
+	gopkg.in/yaml.v2 v2.3.0 // indirect
 )

@@ -1,0 +1,9 @@
+repository:
+  owner: aiyengar2
+  name: test-charts
+branches:
+  source: dev-v2.5-source
+  staging: dev-v2.5
+  live: main
+helmRepo:
+  url: charts.rancher.io

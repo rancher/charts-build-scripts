@@ -205,6 +205,7 @@ func (p *Package) ExportHelmChart(chartType Type, helmChartPath string) error {
 	}
 	// Run helm package
 	pkg := helmAction.NewPackage()
+	pkg.Version = chartVersion
 	pkg.Destination = local.GetAbsPath(p.repoFs, assetsPath)
 	pkg.DependencyUpdate = false
 	absTgzPath, err := pkg.Run(local.GetAbsPath(p.fs, helmChartPath), nil)

@@ -212,7 +212,10 @@ func (p *Package) LoadDependencyPackages(helmChartPath string) error {
 		}
 		dependencyOptions := dependencyPackage.GetPackageOptions()
 		if *dependencyOptions.UpstreamOptions.URL != dependencyURL {
-			logrus.Infof("Upgrade Notice: The URL for %s in upstream has been updated from %s to %s", dependency.Name, *dependencyOptions.UpstreamOptions.URL, dependencyURL)
+			logrus.Warnf("Upgrade Notice: The URL for %s in upstream has been updated from %s to %s", dependency.Name, *dependencyOptions.UpstreamOptions.URL, dependencyURL)
+		}
+		if dependencyOptions.PackageVersion != p.PackageVersion {
+			logrus.Warnf("Dependency %s has a packageVersion %d that is out of sync with the packageVersion of its parent chart %d", dependency.Name, dependencyOptions.PackageVersion, p.PackageVersion)
 		}
 	}
 	return nil

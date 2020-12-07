@@ -116,3 +116,42 @@ func (u UpstreamChartArchive) String() string {
 	}
 	return repoStr
 }
+
+// UpstreamLocal represents a Helm chart that exists within the charts repo itself
+type UpstreamLocal struct {
+	// Name represents the name of the package
+	Name string
+}
+
+// Pull grabs the Helm chart by preparing the package itself
+func (u UpstreamLocal) Pull(fs billy.Filesystem, path string) error {
+	// TODO(aiyengar2): need to implement
+	repoPath, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("Encountered error while trying to get repository path: %s", err)
+	}
+	pkgs, err := GetPackages(repoPath, u.Name, BranchOptions{})
+	if err != nil {
+		return fmt.Errorf("Encountered error while trying to get packages from repository path: %s", err)
+	}
+	if len(pkgs) == 0 {
+		return fmt.Errorf("Unable to pull packages/%s since it does not exist", u.Name)
+	}
+	pkg := pkgs[0]
+	if err := pkg.Prepare(); err != nil {
+		return err
+	}
+	return os.Rename(local.GetAbsPath(pkg.fs, PackageChartsDirpath), local.GetAbsPath(fs, path))
+}
+
+// GetOptions returns the path used to construct this upstream
+func (u UpstreamLocal) GetOptions() UpstreamOptions {
+	name := fmt.Sprintf("packages/%s", u.Name)
+	return UpstreamOptions{
+		URL: &name,
+	}
+}
+
+func (u UpstreamLocal) String() string {
+	return fmt.Sprintf("packages/%s", u.Name)
+}

@@ -32,7 +32,13 @@ func (u UpstreamOptions) GetUpstream() (Upstream, error) {
 	if u.URL == nil {
 		return nil, fmt.Errorf("URL is not defined")
 	}
-	if strings.Contains(*u.URL, ".git") {
+	if strings.HasPrefix(*u.URL, "packages/") {
+		upstream := UpstreamLocal{
+			Name: strings.Split(*u.URL, "/")[1],
+		}
+		return upstream, nil
+	}
+	if strings.HasSuffix(*u.URL, ".git") {
 		rc, err := config.GetRepositoryConfiguration(*u.URL)
 		if err != nil {
 			return nil, err
@@ -46,7 +52,7 @@ func (u UpstreamOptions) GetUpstream() (Upstream, error) {
 		}
 		return upstream, nil
 	}
-	if strings.Contains(*u.URL, ".tgz") || strings.Contains(*u.URL, ".tar.gz") {
+	if strings.HasSuffix(*u.URL, ".tgz") || strings.Contains(*u.URL, ".tar.gz") {
 		upstream := UpstreamChartArchive{
 			URL: *u.URL,
 		}

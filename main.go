@@ -8,9 +8,10 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/google/go-github/github"
-	"github.com/rancher/charts-build-scripts/pkg/chart"
+	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/config"
-	"github.com/rancher/charts-build-scripts/pkg/local"
+	"github.com/rancher/charts-build-scripts/pkg/options"
+	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"golang.org/x/oauth2"
@@ -24,11 +25,11 @@ var (
 	GitCommit = "HEAD"
 
 	// SourceBranchOptions represents the default Options that should be set when viewing packages from the source branch
-	SourceBranchOptions = chart.BranchOptions{
-		ExportOptions: chart.ExportOptions{
+	SourceBranchOptions = options.BranchOptions{
+		ExportOptions: options.ExportOptions{
 			PreventOverwrite: false,
 		},
-		CleanOptions: chart.CleanOptions{
+		CleanOptions: options.CleanOptions{
 			PreventCleanAssets: false,
 		},
 	}
@@ -138,7 +139,7 @@ func initializeChartsRepo(c *cli.Context) {
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
 	}
-	repo, err := local.GetRepo(path)
+	repo, err := utils.GetRepo(path)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -156,7 +157,7 @@ func prepareCharts(c *cli.Context) {
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
 	}
-	repo, err := local.GetRepo(path)
+	repo, err := utils.GetRepo(path)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -166,7 +167,7 @@ func prepareCharts(c *cli.Context) {
 	if err = validateRepoPointingToBranch(repo, chartsRepo.BranchConfiguration.Source); err != nil {
 		logrus.Fatal(err)
 	}
-	packages, err := chart.GetPackages(path, CurrentChart, SourceBranchOptions)
+	packages, err := charts.GetPackages(path, CurrentChart, SourceBranchOptions)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -183,7 +184,7 @@ func generatePatch(c *cli.Context) {
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
 	}
-	repo, err := local.GetRepo(path)
+	repo, err := utils.GetRepo(path)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -193,7 +194,7 @@ func generatePatch(c *cli.Context) {
 	if err = validateRepoPointingToBranch(repo, chartsRepo.BranchConfiguration.Source); err != nil {
 		logrus.Fatal(err)
 	}
-	packages, err := chart.GetPackages(path, CurrentChart, SourceBranchOptions)
+	packages, err := charts.GetPackages(path, CurrentChart, SourceBranchOptions)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -210,7 +211,7 @@ func generateCharts(c *cli.Context) {
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
 	}
-	repo, err := local.GetRepo(path)
+	repo, err := utils.GetRepo(path)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -220,12 +221,12 @@ func generateCharts(c *cli.Context) {
 	if err = validateRepoPointingToBranch(repo, chartsRepo.BranchConfiguration.Source); err != nil {
 		logrus.Fatal(err)
 	}
-	packages, err := chart.GetPackages(path, CurrentChart, SourceBranchOptions)
+	packages, err := charts.GetPackages(path, CurrentChart, SourceBranchOptions)
 	if err != nil {
 		logrus.Fatal(err)
 	}
 	for _, p := range packages {
-		if err = p.GenerateChart(); err != nil {
+		if err = p.GenerateCharts(); err != nil {
 			logrus.Fatal(err)
 		}
 	}
@@ -237,7 +238,7 @@ func cleanRepository(c *cli.Context) {
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
 	}
-	repo, err := local.GetRepo(path)
+	repo, err := utils.GetRepo(path)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -247,7 +248,7 @@ func cleanRepository(c *cli.Context) {
 	if err = validateRepoPointingToBranch(repo, chartsRepo.BranchConfiguration.Source); err != nil {
 		logrus.Fatal(err)
 	}
-	packages, err := chart.GetPackages(path, CurrentChart, SourceBranchOptions)
+	packages, err := charts.GetPackages(path, CurrentChart, SourceBranchOptions)
 	if err != nil {
 		logrus.Fatal(err)
 	}

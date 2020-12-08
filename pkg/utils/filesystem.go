@@ -1,10 +1,11 @@
-package local
+package utils
 
 import (
 	"archive/tar"
 	"compress/gzip"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -256,6 +257,24 @@ func WalkDir(fs billy.Filesystem, dirpath string, doFunc RelativePathFunc) error
 			return err
 		}
 		return doFunc(fs, path, info.IsDir())
+	})
+}
+
+// CopyDir copies all files from srcDir to dstDir
+func CopyDir(fs billy.Filesystem, srcDir string, dstDir string) error {
+	return WalkDir(fs, srcDir, func(fs billy.Filesystem, srcPath string, isDir bool) error {
+		dstPath, err := MovePath(srcPath, srcDir, dstDir)
+		if err != nil {
+			return err
+		}
+		if isDir {
+			return fs.MkdirAll(dstPath, os.ModePerm)
+		}
+		data, err := ioutil.ReadFile(GetAbsPath(fs, srcPath))
+		if err != nil {
+			return err
+		}
+		return ioutil.WriteFile(GetAbsPath(fs, dstPath), data, os.ModePerm)
 	})
 }
 

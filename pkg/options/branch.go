@@ -1,8 +1,4 @@
-package chart
-
-import (
-	"fmt"
-)
+package options
 
 // BranchOptions represents the options used by branches to be able to configure the way a chart is built using these scripts
 type BranchOptions struct {
@@ -19,17 +15,9 @@ type ExportOptions struct {
 	PreventOverwrite bool `yaml:"allowOverwrite"`
 }
 
-func (e ExportOptions) String() string {
-	return fmt.Sprintf("{overwriteExistingCharts: %t}", !e.PreventOverwrite)
-}
-
 // CleanOptions represent any options that are configurable when cleaning charts
 type CleanOptions struct {
 	// Whether to avoid cleaning the generated assets on a clean
 	// Should be disabled for Source branch and enabled for Staging / Live branches
 	PreventCleanAssets bool `yaml:"cleanAssets"`
-}
-
-func (c CleanOptions) String() string {
-	return fmt.Sprintf("{cleanAssets: %t}", !c.PreventCleanAssets)
 }

@@ -14,7 +14,7 @@ import (
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/google/go-github/github"
-	"github.com/rancher/charts-build-scripts/pkg/local"
+	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -46,12 +46,12 @@ func (c ChartsRepositoryConfiguration) Init(ctx context.Context, client *github.
 		if err != nil {
 			return err
 		}
-		repo, err := local.CreateRepo(tempDir)
+		repo, err := utils.CreateRepo(tempDir)
 		if err != nil {
 			return err
 		}
 		// Create an initial commit, add the remote, and make the first push
-		if err = local.CreateInitialCommit(repo); err != nil {
+		if err = utils.CreateInitialCommit(repo); err != nil {
 			return err
 		}
 		_, err = repo.CreateRemote(&config.RemoteConfig{
@@ -84,7 +84,7 @@ func (c ChartsRepositoryConfiguration) initBranches(repo *git.Repository) error 
 	if err != nil {
 		return err
 	}
-	hash, err := local.GetHead(repo)
+	hash, err := utils.GetHead(repo)
 	if err != nil {
 		return err
 	}
@@ -109,17 +109,17 @@ func (c ChartsRepositoryConfiguration) initBranches(repo *git.Repository) error 
 // prepareBranch extracts the repo from repoPath, creates the branch from the parentHash, checks it out, applies the template found in templateDir, and commits the changes
 func (c ChartsRepositoryConfiguration) prepareBranch(repo *git.Repository, parentHash plumbing.Hash, branchName, templateDir string) error {
 	var err error
-	if err = local.CreateBranch(repo, branchName, parentHash); err != nil {
+	if err = utils.CreateBranch(repo, branchName, parentHash); err != nil {
 		return err
 	}
-	if err = local.CheckoutBranch(repo, branchName); err != nil {
+	if err = utils.CheckoutBranch(repo, branchName); err != nil {
 		return err
 	}
 	if err = c.applyTemplate(repo, templateDir); err != nil {
 		return err
 	}
 	commitMessage := fmt.Sprintf("Initialize %s", branchName)
-	if err = local.CommitAll(repo, commitMessage); err != nil {
+	if err = utils.CommitAll(repo, commitMessage); err != nil {
 		return err
 	}
 	return repo.Push(&git.PushOptions{RemoteName: "upstream"})
@@ -137,19 +137,19 @@ func (c ChartsRepositoryConfiguration) applyTemplate(repo *git.Repository, templ
 			return fs.MkdirAll(path, os.ModePerm)
 		}
 		fileName := filepath.Base(path)
-		absPath := local.GetAbsPath(fs, path)
+		absPath := utils.GetAbsPath(fs, path)
 		// Parse template
 		t := template.Must(template.New(fileName).ParseFiles(absPath))
 		// Create file
 		logrus.Infof("Creating file at %s", path)
-		f, err := local.CreateFileAndDirs(fs, path)
+		f, err := utils.CreateFileAndDirs(fs, path)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
 		return t.Execute(f, c)
 	}
-	return local.WalkDir(wt.Filesystem, templateDir, applyTemplate)
+	return utils.WalkDir(wt.Filesystem, templateDir, applyTemplate)
 }
 
 func (c ChartsRepositoryConfiguration) String() string {

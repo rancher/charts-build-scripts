@@ -1,4 +1,4 @@
-package local
+package utils
 
 import (
 	"fmt"
@@ -19,10 +19,10 @@ func GetRootPath(path string) (string, error) {
 
 // MovePath takes a path that is contained within fromDir and returns the same path contained within toDir
 func MovePath(path string, fromDir string, toDir string) (string, error) {
-	relativePath := strings.TrimPrefix(path, fromDir)
-	if relativePath == path {
+	if !strings.HasPrefix(path, fromDir) {
 		return "", fmt.Errorf("Path %s does not contain directory %s", path, fromDir)
 	}
+	relativePath := strings.TrimPrefix(path, fromDir+"/")
 	return filepath.Join(toDir, relativePath), nil
 }
 

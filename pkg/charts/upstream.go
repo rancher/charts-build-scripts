@@ -1,14 +1,16 @@
-package chart
+package charts
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-git/v5"
 	"github.com/rancher/charts-build-scripts/pkg/config"
-	"github.com/rancher/charts-build-scripts/pkg/local"
+	"github.com/rancher/charts-build-scripts/pkg/options"
+	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -21,7 +23,7 @@ type Upstream interface {
 	// Pull grabs the Helm chart and places it on a path in the filesystem
 	Pull(fs billy.Filesystem, path string) error
 	// GetOptions returns the options used to construct this Upstream
-	GetOptions() UpstreamOptions
+	GetOptions() options.UpstreamOptions
 }
 
 // UpstreamRepository represents a particular Helm chart within a Git repository
@@ -40,23 +42,42 @@ func (u UpstreamRepository) Pull(fs billy.Filesystem, path string) error {
 	if u.Commit == nil {
 		return fmt.Errorf("If you are pulling from a Git repository, a commit is required in the package.yaml")
 	}
-	_, err := git.PlainClone(local.GetAbsPath(fs, path), false, &git.CloneOptions{
+	_, err := git.PlainClone(utils.GetAbsPath(fs, path), false, &git.CloneOptions{
 		URL: u.GetHTTPSURL(),
 	})
 	if err != nil {
 		return err
 	}
-	if err := local.RemoveAll(fs, filepath.Join(path, ".git")); err != nil {
+	if err := utils.RemoveAll(fs, filepath.Join(path, ".git")); err != nil {
 		return err
+	}
+	if u.Subdirectory != nil && len(*u.Subdirectory) > 0 {
+		absTempDir, err := ioutil.TempDir(fs.Root(), "pull-from-upstream")
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(absTempDir)
+		tempDir, err := utils.GetRelativePath(fs, absTempDir)
+		if err != nil {
+			return err
+		}
+		if err := utils.CopyDir(fs, path, tempDir); err != nil {
+			return err
+		}
+		if err := utils.RemoveAll(fs, path); err != nil {
+			return nil
+		}
+		if err := utils.CopyDir(fs, filepath.Join(tempDir, *u.Subdirectory), path); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 // GetOptions returns the path used to construct this upstream
-func (u UpstreamRepository) GetOptions() UpstreamOptions {
-	url := u.GetHTTPSURL()
-	return UpstreamOptions{
-		URL:          &url,
+func (u UpstreamRepository) GetOptions() options.UpstreamOptions {
+	return options.UpstreamOptions{
+		URL:          u.GetHTTPSURL(),
 		Subdirectory: u.Subdirectory,
 		Commit:       u.Commit,
 	}
@@ -84,28 +105,28 @@ type UpstreamChartArchive struct {
 // Pull grabs the Helm chart from the chart archive at the URL specified
 func (u UpstreamChartArchive) Pull(fs billy.Filesystem, path string) error {
 	logrus.Infof("Pulling %s from upstream into %s", u, path)
-	if err := local.GetChartArchive(fs, u.URL, chartArchiveFilepath); err != nil {
+	if err := utils.GetChartArchive(fs, u.URL, chartArchiveFilepath); err != nil {
 		return err
 	}
 	defer fs.Remove(chartArchiveFilepath)
 	if err := fs.MkdirAll(path, os.ModePerm); err != nil {
 		return err
 	}
-	defer local.PruneEmptyDirsInPath(fs, path)
+	defer utils.PruneEmptyDirsInPath(fs, path)
 	var subdirectory string
 	if u.Subdirectory != nil {
 		subdirectory = *u.Subdirectory
 	}
-	if err := local.UnarchiveTgz(fs, chartArchiveFilepath, subdirectory, path, true); err != nil {
+	if err := utils.UnarchiveTgz(fs, chartArchiveFilepath, subdirectory, path, true); err != nil {
 		return err
 	}
 	return nil
 }
 
 // GetOptions returns the path used to construct this upstream
-func (u UpstreamChartArchive) GetOptions() UpstreamOptions {
-	return UpstreamOptions{
-		URL: &u.URL,
+func (u UpstreamChartArchive) GetOptions() options.UpstreamOptions {
+	return options.UpstreamOptions{
+		URL: u.URL,
 	}
 }
 
@@ -125,30 +146,25 @@ type UpstreamLocal struct {
 
 // Pull grabs the Helm chart by preparing the package itself
 func (u UpstreamLocal) Pull(fs billy.Filesystem, path string) error {
-	// TODO(aiyengar2): need to implement
-	repoPath, err := os.Getwd()
+	repoRoot, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("Encountered error while trying to get repository path: %s", err)
 	}
-	pkgs, err := GetPackages(repoPath, u.Name, BranchOptions{})
+	repoFs := utils.GetFilesystem(repoRoot)
+	pkg, err := GetPackage(repoFs, u.Name, options.BranchOptions{})
 	if err != nil {
-		return fmt.Errorf("Encountered error while trying to get packages from repository path: %s", err)
+		return err
 	}
-	if len(pkgs) == 0 {
-		return fmt.Errorf("Unable to pull packages/%s since it does not exist", u.Name)
-	}
-	pkg := pkgs[0]
 	if err := pkg.Prepare(); err != nil {
 		return err
 	}
-	return os.Rename(local.GetAbsPath(pkg.fs, PackageChartsDirpath), local.GetAbsPath(fs, path))
+	return os.Rename(utils.GetAbsPath(pkg.fs, pkg.WorkingDir), utils.GetAbsPath(fs, path))
 }
 
 // GetOptions returns the path used to construct this upstream
-func (u UpstreamLocal) GetOptions() UpstreamOptions {
-	name := fmt.Sprintf("packages/%s", u.Name)
-	return UpstreamOptions{
-		URL: &name,
+func (u UpstreamLocal) GetOptions() options.UpstreamOptions {
+	return options.UpstreamOptions{
+		URL: fmt.Sprintf("packages/%s", u.Name),
 	}
 }
 

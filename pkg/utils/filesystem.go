@@ -27,7 +27,10 @@ func GetAbsPath(fs billy.Filesystem, path string) string {
 
 // GetRelativePath returns the relative path given the absolute path within a filesystem
 func GetRelativePath(fs billy.Filesystem, abspath string) (string, error) {
-	fsRoot := fmt.Sprintf("%s/", fs.Root())
+	if abspath == "" {
+		return fs.Root(), nil
+	}
+	fsRoot := fmt.Sprintf("%s/", filepath.Clean(fs.Root()))
 	relativePath := strings.TrimPrefix(abspath, fsRoot)
 	if relativePath == abspath {
 		return "", fmt.Errorf("Cannot get relative path; path %s does not exist within %s", abspath, fsRoot)
@@ -65,13 +68,20 @@ func CreateFileAndDirs(fs billy.Filesystem, path string) (billy.File, error) {
 
 // RemoveAll removes all files and directories located at the path
 func RemoveAll(fs billy.Filesystem, path string) error {
-	absPath := GetAbsPath(fs, path)
-	return os.RemoveAll(absPath)
+	return os.RemoveAll(GetAbsPath(fs, path))
 }
 
 // PruneEmptyDirsInPath removes all empty directories located within the path
 func PruneEmptyDirsInPath(fs billy.Filesystem, path string) error {
 	for len(path) > 0 {
+		exists, err := PathExists(fs, path)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			path = filepath.Dir(path)
+			continue
+		}
 		empty, err := IsEmptyDir(fs, path)
 		if err != nil {
 			return err
@@ -246,10 +256,15 @@ type RelativePathFunc func(fs billy.Filesystem, path string, isDir bool) error
 type RelativePathPairFunc func(fs billy.Filesystem, leftPath, rightPath string, isDir bool) error
 
 // WalkDir walks through a directory given by dirpath rooted in the filesystem and performs doFunc at the path
+// The path on each call will be relative to the filesystem provided.
 func WalkDir(fs billy.Filesystem, dirpath string, doFunc RelativePathFunc) error {
 	// Create all necessary directories
 	return filepath.Walk(GetAbsPath(fs, dirpath), func(abspath string, info os.FileInfo, err error) error {
 		if err != nil {
+			if _, ok := err.(*os.PathError); ok {
+				// Path does not exist anymore, so do not walk it
+				return nil
+			}
 			return err
 		}
 		path, err := GetRelativePath(fs, abspath)
@@ -276,6 +291,36 @@ func CopyDir(fs billy.Filesystem, srcDir string, dstDir string) error {
 		}
 		return ioutil.WriteFile(GetAbsPath(fs, dstPath), data, os.ModePerm)
 	})
+}
+
+// MakeSubdirectoryRoot makes a particular subdirectory of a path its main directory
+func MakeSubdirectoryRoot(fs billy.Filesystem, path, subdirectory string) error {
+	exists, err := PathExists(fs, filepath.Join(path, subdirectory))
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("Subdirectory %s does not exist in path %s in filesystem %s", subdirectory, path, fs.Root())
+	}
+	absTempDir, err := ioutil.TempDir(fs.Root(), "make-subdirectory-root")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(absTempDir)
+	tempDir, err := GetRelativePath(fs, absTempDir)
+	if err != nil {
+		return err
+	}
+	if err := CopyDir(fs, filepath.Join(path, subdirectory), tempDir); err != nil {
+		return err
+	}
+	if err := RemoveAll(fs, path); err != nil {
+		return nil
+	}
+	if err := os.Rename(absTempDir, GetAbsPath(fs, path)); err != nil {
+		return err
+	}
+	return nil
 }
 
 // CompareDirs compares the contents of the directory at fromDirpath against that of the directory at toDirpath within a given filesystem
@@ -314,4 +359,23 @@ func CompareDirs(fs billy.Filesystem, leftDirpath, rightDirpath string, leftOnly
 		return err
 	}
 	return WalkDir(fs, rightDirpath, applyRightOnly)
+}
+
+// GetRootPath returns the first directory in a given path
+func GetRootPath(path string) (string, error) {
+	rootPathList := strings.SplitN(path, "/", 2)
+	if len(rootPathList) == 0 {
+		return "", fmt.Errorf("Unable to get root path of %s", path)
+	}
+	return filepath.Clean(rootPathList[0]), nil
+}
+
+// MovePath takes a path that is contained within fromDir and returns the same path contained within toDir
+func MovePath(path string, fromDir string, toDir string) (string, error) {
+	if !strings.HasPrefix(path, fromDir) {
+		return "", fmt.Errorf("Path %s does not contain directory %s", path, fromDir)
+	}
+	relativePath := strings.TrimPrefix(path, fromDir)
+	relativePath = strings.TrimPrefix(relativePath, "/")
+	return filepath.Join(toDir, relativePath), nil
 }

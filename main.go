@@ -9,8 +9,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/google/go-github/github"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
-	"github.com/rancher/charts-build-scripts/pkg/config"
-	"github.com/rancher/charts-build-scripts/pkg/options"
+	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
@@ -18,21 +17,18 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const (
+	// DefaultChartsRepositoryConfigurationFile is the default path to look at for the configuration file
+	DefaultChartsRepositoryConfigurationFile = "configuration.yaml"
+	// DefaultChartEnvironmentVariable is the default environment variable to pull a specific chart from
+	DefaultChartEnvironmentVariable = "CHART"
+)
+
 var (
 	// Version represents the current version of the chart build scripts
 	Version = "v0.0.0-dev"
 	// GitCommit represents the latest commit when building this script
 	GitCommit = "HEAD"
-
-	// SourceBranchOptions represents the default Options that should be set when viewing packages from the source branch
-	SourceBranchOptions = options.BranchOptions{
-		ExportOptions: options.ExportOptions{
-			PreventOverwrite: false,
-		},
-		CleanOptions: options.CleanOptions{
-			PreventCleanAssets: false,
-		},
-	}
 
 	// ChartsRepoConfigFile represents a file containing the configuration of the charts repository
 	ChartsRepoConfigFile string
@@ -51,9 +47,9 @@ func main() {
 		cli.StringFlag{
 			Name:        "repo-config,r",
 			Usage:       "YAML configuration of the repository that will contain the forked Helm charts",
-			Required:    true,
 			TakesFile:   true,
 			Destination: &ChartsRepoConfigFile,
+			Value:       DefaultChartsRepositoryConfigurationFile,
 		},
 	}
 	app.Commands = []cli.Command{
@@ -81,6 +77,7 @@ func main() {
 					Usage:       "A specific chart that you would like to run prepare on",
 					Required:    false,
 					Destination: &CurrentChart,
+					EnvVar:      DefaultChartEnvironmentVariable,
 				},
 			},
 		},
@@ -94,6 +91,7 @@ func main() {
 					Usage:       "A specific chart that you would like to run prepare on",
 					Required:    false,
 					Destination: &CurrentChart,
+					EnvVar:      DefaultChartEnvironmentVariable,
 				},
 			},
 		},
@@ -107,6 +105,7 @@ func main() {
 					Usage:       "A specific chart that you would like to run prepare on",
 					Required:    false,
 					Destination: &CurrentChart,
+					EnvVar:      DefaultChartEnvironmentVariable,
 				},
 			},
 		},
@@ -120,8 +119,33 @@ func main() {
 					Usage:       "A specific chart that you would like to run prepare on",
 					Required:    false,
 					Destination: &CurrentChart,
+					EnvVar:      DefaultChartEnvironmentVariable,
 				},
 			},
+		},
+		{
+			Name:   "rebase",
+			Usage:  "Provide a rebase.yaml to generate drift against your main chart",
+			Action: rebaseChart,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:        "chart,c",
+					Usage:       "A specific chart that you would like to run prepare on",
+					Required:    false,
+					Destination: &CurrentChart,
+					EnvVar:      DefaultChartEnvironmentVariable,
+				},
+			},
+		},
+		{
+			Name:   "sync",
+			Usage:  "Pull in new generated assets from branches that the configuration.yaml has set your current branch to sync with",
+			Action: synchronizeRepo,
+		},
+		{
+			Name:   "validate",
+			Usage:  "Ensure a sync will not overwrite generated assets in branches that the configuration.yaml wants you to validate against",
+			Action: validateRepo,
 		},
 	}
 
@@ -143,7 +167,7 @@ func initializeChartsRepo(c *cli.Context) {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	if err = validateRepoHasConfigAsRemote(repo, &config.ChartsScriptsRepository); err != nil {
+	if err = validateRepoHasConfigAsRemote(repo, &repository.ChartsScriptsRepository); err != nil {
 		logrus.Fatal(err)
 	}
 	if err = chartsRepo.Init(ctx, client); err != nil {
@@ -161,15 +185,15 @@ func prepareCharts(c *cli.Context) {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	if err = validateRepoHasConfigAsRemote(repo, &chartsRepo.RepositoryConfiguration); err != nil {
+	if err = validateRepoHasConfigAsRemote(repo, &chartsRepo.GithubConfiguration); err != nil {
 		logrus.Fatal(err)
 	}
-	if err = validateRepoPointingToBranch(repo, chartsRepo.BranchConfiguration.Source); err != nil {
-		logrus.Fatal(err)
-	}
-	packages, err := charts.GetPackages(path, CurrentChart, SourceBranchOptions)
+	packages, err := charts.GetPackages(path, CurrentChart)
 	if err != nil {
 		logrus.Fatal(err)
+	}
+	if len(packages) == 0 {
+		logrus.Fatalf("Could not find any packages in packages/")
 	}
 	for _, p := range packages {
 		if err = p.Prepare(); err != nil {
@@ -188,15 +212,15 @@ func generatePatch(c *cli.Context) {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	if err = validateRepoHasConfigAsRemote(repo, &chartsRepo.RepositoryConfiguration); err != nil {
+	if err = validateRepoHasConfigAsRemote(repo, &chartsRepo.GithubConfiguration); err != nil {
 		logrus.Fatal(err)
 	}
-	if err = validateRepoPointingToBranch(repo, chartsRepo.BranchConfiguration.Source); err != nil {
-		logrus.Fatal(err)
-	}
-	packages, err := charts.GetPackages(path, CurrentChart, SourceBranchOptions)
+	packages, err := charts.GetPackages(path, CurrentChart)
 	if err != nil {
 		logrus.Fatal(err)
+	}
+	if len(packages) == 0 {
+		logrus.Fatalf("Could not find any packages in packages/")
 	}
 	for _, p := range packages {
 		if err = p.GeneratePatch(); err != nil {
@@ -215,15 +239,15 @@ func generateCharts(c *cli.Context) {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	if err = validateRepoHasConfigAsRemote(repo, &chartsRepo.RepositoryConfiguration); err != nil {
+	if err = validateRepoHasConfigAsRemote(repo, &chartsRepo.GithubConfiguration); err != nil {
 		logrus.Fatal(err)
 	}
-	if err = validateRepoPointingToBranch(repo, chartsRepo.BranchConfiguration.Source); err != nil {
-		logrus.Fatal(err)
-	}
-	packages, err := charts.GetPackages(path, CurrentChart, SourceBranchOptions)
+	packages, err := charts.GetPackages(path, CurrentChart)
 	if err != nil {
 		logrus.Fatal(err)
+	}
+	if len(packages) == 0 {
+		logrus.Fatalf("Could not find any packages in packages/")
 	}
 	for _, p := range packages {
 		if err = p.GenerateCharts(); err != nil {
@@ -242,15 +266,18 @@ func cleanRepository(c *cli.Context) {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	if err = validateRepoHasConfigAsRemote(repo, &chartsRepo.RepositoryConfiguration); err != nil {
+	if err = validateRepoHasConfigAsRemote(repo, &chartsRepo.GithubConfiguration); err != nil {
 		logrus.Fatal(err)
 	}
-	if err = validateRepoPointingToBranch(repo, chartsRepo.BranchConfiguration.Source); err != nil {
+	if err = validateRepoPointingToBranch(repo, chartsRepo.BranchesConfiguration.Source.Name); err != nil {
 		logrus.Fatal(err)
 	}
-	packages, err := charts.GetPackages(path, CurrentChart, SourceBranchOptions)
+	packages, err := charts.GetPackages(path, CurrentChart)
 	if err != nil {
 		logrus.Fatal(err)
+	}
+	if len(packages) == 0 {
+		logrus.Fatalf("Could not find any packages in packages/")
 	}
 	for _, p := range packages {
 		if err = p.Clean(); err != nil {
@@ -259,23 +286,150 @@ func cleanRepository(c *cli.Context) {
 	}
 }
 
-func parseConfig() *config.ChartsRepositoryConfiguration {
+func rebaseChart(c *cli.Context) {
+	chartsRepo := parseConfig()
+	path, err := os.Getwd()
+	if err != nil {
+		logrus.Fatalf("Unable to get current working directory: %s", err)
+	}
+	repo, err := utils.GetRepo(path)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	if err = validateRepoHasConfigAsRemote(repo, &chartsRepo.GithubConfiguration); err != nil {
+		logrus.Fatal(err)
+	}
+	packages, err := charts.GetPackages(path, CurrentChart)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	if len(packages) == 0 {
+		logrus.Fatalf("Could not find any packages in packages/")
+	}
+	if len(packages) > 1 {
+		logrus.Fatalf("Can only run rebase on exactly one package")
+	}
+	p := packages[0]
+	if err = p.GenerateRebasePatch(); err != nil {
+		logrus.Fatal(err)
+	}
+}
+
+func synchronizeRepo(c *cli.Context) {
+	chartsRepo := parseConfig()
+	path, err := os.Getwd()
+	if err != nil {
+		logrus.Fatalf("Unable to get current working directory: %s", err)
+	}
+	repo, err := utils.GetRepo(path)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	if err = validateRepoHasConfigAsRemote(repo, &chartsRepo.GithubConfiguration); err != nil {
+		logrus.Fatal(err)
+	}
+	// Get the branchConfig of the branch to sync with
+	branch, err := utils.GetCurrentBranch(repo)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	// Check if git is clean
+	wt, err := repo.Worktree()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	status, err := wt.Status()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	if !status.IsClean() {
+		logrus.Fatalf("Current repository is not clean:\n%s", status)
+	}
+	var syncOptions repository.SyncOptions
+	switch branch {
+	case chartsRepo.BranchesConfiguration.Staging.Name:
+		syncOptions = chartsRepo.BranchesConfiguration.Staging.Options.SyncOptions
+	case chartsRepo.BranchesConfiguration.Live.Name:
+		syncOptions = chartsRepo.BranchesConfiguration.Live.Options.SyncOptions
+	default:
+		logrus.Fatalf("Current branch %s cannot be synced. Please switch to either %s (staging) or %s (live) to sync", branch, chartsRepo.BranchesConfiguration.Staging.Name, chartsRepo.BranchesConfiguration.Live.Name)
+	}
+	// Synchronize
+	for _, compareGeneratedAssetsOptions := range syncOptions {
+		logrus.Infof("Synchronizing with charts that will be generated from %s", compareGeneratedAssetsOptions.WithBranch)
+		if err := charts.SynchronizeRepository(wt.Filesystem, chartsRepo.GithubConfiguration, compareGeneratedAssetsOptions); err != nil {
+			logrus.Fatalf("Failed to synchronize with %s: %s", compareGeneratedAssetsOptions.WithBranch, err)
+		}
+		logrus.Infof("Successfully synchronized with %s!", compareGeneratedAssetsOptions.WithBranch)
+	}
+}
+
+func validateRepo(c *cli.Context) {
+	chartsRepo := parseConfig()
+	path, err := os.Getwd()
+	if err != nil {
+		logrus.Fatalf("Unable to get current working directory: %s", err)
+	}
+	repo, err := utils.GetRepo(path)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	if err = validateRepoHasConfigAsRemote(repo, &chartsRepo.GithubConfiguration); err != nil {
+		logrus.Fatal(err)
+	}
+	// Get the branchConfig of the branch to sync with
+	branch, err := utils.GetCurrentBranch(repo)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	// Check if git is clean
+	wt, err := repo.Worktree()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	status, err := wt.Status()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	if !status.IsClean() {
+		logrus.Fatalf("Current repository is not clean:\n%s", status)
+	}
+	var validateOptions repository.ValidateOptions
+	switch branch {
+	case chartsRepo.BranchesConfiguration.Source.Name:
+		validateOptions = chartsRepo.BranchesConfiguration.Source.Options.ValidateOptions
+	case chartsRepo.BranchesConfiguration.Staging.Name:
+		validateOptions = chartsRepo.BranchesConfiguration.Staging.Options.ValidateOptions
+	default:
+		logrus.Fatalf("Current branch %s cannot be validated. Please switch to either %s (source) or %s (staging) to sync", branch, chartsRepo.BranchesConfiguration.Source.Name, chartsRepo.BranchesConfiguration.Staging.Name)
+	}
+	// Synchronize
+	for _, compareGeneratedAssetsOptions := range validateOptions {
+		logrus.Infof("Validating against released charts in %s", compareGeneratedAssetsOptions.WithBranch)
+		if err := charts.ValidateRepository(wt.Filesystem, chartsRepo.GithubConfiguration, compareGeneratedAssetsOptions); err != nil {
+			logrus.Fatalf("Failed to validate against %s: %s", compareGeneratedAssetsOptions.WithBranch, err)
+		}
+		logrus.Infof("Successfully validated against %s!", compareGeneratedAssetsOptions.WithBranch)
+	}
+}
+
+func parseConfig() *repository.ChartsRepositoryConfiguration {
 	configYaml, err := ioutil.ReadFile(ChartsRepoConfigFile)
 	if err != nil {
 		logrus.Fatalf("Unable to find configuration file: %s", err)
 	}
-	chartsRepo := config.ChartsRepositoryConfiguration{}
+	chartsRepo := repository.ChartsRepositoryConfiguration{}
 	if err := yaml.Unmarshal(configYaml, &chartsRepo); err != nil {
 		logrus.Fatalf("Unable to unmarshall configuration file: %s", err)
 	}
 	return &chartsRepo
 }
 
-func validateRepoHasConfigAsRemote(repo *git.Repository, repoConfig *config.RepositoryConfiguration) error {
+func validateRepoHasConfigAsRemote(repo *git.Repository, repoConfig *repository.GithubConfiguration) error {
 	_, err := repoConfig.GetRemoteName(repo)
-	if err == config.ErrRemoteDoesNotExist {
+	if err == repository.ErrRemoteDoesNotExist {
 		// TODO(aiyengar2): need to change to rancher
-		err = fmt.Errorf("This command is only intended to be called from a repository pointing to %s", config.ChartsScriptsRepository)
+		err = fmt.Errorf("This command is only intended to be called from a repository pointing to %s", repository.ChartsScriptsRepository)
 	}
 	return err
 }
@@ -291,7 +445,7 @@ func validateRepoPointingToBranch(repo *git.Repository, branch string) error {
 	}
 	currentBranch := refName.Short()
 	if currentBranch != branch {
-		return fmt.Errorf("Cannot execute command on current branch (%s). You must be in the source branch (%s) to run this command", currentBranch, branch)
+		return fmt.Errorf("Cannot execute command on current branch (%s). You must be in %s to run this command", currentBranch, branch)
 	}
 	return nil
 }

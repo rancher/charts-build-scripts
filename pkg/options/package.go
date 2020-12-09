@@ -15,6 +15,8 @@ import (
 type PackageOptions struct {
 	// PackageVersion represents the current version of the package. It needs to be incremented whenever there are changes
 	PackageVersion int `yaml:"packageVersion" default:"0"`
+	// ReleaseCandidateVersion represents the version of the release candidate for a given package.
+	ReleaseCandidateVersion int `yaml:"releaseCandidateVersion"`
 	// MainChartOptions represent options presented to the user to configure the main chart
 	MainChartOptions ChartOptions `yaml:",inline"`
 	// AdditionalChartOptions represent options presented to the user to configure any additional charts

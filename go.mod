@@ -16,6 +16,7 @@ require (
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.7.0
 	github.com/urfave/cli v1.22.2
+	golang.org/x/mod v0.3.0
 	golang.org/x/oauth2 v0.0.0-20201109201403-9fd604954f58
 	golang.org/x/sys v0.0.0-20201015000850-e3ed0017c211 // indirect
 	gopkg.in/yaml.v2 v2.3.0

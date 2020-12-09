@@ -21,7 +21,7 @@ func GeneratePatch(fs billy.Filesystem, patchPath, srcPath, dstPath string) (boo
 	}
 
 	var buf bytes.Buffer
-	cmd := exec.Command(pathToDiffCmd, "-uN", srcPath, dstPath)
+	cmd := exec.Command(pathToDiffCmd, "-uN", "-x *.tgz", "-x *.lock", srcPath, dstPath)
 	cmd.Dir = fs.Root()
 	cmd.Stdout = &buf
 

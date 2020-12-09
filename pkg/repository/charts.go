@@ -1,4 +1,4 @@
-package config
+package repository
 
 import (
 	"context"
@@ -21,27 +21,36 @@ import (
 // ChartsRepositoryConfiguration represents the configuration of a repository that contains forked Helm charts
 type ChartsRepositoryConfiguration struct {
 	// Repository configuration represents the configuration of the charts repository
-	RepositoryConfiguration `yaml:"repository"`
-	// BranchConfiguration represents any special roles that certain branches hold
-	BranchConfiguration `yaml:"branches"`
+	GithubConfiguration `yaml:"repository"`
+	// BranchesConfiguration represents any special roles that certain branches hold
+	BranchesConfiguration `yaml:",inline"`
 	// HelmRepoConfiguration represents the configuration of the Helm Repository that exposes your charts
 	HelmRepoConfiguration `yaml:"helmRepo"`
 }
 
+func (c ChartsRepositoryConfiguration) String() string {
+	return fmt.Sprintf("%s[%s]", c.GithubConfiguration, c.BranchesConfiguration)
+}
+
+// HelmRepoConfiguration represents the configuration of the Helm Repository that exposes your charts
+type HelmRepoConfiguration struct {
+	URL string `yaml:"url"`
+}
+
 // Init checks whether a charts repository exists and is valid or creates it with a local copy
 func (c ChartsRepositoryConfiguration) Init(ctx context.Context, client *github.Client) error {
-	logrus.Infof("Checking if the repository exists: %s", c.RepositoryConfiguration)
-	exists, err := c.RepositoryConfiguration.Exists(ctx, client)
+	logrus.Infof("Checking if the repository exists: %s", c.GithubConfiguration)
+	exists, err := c.GithubConfiguration.Exists(ctx, client)
 	if err != nil {
 		return err
 	}
 	if !exists {
 		logrus.Infof("Repository does not exist on Github. Initializing the repository using Github credentials")
-		if err = c.RepositoryConfiguration.Create(ctx, client); err != nil {
+		if err = c.GithubConfiguration.Create(ctx, client); err != nil {
 			return err
 		}
 		// Make changes to a local copy in a temporary directory to initialize the branches
-		tempDir, err := ioutil.TempDir("", c.RepositoryConfiguration.Name)
+		tempDir, err := ioutil.TempDir("", c.GithubConfiguration.Name)
 		defer os.RemoveAll(tempDir)
 		if err != nil {
 			return err
@@ -56,7 +65,7 @@ func (c ChartsRepositoryConfiguration) Init(ctx context.Context, client *github.
 		}
 		_, err = repo.CreateRemote(&config.RemoteConfig{
 			Name: "upstream",
-			URLs: []string{c.RepositoryConfiguration.GetHTTPSURL(), c.RepositoryConfiguration.GetSSHURL()},
+			URLs: []string{c.GithubConfiguration.GetHTTPSURL(), c.GithubConfiguration.GetSSHURL()},
 		})
 		if err != nil {
 			return err
@@ -90,17 +99,17 @@ func (c ChartsRepositoryConfiguration) initBranches(repo *git.Repository) error 
 	}
 
 	logrus.Infof("Initializing the source branch %s", c.Source)
-	if err = c.prepareBranch(repo, hash, c.Source, path.Join(cwd, "branch-templates/source")); err != nil {
+	if err = c.prepareBranch(repo, hash, c.Source.Name, path.Join(cwd, "branch-templates/source")); err != nil {
 		return err
 	}
 
 	logrus.Infof("Initializing the staging branch %s", c.Staging)
-	if err = c.prepareBranch(repo, hash, c.Staging, path.Join(cwd, "branch-templates/staging")); err != nil {
+	if err = c.prepareBranch(repo, hash, c.Staging.Name, path.Join(cwd, "branch-templates/staging")); err != nil {
 		return err
 	}
 
 	logrus.Infof("Initializing the live branch %s", c.Live)
-	if err = c.prepareBranch(repo, hash, c.Live, path.Join(cwd, "branch-templates/live")); err != nil {
+	if err = c.prepareBranch(repo, hash, c.Live.Name, path.Join(cwd, "branch-templates/live")); err != nil {
 		return err
 	}
 	return nil
@@ -150,22 +159,4 @@ func (c ChartsRepositoryConfiguration) applyTemplate(repo *git.Repository, templ
 		return t.Execute(f, c)
 	}
 	return utils.WalkDir(wt.Filesystem, templateDir, applyTemplate)
-}
-
-func (c ChartsRepositoryConfiguration) String() string {
-	return fmt.Sprintf("%s[%s]", c.RepositoryConfiguration, c.BranchConfiguration)
-}
-
-// BranchConfiguration represents any special roles that certain branches hold in a charts repository
-type BranchConfiguration struct {
-	// Source is where developers should push changes to
-	Source string `yaml:"source"`
-	// Staging is where merged changes should be tested before a release
-	Staging string `yaml:"staging"`
-	// Live contains assets that have already been released
-	Live string `yaml:"live"`
-}
-
-func (b BranchConfiguration) String() string {
-	return fmt.Sprintf("source=%s,staging=%s,live=%s", b.Source, b.Staging, b.Live)
 }

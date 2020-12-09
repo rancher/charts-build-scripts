@@ -32,6 +32,25 @@ func CreateBranch(repo *git.Repository, branch string, hash plumbing.Hash) error
 	return repo.Storer.SetReference(hashRef)
 }
 
+// GetCurrentBranch gets the current branch of the repositry or returns an error
+func GetCurrentBranch(repo *git.Repository) (string, error) {
+	branchRefName, err := GetCurrentBranchRefName(repo)
+	return branchRefName.Short(), err
+}
+
+// GetCurrentBranchRefName gets the current branch of the repositry or returns an error
+func GetCurrentBranchRefName(repo *git.Repository) (plumbing.ReferenceName, error) {
+	headRef, err := repo.Head()
+	if err != nil {
+		return "", err
+	}
+	branchRefName := headRef.Name()
+	if !branchRefName.IsBranch() {
+		return "", fmt.Errorf("head does not point to branch")
+	}
+	return branchRefName, nil
+}
+
 // CheckoutBranch checks out the branch provided in the given repository or returns an error
 func CheckoutBranch(repo *git.Repository, branch string) error {
 	wt, err := repo.Worktree()
@@ -98,4 +117,14 @@ func CreateInitialCommit(repo *git.Repository) error {
 		return err
 	}
 	return CommitAll(repo, "Create initial commit")
+}
+
+// GetLocalBranchRefName returns the reference name of a given local branch
+func GetLocalBranchRefName(branch string) plumbing.ReferenceName {
+	return plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", branch))
+}
+
+// GetRemoteBranchRefName returns the reference name of a given remote branch
+func GetRemoteBranchRefName(branch, remote string) plumbing.ReferenceName {
+	return plumbing.ReferenceName(fmt.Sprintf("refs/remote/%s/%s", remote, branch))
 }

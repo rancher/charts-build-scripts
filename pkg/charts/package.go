@@ -2,13 +2,12 @@ package charts
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/utils"
-	helmRepo "helm.sh/helm/v3/pkg/repo"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -24,6 +23,9 @@ const (
 	// PackageOptionsFilepath is the name of a file that contains information about how to prepare your package
 	// The expected structure of this file is one that can be marshalled into a PackageOptions struct
 	PackageOptionsFilepath = "package.yaml"
+
+	// RebasePackageOptionsFilepath is the name of a file that contains information about how to prepare your new upstream
+	RebasePackageOptionsFilepath = "rebase.yaml"
 )
 
 // Package represents the configuration of a particular forked Helm chart
@@ -34,24 +36,24 @@ type Package struct {
 	Name string `yaml:"name"`
 	// PackageVersion represents the current version of the package. It needs to be incremented whenever there are changes
 	PackageVersion int `yaml:"packageVersion"`
-	// BranchOptions represents any options that are configured per branch for a package
-	BranchOptions options.BranchOptions `yaml:",inline"`
+	// ReleaseCandidateVersion represents the version of the release candidate for a given package.
+	ReleaseCandidateVersion int `yaml:"releaseCandidateVersion"`
 	// AdditionalCharts are other charts that should be packaged together with this
 	AdditionalCharts []AdditionalChart `yaml:"additionalCharts,omitempty"`
 
 	// fs is a filesystem rooted at the package
 	fs billy.Filesystem
-	// repoFs is a filesystem rooted at the repository containing the package
-	repoFs billy.Filesystem
+	// rootFs is a filesystem rooted at the repository containing the package
+	rootFs billy.Filesystem
 }
 
 // Prepare pulls in a package based on the spec to the local git repository
 func (p *Package) Prepare() error {
-	if err := p.Chart.Prepare(p.fs); err != nil {
+	if err := p.Chart.Prepare(p.rootFs, p.fs); err != nil {
 		return fmt.Errorf("Encountered error while preparing main chart: %s", err)
 	}
 	for _, additionalChart := range p.AdditionalCharts {
-		if err := additionalChart.Prepare(p.fs); err != nil {
+		if err := additionalChart.Prepare(p.rootFs, p.fs); err != nil {
 			return fmt.Errorf("Encountered error while preparing additional chart %s: %s", additionalChart.WorkingDir, err)
 		}
 		if err := additionalChart.ApplyMainChanges(p.fs); err != nil {
@@ -68,14 +70,14 @@ func (p *Package) GeneratePatch() error {
 			return fmt.Errorf("Encountered error while reverting changes from %s to main chart: %s", additionalChart.WorkingDir, err)
 		}
 	}
-	if err := p.Chart.GeneratePatch(p.fs); err != nil {
+	if err := p.Chart.GeneratePatch(p.rootFs, p.fs); err != nil {
 		return fmt.Errorf("Encountered error while generating patch on main chart: %s", err)
 	}
 	for _, additionalChart := range p.AdditionalCharts {
 		if err := additionalChart.ApplyMainChanges(p.fs); err != nil {
 			return fmt.Errorf("Encountered error while applying main changes from %s to main chart: %s", additionalChart.WorkingDir, err)
 		}
-		if err := additionalChart.GeneratePatch(p.fs); err != nil {
+		if err := additionalChart.GeneratePatch(p.rootFs, p.fs); err != nil {
 			return fmt.Errorf("Encountered error while generating patch on additional chart %s: %s", additionalChart.WorkingDir, err)
 		}
 	}
@@ -90,56 +92,101 @@ func (p *Package) GenerateCharts() error {
 	// Export Helm charts
 	packageAssetsDirpath := filepath.Join(RepositoryAssetsDirpath, p.Name)
 	packageChartsDirpath := filepath.Join(RepositoryChartsDirpath, p.Name)
-	err := p.Chart.GenerateChart(p.fs, p.PackageVersion, p.repoFs, packageAssetsDirpath, packageChartsDirpath, p.BranchOptions.ExportOptions)
+	// Add the ReleaseCandidateVersion to the PackageVersion and format
+	chartVersion := fmt.Sprintf("%02d-rc%02d", p.PackageVersion, p.ReleaseCandidateVersion)
+	err := p.Chart.GenerateChart(p.rootFs, p.fs, chartVersion, packageAssetsDirpath, packageChartsDirpath)
 	if err != nil {
 		return fmt.Errorf("Encountered error while exporting main chart: %s", err)
 	}
 	for _, additionalChart := range p.AdditionalCharts {
-		err = additionalChart.GenerateChart(p.fs, p.PackageVersion, p.repoFs, packageAssetsDirpath, packageChartsDirpath, p.BranchOptions.ExportOptions)
+		err = additionalChart.GenerateChart(p.rootFs, p.fs, chartVersion, packageAssetsDirpath, packageChartsDirpath)
 		if err != nil {
 			return fmt.Errorf("Encountered error while exporting %s: %s", additionalChart.WorkingDir, err)
 		}
 	}
-	return p.CreateOrUpdateHelmIndex()
+	if err := CreateOrUpdateHelmIndex(p.rootFs); err != nil {
+		return err
+	}
+	return p.Clean()
 }
 
-// CreateOrUpdateHelmIndex either creates or updates the index.yaml for the repository this package is within
-func (p *Package) CreateOrUpdateHelmIndex() error {
-	absRepositoryAssetsDirpath := utils.GetAbsPath(p.repoFs, RepositoryAssetsDirpath)
-	absRepositoryHelmIndexFilepath := utils.GetAbsPath(p.repoFs, RepositoryHelmIndexFilepath)
-	helmIndexFile, err := helmRepo.IndexDirectory(absRepositoryAssetsDirpath, RepositoryAssetsDirpath)
+// GenerateRebasePatch creates a patch on the upstream provided in the RebasePackageOptionsFilepath
+func (p *Package) GenerateRebasePatch() error {
+	exists, err := utils.PathExists(p.fs, RebasePackageOptionsFilepath)
 	if err != nil {
-		return fmt.Errorf("Encountered error while trying to generate new Helm index: %s", err)
+		return fmt.Errorf("Error while trying to check if %s exists: %s", RebasePackageOptionsFilepath, err)
 	}
-	helmIndexFile.SortEntries()
-	err = helmIndexFile.WriteFile(absRepositoryHelmIndexFilepath, os.ModePerm)
+	if !exists {
+		return fmt.Errorf("%s must be defined to execute a rebase on this package", RebasePackageOptionsFilepath)
+	}
+	// Pull the main chart if it needs to be pulled
+	if !p.Chart.Upstream.IsWithinPackage() {
+		err := p.Chart.Upstream.Pull(p.rootFs, p.fs, p.Chart.WorkingDir)
+		defer utils.RemoveAll(p.fs, p.Chart.WorkingDir)
+		if err != nil {
+			return fmt.Errorf("Encountered error while trying to pull upstream into %s: %s", p.Chart.WorkingDir, err)
+		}
+	}
+	// Get the rebased chart from options
+	rebaseOptions, err := options.LoadChartOptionsFromFile(p.fs, RebasePackageOptionsFilepath)
 	if err != nil {
-		return fmt.Errorf("Encountered error while trying to write updated Helm index into index.yaml: %s", err)
+		return fmt.Errorf("Encountered error while trying to get options from %s: %s", RebasePackageOptionsFilepath, err)
+	}
+	r, err := GetChartFromOptions(rebaseOptions)
+	if err != nil {
+		return fmt.Errorf("Encountered error while trying to get chart from options: %s", err)
+	}
+	if r.WorkingDir == p.Chart.WorkingDir {
+		logrus.Infof("Switching working directory of rebase to 'rebase' since it conflicts with main chart")
+		r.WorkingDir = "rebase"
+	}
+	// Pull the rebased chart if it needs to be pulled
+	if !r.Upstream.IsWithinPackage() {
+		err := r.Upstream.Pull(p.rootFs, p.fs, r.WorkingDir)
+		defer utils.RemoveAll(p.fs, r.WorkingDir)
+		if err != nil {
+			return fmt.Errorf("Encountered error while trying to pull upstream into %s: %s", r.WorkingDir, err)
+		}
+	}
+	// Generate the patch
+	gcRootDir := filepath.Join(GeneratedChangesDirpath, "rebase", GeneratedChangesDirpath)
+	if err := GenerateChanges(p.fs, p.Chart.WorkingDir, r.WorkingDir, gcRootDir); err != nil {
+		return fmt.Errorf("Encountered error while generating changes from %s to %s and placing it in %s: %s", p.Chart.WorkingDir, r.WorkingDir, gcRootDir, err)
 	}
 	return nil
 }
 
 // Clean removes all other files except for the package.yaml, patch, and overlay/ files from a package
 func (p *Package) Clean() error {
-	chartPathsToClean := []string{p.Chart.WorkingDir, p.Chart.OriginalDir()}
+	chartPathsToClean := []string{p.Chart.OriginalDir()}
+	if !p.Chart.Upstream.IsWithinPackage() {
+		// Working directory never needs to be clean for a local chart
+		chartPathsToClean = append(chartPathsToClean, p.Chart.WorkingDir)
+	}
 	for _, additionalChart := range p.AdditionalCharts {
-		chartPathsToClean = append(chartPathsToClean, additionalChart.WorkingDir, additionalChart.OriginalDir())
+		if additionalChart.Upstream != nil && (*additionalChart.Upstream).IsWithinPackage() {
+			// Working directory never needs to be clean for an additional chart
+			continue
+		}
+		chartPathsToClean = append(chartPathsToClean, additionalChart.OriginalDir(), additionalChart.WorkingDir)
 	}
 	for _, chartPath := range chartPathsToClean {
 		if err := utils.RemoveAll(p.fs, chartPath); err != nil {
 			return fmt.Errorf("Encountered error while trying to remove %s from package %s: %s", chartPath, p.Name, err)
 		}
 	}
-	if p.BranchOptions.CleanOptions.PreventCleanAssets {
-		return nil
+	// Remove rebase changes
+	rebasePathToClean := filepath.Join(GeneratedChangesDirpath, "rebase", GeneratedChangesDirpath)
+	if err := utils.RemoveAll(p.fs, rebasePathToClean); err != nil {
+		return fmt.Errorf("Encountered error while trying to remove %s from generated changes: %s", rebasePathToClean, err)
 	}
-	repositoryPathsToClean := []string{
-		RepositoryAssetsDirpath,
-		RepositoryChartsDirpath,
+	exists, err := utils.PathExists(p.fs, filepath.Dir(rebasePathToClean))
+	if err != nil {
+		return fmt.Errorf("Encountered error while trying to check if %s is empty: %s", filepath.Dir(rebasePathToClean), err)
 	}
-	for _, repoPath := range repositoryPathsToClean {
-		if err := utils.RemoveAll(p.repoFs, repoPath); err != nil {
-			return fmt.Errorf("Encountered error while trying to remove %s from the repository: %s", repoPath, err)
+	if exists {
+		if err := utils.PruneEmptyDirsInPath(p.fs, filepath.Dir(rebasePathToClean)); err != nil {
+			return fmt.Errorf("Encountered error while trying to prune directory in path %s: %s", rebasePathToClean, err)
 		}
 	}
 	return nil

@@ -1,4 +1,4 @@
-package config
+package repository
 
 import (
 	"context"
@@ -21,29 +21,29 @@ var (
 	// ErrRemoteDoesNotExist indicates that the remote does not exist in the current repository
 	ErrRemoteDoesNotExist = errors.New("Repository does not have any matching remotes")
 	// ChartsScriptsRepository represents the configuration of the repository containing these scripts
-	ChartsScriptsRepository = RepositoryConfiguration{
+	ChartsScriptsRepository = GithubConfiguration{
 		Owner: "aiyengar2", // TODO(aiyengar2): need to change to rancher
 		Name:  "charts-build-scripts",
 	}
 )
 
-// GetRepositoryConfiguration parses the provided URL and returns the Repository Configuration if possible
-func GetRepositoryConfiguration(url string) (RepositoryConfiguration, error) {
+// GetGithubConfiguration parses the provided URL and returns the GithubConfiguration if possible
+func GetGithubConfiguration(url string) (GithubConfiguration, error) {
 	if !strings.HasSuffix(url, ".git") {
-		return RepositoryConfiguration{}, fmt.Errorf("URL does not seem to point to a Git repository: %s", url)
+		return GithubConfiguration{}, fmt.Errorf("URL does not seem to point to a Git repository: %s", url)
 	}
 	splitURL := strings.Split(strings.TrimSuffix(url, ".git"), "/")
 	if len(splitURL) < 2 {
-		return RepositoryConfiguration{}, fmt.Errorf("URL does not seem to be valid for a Git repository: %s", url)
+		return GithubConfiguration{}, fmt.Errorf("URL does not seem to be valid for a Git repository: %s", url)
 	}
-	return RepositoryConfiguration{
+	return GithubConfiguration{
 		Owner: splitURL[len(splitURL)-2],
 		Name:  splitURL[len(splitURL)-1],
 	}, nil
 }
 
-// RepositoryConfiguration represents the configuration of a specific repository
-type RepositoryConfiguration struct {
+// GithubConfiguration represents the configuration of a specific repository
+type GithubConfiguration struct {
 	// Owner represents the account that owns the repo, e.g. rancher
 	Owner string `yaml:"owner"`
 	// Name represents the name of the repo, e.g. charts
@@ -51,7 +51,7 @@ type RepositoryConfiguration struct {
 }
 
 // Create pushes a new Repository onto Github
-func (r RepositoryConfiguration) Create(ctx context.Context, client *github.Client) error {
+func (r GithubConfiguration) Create(ctx context.Context, client *github.Client) error {
 	// Create the repository
 	logrus.Infof("Creating repository from configuration: %s", r)
 	user, resp, err := client.Users.Get(ctx, r.Owner)
@@ -73,7 +73,7 @@ func (r RepositoryConfiguration) Create(ctx context.Context, client *github.Clie
 }
 
 // Exists checks to see if the repository specified exists on Github
-func (r RepositoryConfiguration) Exists(ctx context.Context, client *github.Client) (bool, error) {
+func (r GithubConfiguration) Exists(ctx context.Context, client *github.Client) (bool, error) {
 	_, resp, err := client.Repositories.Get(ctx, r.Owner, r.Name)
 	if resp.StatusCode == 200 {
 		return true, nil
@@ -84,8 +84,8 @@ func (r RepositoryConfiguration) Exists(ctx context.Context, client *github.Clie
 	return false, err
 }
 
-// GetRemoteName gets name of the remote within the repo pointing to the RepositoryConfiguration
-func (r RepositoryConfiguration) GetRemoteName(repo *git.Repository) (string, error) {
+// GetRemoteName gets name of the remote within the repo pointing to the GithubConfiguration
+func (r GithubConfiguration) GetRemoteName(repo *git.Repository) (string, error) {
 	remotes, err := repo.Remotes()
 	if err != nil {
 		return "", fmt.Errorf("Unable to list remotes: %s", err)
@@ -103,16 +103,16 @@ func (r RepositoryConfiguration) GetRemoteName(repo *git.Repository) (string, er
 }
 
 // GetHTTPSURL returns the HTTPS URL of the repository
-func (r RepositoryConfiguration) GetHTTPSURL() string {
+func (r GithubConfiguration) GetHTTPSURL() string {
 	return fmt.Sprintf(httpsURLFmt, r.Owner, r.Name)
 }
 
 // GetSSHURL returns the SSH URL of the repository
-func (r RepositoryConfiguration) GetSSHURL() string {
+func (r GithubConfiguration) GetSSHURL() string {
 	return fmt.Sprintf(sshURLFmt, r.Owner, r.Name)
 }
 
-// String returns a string representation of the RepositoryConfiguration
-func (r RepositoryConfiguration) String() string {
+// String returns a string representation of the GithubConfiguration
+func (r GithubConfiguration) String() string {
 	return fmt.Sprintf("%s/%s", r.Owner, r.Name)
 }

@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/go-git/go-billy/v5"
-	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/utils"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -36,14 +36,18 @@ type Chart struct {
 }
 
 // Prepare pulls in a package based on the spec to the local git repository
-func (c *Chart) Prepare(pkgFs billy.Filesystem) error {
+func (c *Chart) Prepare(rootFs, pkgFs billy.Filesystem) error {
+	if c.Upstream.IsWithinPackage() {
+		logrus.Infof("Local chart does not need to be prepared")
+		return nil
+	}
 	if err := utils.RemoveAll(pkgFs, c.WorkingDir); err != nil {
 		return fmt.Errorf("Encountered error while trying to clean up %s before preparing: %s", c.WorkingDir, err)
 	}
-	if err := c.Upstream.Pull(pkgFs, c.WorkingDir); err != nil {
+	if err := c.Upstream.Pull(rootFs, pkgFs, c.WorkingDir); err != nil {
 		return fmt.Errorf("Encountered error while trying to pull upstream into %s: %s", c.WorkingDir, err)
 	}
-	if err := PrepareDependencies(pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
+	if err := PrepareDependencies(rootFs, pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
 		return fmt.Errorf("Encountered error while trying to prepare dependencies in %s: %s", c.WorkingDir, err)
 	}
 	if err := ApplyChanges(pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
@@ -53,16 +57,20 @@ func (c *Chart) Prepare(pkgFs billy.Filesystem) error {
 }
 
 // GeneratePatch generates a patch on a forked Helm chart based on local changes
-func (c *Chart) GeneratePatch(pkgFs billy.Filesystem) error {
+func (c *Chart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
+	if c.Upstream.IsWithinPackage() {
+		logrus.Infof("Local chart does not need to be patched")
+		return nil
+	}
 	if exists, err := utils.PathExists(pkgFs, c.WorkingDir); err != nil {
 		return fmt.Errorf("Encountered error while trying to clean up %s before preparing: %s", c.WorkingDir, err)
 	} else if !exists {
 		return fmt.Errorf("Working directory %s has not been prepared yet", c.WorkingDir)
 	}
-	if err := c.Upstream.Pull(pkgFs, c.OriginalDir()); err != nil {
+	if err := c.Upstream.Pull(rootFs, pkgFs, c.OriginalDir()); err != nil {
 		return fmt.Errorf("Encountered error while trying to pull upstream into %s: %s", c.OriginalDir(), err)
 	}
-	if err := PrepareDependencies(pkgFs, c.OriginalDir(), c.GeneratedChangesRootDir()); err != nil {
+	if err := PrepareDependencies(rootFs, pkgFs, c.OriginalDir(), c.GeneratedChangesRootDir()); err != nil {
 		return fmt.Errorf("Encountered error while trying to prepare dependencies in %s: %s", c.OriginalDir(), err)
 	}
 	defer utils.RemoveAll(pkgFs, c.OriginalDir())
@@ -73,8 +81,8 @@ func (c *Chart) GeneratePatch(pkgFs billy.Filesystem) error {
 }
 
 // GenerateChart generates the chart and stores it in the assets and charts directory
-func (c *Chart) GenerateChart(pkgFs billy.Filesystem, packageVersion int, repoFs billy.Filesystem, packageAssetsDirpath, packageChartsDirpath string, opts options.ExportOptions) error {
-	if err := ExportHelmChart(pkgFs, c.WorkingDir, packageVersion, repoFs, packageAssetsDirpath, packageChartsDirpath, opts); err != nil {
+func (c *Chart) GenerateChart(rootFs billy.Filesystem, pkgFs billy.Filesystem, chartVersion string, packageAssetsDirpath, packageChartsDirpath string) error {
+	if err := ExportHelmChart(rootFs, pkgFs, c.WorkingDir, chartVersion, packageAssetsDirpath, packageChartsDirpath); err != nil {
 		return fmt.Errorf("Encountered error while trying to export Helm chart for %s: %s", c.WorkingDir, err)
 	}
 	return nil

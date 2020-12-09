@@ -17,7 +17,7 @@ import (
 )
 
 // PrepareDependencies prepares all of the dependencies of a given chart and regenerates the requirements.yaml or Chart.yaml
-func PrepareDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDir string) error {
+func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDir string) error {
 	logrus.Infof("Loading dependencies for chart")
 	if err := LoadDependencies(pkgFs, mainHelmChartPath, gcRootDir); err != nil {
 		return err
@@ -44,21 +44,42 @@ func PrepareDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRoo
 		if err != nil {
 			return err
 		}
+		absDependencyChartSrcPath := utils.GetAbsPath(dependencyFs, dependency.WorkingDir)
+		absDependencyChartDestPath := utils.GetAbsPath(pkgFs, filepath.Join(dependenciesDestPath, dependencyName))
+		if dependency.Upstream.IsWithinPackage() {
+			// Copy the local chart into dependencyDestPath
+			repositoryDependencyChartsSrcPath, err := utils.GetRelativePath(rootFs, absDependencyChartSrcPath)
+			if err != nil {
+				return fmt.Errorf("Encountered error while getting absolute path of %s in %s: %s", absDependencyChartSrcPath, rootFs.Root(), err)
+			}
+			repositoryDependencyChartsDestPath, err := utils.GetRelativePath(rootFs, absDependencyChartDestPath)
+			if err != nil {
+				return fmt.Errorf("Encountered error while getting absolute path of %s in %s: %s", absDependencyChartDestPath, rootFs.Root(), err)
+			}
+			if err = utils.CopyDir(rootFs, repositoryDependencyChartsSrcPath, repositoryDependencyChartsDestPath); err != nil {
+				return fmt.Errorf("Encountered while copying local dependency: %s", err)
+			}
+			if err = UpdateHelmMetadataWithName(rootFs, repositoryDependencyChartsDestPath, dependencyName); err != nil {
+				return err
+			}
+			continue
+		}
 		if utils.RemoveAll(dependencyFs, dependency.WorkingDir); err != nil {
 			return err
 		}
-		if err := dependency.Upstream.Pull(dependencyFs, dependency.WorkingDir); err != nil {
+		if err := dependency.Upstream.Pull(rootFs, dependencyFs, dependency.WorkingDir); err != nil {
 			return err
 		}
 		// Move the generated chart into the dependencyDestPath
-		absDependencyChartSrcPath := utils.GetAbsPath(dependencyFs, dependency.WorkingDir)
-		absDependencyChartDestPath := utils.GetAbsPath(pkgFs, filepath.Join(dependenciesDestPath, dependencyName))
 		if err = os.Rename(absDependencyChartSrcPath, absDependencyChartDestPath); err != nil {
+			return err
+		}
+		if err = UpdateHelmMetadataWithName(pkgFs, filepath.Join(dependenciesDestPath, dependencyName), dependencyName); err != nil {
 			return err
 		}
 	}
 	logrus.Infof("Updating chart metadata with dependencies")
-	return UpdateChartMetadataWithDependencies(pkgFs, mainHelmChartPath, dependencyMap)
+	return UpdateHelmMetadataWithDependencies(pkgFs, mainHelmChartPath, dependencyMap)
 }
 
 func getMainChartUpstreamOptions(pkgFs billy.Filesystem, gcRootDir string) (*options.UpstreamOptions, error) {

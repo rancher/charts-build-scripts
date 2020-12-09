@@ -6,25 +6,33 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
-	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/options"
+	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/rancher/charts-build-scripts/pkg/utils"
 )
 
-// GetPackages returns all packages found within the repository with the provided BranchOptions
-// If there is a specific package provided, it will return just that Package in the list
-func GetPackages(repoRoot string, specificPackage string, branchOpt options.BranchOptions) ([]*Package, error) {
+// GetPackages returns all packages found within the repository. If there is a specific package provided, it will return just that Package in the list
+func GetPackages(repoRoot string, specificPackage string) ([]*Package, error) {
 	var packages []*Package
-	repoFs := utils.GetFilesystem(repoRoot)
+	rootFs := utils.GetFilesystem(repoRoot)
 	if len(specificPackage) != 0 {
-		pkg, err := GetPackage(repoFs, specificPackage, branchOpt)
+		pkg, err := GetPackage(rootFs, specificPackage)
 		if err != nil {
 			return nil, err
 		}
-		packages = append(packages, pkg)
+		if pkg != nil {
+			packages = append(packages, pkg)
+		}
 		return packages, nil
 	}
-	fileInfos, err := repoFs.ReadDir(RepositoryPackagesDirpath)
+	exists, err := utils.PathExists(rootFs, RepositoryPackagesDirpath)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return packages, nil
+	}
+	fileInfos, err := rootFs.ReadDir(RepositoryPackagesDirpath)
 	if err != nil {
 		return nil, err
 	}
@@ -33,30 +41,29 @@ func GetPackages(repoRoot string, specificPackage string, branchOpt options.Bran
 			continue
 		}
 		name := fileInfo.Name()
-		pkg, err := GetPackage(repoFs, name, branchOpt)
+		pkg, err := GetPackage(rootFs, name)
 		if err != nil {
 			return nil, err
 		}
-		packages = append(packages, pkg)
-	}
-	if len(packages) == 0 {
-		return packages, fmt.Errorf("Could not find any packages in packages/")
+		if pkg != nil {
+			packages = append(packages, pkg)
+		}
 	}
 	return packages, nil
 }
 
 // GetPackage returns a Package based on the options provided
-func GetPackage(repoFs billy.Filesystem, name string, branchOpt options.BranchOptions) (*Package, error) {
+func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 	// Get pkgFs
 	packageRoot := filepath.Join(RepositoryPackagesDirpath, name)
-	exists, err := utils.PathExists(repoFs, packageRoot)
+	exists, err := utils.PathExists(rootFs, packageRoot)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
-		return nil, fmt.Errorf("Cannot find %s", packageRoot)
+		return nil, nil
 	}
-	pkgFs, err := repoFs.Chroot(packageRoot)
+	pkgFs, err := rootFs.Chroot(packageRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -81,13 +88,13 @@ func GetPackage(repoFs billy.Filesystem, name string, branchOpt options.BranchOp
 	p := Package{
 		Chart: chart,
 
-		Name:             name,
-		PackageVersion:   packageOpt.PackageVersion,
-		BranchOptions:    branchOpt,
-		AdditionalCharts: additionalCharts,
+		Name:                    name,
+		PackageVersion:          packageOpt.PackageVersion,
+		AdditionalCharts:        additionalCharts,
+		ReleaseCandidateVersion: packageOpt.ReleaseCandidateVersion,
 
 		fs:     pkgFs,
-		repoFs: repoFs,
+		rootFs: rootFs,
 	}
 	return &p, nil
 }
@@ -156,18 +163,25 @@ func GetUpstream(opt options.UpstreamOptions) (Upstream, error) {
 	if opt.URL == "" {
 		return nil, fmt.Errorf("URL is not defined")
 	}
+	if opt.URL == "local" {
+		upstream := UpstreamLocal{}
+		return upstream, nil
+	}
 	if strings.HasPrefix(opt.URL, "packages/") {
-		upstream := UpstreamLocal{
+		upstream := UpstreamPackage{
 			Name: strings.Split(opt.URL, "/")[1],
+		}
+		if opt.Subdirectory != nil {
+			upstream.Subdirectory = opt.Subdirectory
 		}
 		return upstream, nil
 	}
 	if strings.HasSuffix(opt.URL, ".git") {
-		rc, err := config.GetRepositoryConfiguration(opt.URL)
+		rc, err := repository.GetGithubConfiguration(opt.URL)
 		if err != nil {
 			return nil, err
 		}
-		upstream := UpstreamRepository{RepositoryConfiguration: rc}
+		upstream := UpstreamRepository{GithubConfiguration: rc}
 		if opt.Subdirectory != nil {
 			upstream.Subdirectory = opt.Subdirectory
 		}
@@ -186,4 +200,12 @@ func GetUpstream(opt options.UpstreamOptions) (Upstream, error) {
 		return upstream, nil
 	}
 	return nil, fmt.Errorf("URL is invalid (must contain .git or .tgz)")
+}
+
+// GetUpstreamForBranch returns the appropriate Upstream pointing to a branch
+func GetUpstreamForBranch(githubConfig repository.GithubConfiguration, branchName string) Upstream {
+	return UpstreamRepository{
+		GithubConfiguration: githubConfig,
+		branch:              &branchName,
+	}
 }

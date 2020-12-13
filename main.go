@@ -52,6 +52,13 @@ func main() {
 			Value:       DefaultChartsRepositoryConfigurationFile,
 		},
 	}
+	chartFlag := cli.StringFlag{
+		Name:        "chart,c",
+		Usage:       "A specific chart that you would like to run prepare on",
+		Required:    false,
+		Destination: &CurrentChart,
+		EnvVar:      DefaultChartEnvironmentVariable,
+	}
 	app.Commands = []cli.Command{
 		{
 			Name:   "init",
@@ -71,81 +78,42 @@ func main() {
 			Name:   "prepare",
 			Usage:  "Pull in the chart specified from upstream to the charts directory and apply any patch files",
 			Action: prepareCharts,
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:        "chart,c",
-					Usage:       "A specific chart that you would like to run prepare on",
-					Required:    false,
-					Destination: &CurrentChart,
-					EnvVar:      DefaultChartEnvironmentVariable,
-				},
-			},
+			Flags:  []cli.Flag{chartFlag},
 		},
 		{
 			Name:   "patch",
 			Usage:  "Apply a patch between the upstream chart and the current state of the chart in the charts directory",
 			Action: generatePatch,
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:        "chart,c",
-					Usage:       "A specific chart that you would like to run prepare on",
-					Required:    false,
-					Destination: &CurrentChart,
-					EnvVar:      DefaultChartEnvironmentVariable,
-				},
-			},
+			Flags:  []cli.Flag{chartFlag},
 		},
 		{
 			Name:   "charts",
 			Usage:  "Create a local chart archive of your finalized chart for testing",
 			Action: generateCharts,
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:        "chart,c",
-					Usage:       "A specific chart that you would like to run prepare on",
-					Required:    false,
-					Destination: &CurrentChart,
-					EnvVar:      DefaultChartEnvironmentVariable,
-				},
-			},
+			Flags:  []cli.Flag{chartFlag},
 		},
 		{
 			Name:   "clean",
 			Usage:  "Clean up your current repository to get it ready for a PR",
 			Action: cleanRepository,
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:        "chart,c",
-					Usage:       "A specific chart that you would like to run prepare on",
-					Required:    false,
-					Destination: &CurrentChart,
-					EnvVar:      DefaultChartEnvironmentVariable,
-				},
-			},
+			Flags:  []cli.Flag{chartFlag},
 		},
 		{
 			Name:   "rebase",
 			Usage:  "Provide a rebase.yaml to generate drift against your main chart",
 			Action: rebaseChart,
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:        "chart,c",
-					Usage:       "A specific chart that you would like to run prepare on",
-					Required:    false,
-					Destination: &CurrentChart,
-					EnvVar:      DefaultChartEnvironmentVariable,
-				},
-			},
-		},
-		{
-			Name:   "sync",
-			Usage:  "Pull in new generated assets from branches that the configuration.yaml has set your current branch to sync with",
-			Action: synchronizeRepo,
+			Flags:  []cli.Flag{chartFlag},
 		},
 		{
 			Name:   "validate",
 			Usage:  "Ensure a sync will not overwrite generated assets in branches that the configuration.yaml wants you to validate against",
 			Action: validateRepo,
+			Flags:  []cli.Flag{chartFlag},
+		},
+		{
+			Name:   "sync",
+			Usage:  "Pull in new generated assets from branches that the configuration.yaml has set your current branch to sync with",
+			Action: synchronizeRepo,
 		},
 	}
 
@@ -315,6 +283,55 @@ func rebaseChart(c *cli.Context) {
 	}
 }
 
+func validateRepo(c *cli.Context) {
+	chartsRepo := parseConfig()
+	path, err := os.Getwd()
+	if err != nil {
+		logrus.Fatalf("Unable to get current working directory: %s", err)
+	}
+	repo, err := utils.GetRepo(path)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	if err = validateRepoHasConfigAsRemote(repo, &chartsRepo.GithubConfiguration); err != nil {
+		logrus.Fatal(err)
+	}
+	// Get the branchConfig of the branch to sync with
+	branch, err := utils.GetCurrentBranch(repo)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	// Check if git is clean
+	wt, err := repo.Worktree()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	status, err := wt.Status()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	if !status.IsClean() {
+		logrus.Fatalf("Current repository is not clean:\n%s", status)
+	}
+	var validateOptions repository.ValidateOptions
+	switch branch {
+	case chartsRepo.BranchesConfiguration.Source.Name:
+		validateOptions = chartsRepo.BranchesConfiguration.Source.Options.ValidateOptions
+	case chartsRepo.BranchesConfiguration.Staging.Name:
+		validateOptions = chartsRepo.BranchesConfiguration.Staging.Options.ValidateOptions
+	default:
+		logrus.Fatalf("Current branch %s cannot be validated. Please switch to either %s (source) or %s (staging) to sync", branch, chartsRepo.BranchesConfiguration.Source.Name, chartsRepo.BranchesConfiguration.Staging.Name)
+	}
+	// Synchronize
+	for _, compareGeneratedAssetsOptions := range validateOptions {
+		logrus.Infof("Validating against released charts in %s", compareGeneratedAssetsOptions.WithBranch)
+		if err := charts.ValidateRepository(wt.Filesystem, chartsRepo.GithubConfiguration, compareGeneratedAssetsOptions, CurrentChart); err != nil {
+			logrus.Fatalf("Failed to validate against %s: %s", compareGeneratedAssetsOptions.WithBranch, err)
+		}
+		logrus.Infof("Successfully validated against %s!", compareGeneratedAssetsOptions.WithBranch)
+	}
+}
+
 func synchronizeRepo(c *cli.Context) {
 	chartsRepo := parseConfig()
 	path, err := os.Getwd()
@@ -361,55 +378,6 @@ func synchronizeRepo(c *cli.Context) {
 			logrus.Fatalf("Failed to synchronize with %s: %s", compareGeneratedAssetsOptions.WithBranch, err)
 		}
 		logrus.Infof("Successfully synchronized with %s!", compareGeneratedAssetsOptions.WithBranch)
-	}
-}
-
-func validateRepo(c *cli.Context) {
-	chartsRepo := parseConfig()
-	path, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	repo, err := utils.GetRepo(path)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	if err = validateRepoHasConfigAsRemote(repo, &chartsRepo.GithubConfiguration); err != nil {
-		logrus.Fatal(err)
-	}
-	// Get the branchConfig of the branch to sync with
-	branch, err := utils.GetCurrentBranch(repo)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	// Check if git is clean
-	wt, err := repo.Worktree()
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	status, err := wt.Status()
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	if !status.IsClean() {
-		logrus.Fatalf("Current repository is not clean:\n%s", status)
-	}
-	var validateOptions repository.ValidateOptions
-	switch branch {
-	case chartsRepo.BranchesConfiguration.Source.Name:
-		validateOptions = chartsRepo.BranchesConfiguration.Source.Options.ValidateOptions
-	case chartsRepo.BranchesConfiguration.Staging.Name:
-		validateOptions = chartsRepo.BranchesConfiguration.Staging.Options.ValidateOptions
-	default:
-		logrus.Fatalf("Current branch %s cannot be validated. Please switch to either %s (source) or %s (staging) to sync", branch, chartsRepo.BranchesConfiguration.Source.Name, chartsRepo.BranchesConfiguration.Staging.Name)
-	}
-	// Synchronize
-	for _, compareGeneratedAssetsOptions := range validateOptions {
-		logrus.Infof("Validating against released charts in %s", compareGeneratedAssetsOptions.WithBranch)
-		if err := charts.ValidateRepository(wt.Filesystem, chartsRepo.GithubConfiguration, compareGeneratedAssetsOptions); err != nil {
-			logrus.Fatalf("Failed to validate against %s: %s", compareGeneratedAssetsOptions.WithBranch, err)
-		}
-		logrus.Infof("Successfully validated against %s!", compareGeneratedAssetsOptions.WithBranch)
 	}
 }
 

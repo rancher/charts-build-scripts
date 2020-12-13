@@ -108,7 +108,7 @@ func SynchronizeRepository(rootFs billy.Filesystem, upstreamConfig repository.Gi
 }
 
 // ValidateRepository validates that the generated assets of the current repository doesn't conflict with the generated assets of the repository in upstreamConfig
-func ValidateRepository(rootFs billy.Filesystem, upstreamConfig repository.GithubConfiguration, compareGeneratedAssetsOptions repository.CompareGeneratedAssetsOptions) error {
+func ValidateRepository(rootFs billy.Filesystem, upstreamConfig repository.GithubConfiguration, compareGeneratedAssetsOptions repository.CompareGeneratedAssetsOptions, currentChart string) error {
 	// Create directories
 	originalAssets := filepath.Join(ChartsRepositoryCurrentBranchDirpath, RepositoryAssetsDirpath)
 	originalCharts := filepath.Join(ChartsRepositoryCurrentBranchDirpath, RepositoryChartsDirpath)
@@ -138,7 +138,7 @@ func ValidateRepository(rootFs billy.Filesystem, upstreamConfig repository.Githu
 	defer utils.RemoveAll(rootFs, ChartsRepositoryCurrentBranchDirpath)
 	defer utils.RemoveAll(rootFs, ChartsRepositoryUpstreamBranchDirpath)
 	// Copy current assets to new assets
-	packages, err := GetPackages(rootFs.Root(), "")
+	packages, err := GetPackages(rootFs.Root(), currentChart)
 	if err != nil {
 		return fmt.Errorf("Failed to get packages in %s: %s", ChartsRepositoryUpstreamBranchDirpath, err)
 	}

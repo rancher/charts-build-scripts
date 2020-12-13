@@ -1,14 +1,21 @@
 package charts
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/repository"
+	"github.com/rancher/charts-build-scripts/pkg/puller"
 	"github.com/rancher/charts-build-scripts/pkg/utils"
+)
+
+var (
+	// ErrRemoteDoesNotExist indicates that the remote does not exist in the current repository
+	ErrRemoteDoesNotExist = errors.New("Repository does not have any matching remotes")
 )
 
 // GetPackages returns all packages found within the repository. If there is a specific package provided, it will return just that Package in the list
@@ -25,14 +32,14 @@ func GetPackages(repoRoot string, specificPackage string) ([]*Package, error) {
 		}
 		return packages, nil
 	}
-	exists, err := utils.PathExists(rootFs, RepositoryPackagesDirpath)
+	exists, err := utils.PathExists(rootFs, path.RepositoryPackagesDir)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
 		return packages, nil
 	}
-	fileInfos, err := rootFs.ReadDir(RepositoryPackagesDirpath)
+	fileInfos, err := rootFs.ReadDir(path.RepositoryPackagesDir)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +62,7 @@ func GetPackages(repoRoot string, specificPackage string) ([]*Package, error) {
 // GetPackage returns a Package based on the options provided
 func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 	// Get pkgFs
-	packageRoot := filepath.Join(RepositoryPackagesDirpath, name)
+	packageRoot := filepath.Join(path.RepositoryPackagesDir, name)
 	exists, err := utils.PathExists(rootFs, packageRoot)
 	if err != nil {
 		return nil, err
@@ -68,7 +75,7 @@ func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 		return nil, err
 	}
 	// Get package options from package.yaml
-	packageOpt, err := options.LoadPackageOptionsFromFile(pkgFs, PackageOptionsFilepath)
+	packageOpt, err := options.LoadPackageOptionsFromFile(pkgFs, path.PackageOptionsFile)
 	if err != nil {
 		return nil, err
 	}
@@ -159,16 +166,16 @@ func GetAdditionalChartFromOptions(opt options.AdditionalChartOptions) (Addition
 }
 
 // GetUpstream returns the appropriate Upstream given the options provided
-func GetUpstream(opt options.UpstreamOptions) (Upstream, error) {
+func GetUpstream(opt options.UpstreamOptions) (puller.Puller, error) {
 	if opt.URL == "" {
 		return nil, fmt.Errorf("URL is not defined")
 	}
 	if opt.URL == "local" {
-		upstream := UpstreamLocal{}
+		upstream := Local{}
 		return upstream, nil
 	}
 	if strings.HasPrefix(opt.URL, "packages/") {
-		upstream := UpstreamPackage{
+		upstream := LocalPackage{
 			Name: strings.Split(opt.URL, "/")[1],
 		}
 		if opt.Subdirectory != nil {
@@ -177,21 +184,14 @@ func GetUpstream(opt options.UpstreamOptions) (Upstream, error) {
 		return upstream, nil
 	}
 	if strings.HasSuffix(opt.URL, ".git") {
-		rc, err := repository.GetGithubConfiguration(opt.URL)
+		upstream, err := puller.GetGithubRepository(opt, nil)
 		if err != nil {
 			return nil, err
-		}
-		upstream := UpstreamRepository{GithubConfiguration: rc}
-		if opt.Subdirectory != nil {
-			upstream.Subdirectory = opt.Subdirectory
-		}
-		if opt.Commit != nil {
-			upstream.Commit = opt.Commit
 		}
 		return upstream, nil
 	}
 	if strings.HasSuffix(opt.URL, ".tgz") || strings.Contains(opt.URL, ".tar.gz") {
-		upstream := UpstreamChartArchive{
+		upstream := puller.Archive{
 			URL: opt.URL,
 		}
 		if opt.Subdirectory != nil {
@@ -200,12 +200,4 @@ func GetUpstream(opt options.UpstreamOptions) (Upstream, error) {
 		return upstream, nil
 	}
 	return nil, fmt.Errorf("URL is invalid (must contain .git or .tgz)")
-}
-
-// GetUpstreamForBranch returns the appropriate Upstream pointing to a branch
-func GetUpstreamForBranch(githubConfig repository.GithubConfiguration, branchName string) Upstream {
-	return UpstreamRepository{
-		GithubConfiguration: githubConfig,
-		branch:              &branchName,
-	}
 }

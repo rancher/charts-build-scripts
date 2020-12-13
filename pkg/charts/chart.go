@@ -4,33 +4,18 @@ import (
 	"fmt"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/change"
+	"github.com/rancher/charts-build-scripts/pkg/helm"
+	"github.com/rancher/charts-build-scripts/pkg/path"
+	"github.com/rancher/charts-build-scripts/pkg/puller"
 	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	// GeneratedChangesDirpath is a directory that contains GeneratedChanges
-	GeneratedChangesDirpath = "generated-changes"
-	// GeneratedChangesPatchDirpath is a directory that contains patches within GeneratedChangesDirpath
-	GeneratedChangesPatchDirpath = "patch"
-	// GeneratedChangesOverlayDirpath is a directory that contains overlays within GeneratedChangesDirpath
-	GeneratedChangesOverlayDirpath = "overlay"
-	// GeneratedChangesExcludeDirpath is a directory that contains excludes within GeneratedChangesDirpath
-	GeneratedChangesExcludeDirpath = "exclude"
-	// GeneratedChangesDependenciesDirpath is a directory that contains dependencies within GeneratedChangesDirpath
-	GeneratedChangesDependenciesDirpath = "dependencies"
-
-	// DependencyOptionsFilepath is a file that contains information about how to prepare your dependency
-	// The expected structure of this file is one that can be marshalled into a ChartOptions struct
-	DependencyOptionsFilepath = "dependency.yaml"
-
-	patchFmt = "%s.patch"
-)
-
 // Chart represents the main chart in a given package
 type Chart struct {
-	// Upstream represents any options that are configurable for upstream charts
-	Upstream Upstream `yaml:"upstream"`
+	// Upstream represents where the chart is sourced from
+	Upstream puller.Puller `yaml:"upstream"`
 	// WorkingDir represents the working directory of this chart
 	WorkingDir string `yaml:"workingDir" default:"charts"`
 }
@@ -50,7 +35,7 @@ func (c *Chart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 	if err := PrepareDependencies(rootFs, pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
 		return fmt.Errorf("Encountered error while trying to prepare dependencies in %s: %s", c.WorkingDir, err)
 	}
-	if err := ApplyChanges(pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
+	if err := change.ApplyChanges(pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
 		return fmt.Errorf("Encountered error while trying to apply changes to %s: %s", c.WorkingDir, err)
 	}
 	return nil
@@ -74,7 +59,7 @@ func (c *Chart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 		return fmt.Errorf("Encountered error while trying to prepare dependencies in %s: %s", c.OriginalDir(), err)
 	}
 	defer utils.RemoveAll(pkgFs, c.OriginalDir())
-	if err := GenerateChanges(pkgFs, c.OriginalDir(), c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
+	if err := change.GenerateChanges(pkgFs, c.OriginalDir(), c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
 		return fmt.Errorf("Encountered error while generating changes from %s to %s and placing it in %s: %s", c.OriginalDir(), c.WorkingDir, c.GeneratedChangesRootDir(), err)
 	}
 	return nil
@@ -82,7 +67,7 @@ func (c *Chart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 
 // GenerateChart generates the chart and stores it in the assets and charts directory
 func (c *Chart) GenerateChart(rootFs billy.Filesystem, pkgFs billy.Filesystem, chartVersion string, packageAssetsDirpath, packageChartsDirpath string) error {
-	if err := ExportHelmChart(rootFs, pkgFs, c.WorkingDir, chartVersion, packageAssetsDirpath, packageChartsDirpath); err != nil {
+	if err := helm.ExportHelmChart(rootFs, pkgFs, c.WorkingDir, chartVersion, packageAssetsDirpath, packageChartsDirpath); err != nil {
 		return fmt.Errorf("Encountered error while trying to export Helm chart for %s: %s", c.WorkingDir, err)
 	}
 	return nil
@@ -95,5 +80,5 @@ func (c *Chart) OriginalDir() string {
 
 // GeneratedChangesRootDir stored the directory rooted at the package level where generated changes for this chart can be found
 func (c *Chart) GeneratedChangesRootDir() string {
-	return GeneratedChangesDirpath
+	return path.GeneratedChangesDir
 }

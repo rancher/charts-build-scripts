@@ -1,0 +1,6 @@
+validate:
+- url: https://github.com/aiyengar2/test-charts.git
+  branch: dev-v2.5
+- url: https://github.com/aiyengar2/test-charts.git
+  branch: main
+  dropReleaseCandidates: true

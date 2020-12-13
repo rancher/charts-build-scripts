@@ -4,12 +4,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/options"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
+	helmChart "helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 	helmCli "helm.sh/helm/v3/pkg/cli"
 	helmGetter "helm.sh/helm/v3/pkg/getter"
@@ -39,7 +44,7 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 	}
 	for dependencyName, dependency := range dependencyMap {
 		// Pull in the dependency
-		dependencyRootPath := filepath.Join(gcRootDir, GeneratedChangesDependenciesDirpath, dependencyName)
+		dependencyRootPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir, dependencyName)
 		dependencyFs, err := pkgFs.Chroot(dependencyRootPath)
 		if err != nil {
 			return err
@@ -59,7 +64,7 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 			if err = utils.CopyDir(rootFs, repositoryDependencyChartsSrcPath, repositoryDependencyChartsDestPath); err != nil {
 				return fmt.Errorf("Encountered while copying local dependency: %s", err)
 			}
-			if err = UpdateHelmMetadataWithName(rootFs, repositoryDependencyChartsDestPath, dependencyName); err != nil {
+			if err = helm.UpdateHelmMetadataWithName(rootFs, repositoryDependencyChartsDestPath, dependencyName); err != nil {
 				return err
 			}
 			continue
@@ -74,7 +79,7 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 		if err = os.Rename(absDependencyChartSrcPath, absDependencyChartDestPath); err != nil {
 			return err
 		}
-		if err = UpdateHelmMetadataWithName(pkgFs, filepath.Join(dependenciesDestPath, dependencyName), dependencyName); err != nil {
+		if err = helm.UpdateHelmMetadataWithName(pkgFs, filepath.Join(dependenciesDestPath, dependencyName), dependencyName); err != nil {
 			return err
 		}
 	}
@@ -83,14 +88,14 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 }
 
 func getMainChartUpstreamOptions(pkgFs billy.Filesystem, gcRootDir string) (*options.UpstreamOptions, error) {
-	packageOpts, err := options.LoadPackageOptionsFromFile(pkgFs, PackageOptionsFilepath)
+	packageOpts, err := options.LoadPackageOptionsFromFile(pkgFs, path.PackageOptionsFile)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to read %s for PackageOptions: %s", PackageOptionsFilepath, err)
+		return nil, fmt.Errorf("Unable to read %s for PackageOptions: %s", path.PackageOptionsFile, err)
 	}
-	if gcRootDir == GeneratedChangesDirpath {
+	if gcRootDir == path.GeneratedChangesDir {
 		return &packageOpts.MainChartOptions.UpstreamOptions, nil
 	}
-	additionalChartPrefix := filepath.Join(GeneratedChangesDirpath, GeneratedChangesAdditionalChartDirpath)
+	additionalChartPrefix := filepath.Join(path.GeneratedChangesDir, path.GeneratedChangesAdditionalChartDir)
 	if !strings.HasPrefix(gcRootDir, additionalChartPrefix) {
 		return nil, fmt.Errorf("Unable to figure out main chart options given generated changes root directory at %s", gcRootDir)
 	}
@@ -125,7 +130,7 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 			continue
 		}
 		dependencyName := dependency.Name
-		dependencyOptionsPath := filepath.Join(gcRootDir, GeneratedChangesDependenciesDirpath, dependencyName, DependencyOptionsFilepath)
+		dependencyOptionsPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir, dependencyName, path.DependencyOptionsFile)
 		dependencyExists, err := utils.PathExists(pkgFs, dependencyOptionsPath)
 		if err != nil {
 			return err
@@ -156,7 +161,7 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 	}
 	for _, dependency := range mainChart.Lock.Dependencies {
 		dependencyName := dependency.Name
-		dependencyOptionsPath := filepath.Join(gcRootDir, GeneratedChangesDependenciesDirpath, dependencyName, DependencyOptionsFilepath)
+		dependencyOptionsPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir, dependencyName, path.DependencyOptionsFile)
 		// Check if dependency already exists
 		dependencyExists, err := utils.PathExists(pkgFs, dependencyOptionsPath)
 		if err != nil {
@@ -193,7 +198,7 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 func GetDependencyMap(pkgFs billy.Filesystem, gcRootDir string) (map[string]*Chart, error) {
 	dependencyMap := make(map[string]*Chart)
 	// Check whether any dependenices exist
-	dependenciesRootPath := filepath.Join(gcRootDir, GeneratedChangesDependenciesDirpath)
+	dependenciesRootPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir)
 	exists, err := utils.PathExists(pkgFs, dependenciesRootPath)
 	if err != nil {
 		return nil, err
@@ -211,7 +216,7 @@ func GetDependencyMap(pkgFs billy.Filesystem, gcRootDir string) (map[string]*Cha
 			continue
 		}
 		name := fileInfo.Name()
-		dependencyOptionsPath := filepath.Join(dependenciesRootPath, name, DependencyOptionsFilepath)
+		dependencyOptionsPath := filepath.Join(dependenciesRootPath, name, path.DependencyOptionsFile)
 		dependencyOptions, err := options.LoadChartOptionsFromFile(pkgFs, dependencyOptionsPath)
 		if err != nil {
 			return nil, err
@@ -223,4 +228,71 @@ func GetDependencyMap(pkgFs billy.Filesystem, gcRootDir string) (map[string]*Cha
 		dependencyMap[name] = &dependencyChart
 	}
 	return dependencyMap, nil
+}
+
+// UpdateHelmMetadataWithDependencies updates either the requirements.yaml or Chart.yaml for the dependencies provided
+// For each dependency in dependencies, it will replace the entry in the requirements.yaml / Chart.yaml with a URL pointing to the local chart archive
+func UpdateHelmMetadataWithDependencies(fs billy.Filesystem, mainHelmChartPath string, dependencyMap map[string]*Chart) error {
+	// Check if Helm chart is valid
+	chart, err := helmLoader.Load(utils.GetAbsPath(fs, mainHelmChartPath))
+	if err != nil {
+		return err
+	}
+	// Pick up all existing dependencies tracked by Helm by name
+	helmDependencyMap := make(map[string]*helmChart.Dependency, len(chart.Metadata.Dependencies))
+	for _, dependency := range chart.Metadata.Dependencies {
+		helmDependencyMap[dependency.Name] = dependency
+	}
+	// Update the Repository for each dependency
+	for dependencyName := range dependencyMap {
+		d, ok := helmDependencyMap[dependencyName]
+		if !ok {
+			// Dependency does not exist, so we add it to the list
+			d = &helmChart.Dependency{
+				Name:      dependencyName,
+				Condition: fmt.Sprintf("%s.enabled", dependencyName),
+			}
+			helmDependencyMap[dependencyName] = d
+		}
+		d.Version = "" // Local chart archives don't need a version
+		d.Repository = fmt.Sprintf("file://./charts/%s", dependencyName)
+	}
+	// Convert the map back into a list
+	chart.Metadata.Dependencies = make([]*helmChart.Dependency, len(helmDependencyMap))
+	i := 0
+	for _, dependency := range helmDependencyMap {
+		chart.Metadata.Dependencies[i] = dependency
+		i++
+	}
+	// Sort the list
+	sort.SliceStable(chart.Metadata.Dependencies, func(i, j int) bool {
+		return chart.Metadata.Dependencies[i].Name < chart.Metadata.Dependencies[j].Name
+	})
+	// Write to either the Chart.yaml or the requirements.yaml, depending on the version
+	var path string
+	var data interface{}
+	if chart.Metadata.APIVersion == "v2" {
+		// TODO(aiyengar2): fully test apiVersion V2 charts and remove this warning
+		logrus.Warnf("Detected 'apiVersion:v2' within Chart.yaml; these types of charts require additional testing")
+		path = filepath.Join(mainHelmChartPath, "Chart.yaml")
+		data = chart.Metadata
+	} else {
+		path = filepath.Join(mainHelmChartPath, "requirements.yaml")
+		data = map[string][]*helmChart.Dependency{
+			"dependencies": chart.Metadata.Dependencies,
+		}
+	}
+	dataBytes, err := yaml.Marshal(data)
+	if err != nil {
+		return err
+	}
+	file, err := fs.OpenFile(path, os.O_RDWR, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	if _, err := file.Write(dataBytes); err != nil {
+		return err
+	}
+	return nil
 }

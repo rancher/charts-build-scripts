@@ -5,21 +5,13 @@ import (
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/change"
+	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/options"
+	"github.com/rancher/charts-build-scripts/pkg/path"
+	"github.com/rancher/charts-build-scripts/pkg/puller"
 	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
-)
-
-const (
-	// GeneratedChangesAdditionalChartDirpath is a directory that contains additionalCharts
-	GeneratedChangesAdditionalChartDirpath = "additional-charts"
-	// PackageTemplatesDirpath is a directory containing templates used as additional chart options
-	PackageTemplatesDirpath = "templates"
-
-	// ChartCRDDirpath represents the directory that we expect to contain CRDs within the chart
-	ChartCRDDirpath = "crds"
-	// ChartValidateInstallCRDFilepath is the path to the file pushed to upstream that validates the existence of CRDs in the chart
-	ChartValidateInstallCRDFilepath = "templates/validate-install-crd.yaml"
 )
 
 // AdditionalChart represents any additional charts packaged along with the main chart in a package
@@ -27,7 +19,7 @@ type AdditionalChart struct {
 	// WorkingDir represents the working directory of this chart
 	WorkingDir string `yaml:"workingDir" default:"charts"`
 	// Upstream represents any options that are configurable for upstream charts
-	Upstream *Upstream `yaml:"upstream"`
+	Upstream *puller.Puller `yaml:"upstream"`
 	// CRDChartOptions represents any options that are configurable for CRD charts
 	CRDChartOptions *options.CRDChartOptions `yaml:"crdChart"`
 }
@@ -46,10 +38,10 @@ func (c *AdditionalChart) ApplyMainChanges(pkgFs billy.Filesystem) error {
 	if err != nil {
 		return fmt.Errorf("Encountered error while trying to get the main chart's working directory: %s", err)
 	}
-	if err := CopyCRDsFromChart(pkgFs, mainChartWorkingDir, ChartCRDDirpath, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
+	if err := helm.CopyCRDsFromChart(pkgFs, mainChartWorkingDir, path.ChartCRDDir, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
 		return fmt.Errorf("Encountered error while trying to copy CRDs from %s to %s: %s", mainChartWorkingDir, c.WorkingDir, err)
 	}
-	if err := DeleteCRDsFromChart(pkgFs, mainChartWorkingDir); err != nil {
+	if err := helm.DeleteCRDsFromChart(pkgFs, mainChartWorkingDir); err != nil {
 		return fmt.Errorf("Encountered error while trying to delete CRDs from main chart: %s", err)
 	}
 	if c.CRDChartOptions.AddCRDValidationToMainChart {
@@ -74,7 +66,7 @@ func (c *AdditionalChart) RevertMainChanges(pkgFs billy.Filesystem) error {
 	if err != nil {
 		return fmt.Errorf("Encountered error while trying to get the main chart's working directory: %s", err)
 	}
-	if err := CopyCRDsFromChart(pkgFs, c.WorkingDir, c.CRDChartOptions.CRDDirectory, mainChartWorkingDir, ChartCRDDirpath); err != nil {
+	if err := helm.CopyCRDsFromChart(pkgFs, c.WorkingDir, c.CRDChartOptions.CRDDirectory, mainChartWorkingDir, path.ChartCRDDir); err != nil {
 		return fmt.Errorf("Encountered error while trying to copy CRDs from %s to %s: %s", c.WorkingDir, mainChartWorkingDir, err)
 	}
 	if c.CRDChartOptions.AddCRDValidationToMainChart {
@@ -103,14 +95,14 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 		if err != nil {
 			return fmt.Errorf("Encountered error while trying to get the main chart's working directory: %s", err)
 		}
-		exists, err := utils.PathExists(pkgFs, filepath.Join(mainChartWorkingDir, ChartCRDDirpath))
+		exists, err := utils.PathExists(pkgFs, filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
 		if err != nil {
-			return fmt.Errorf("Encountered error while trying to check if %s exists: %s", filepath.Join(mainChartWorkingDir, ChartCRDDirpath), err)
+			return fmt.Errorf("Encountered error while trying to check if %s exists: %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir), err)
 		}
 		if !exists {
-			return fmt.Errorf("Unable to prepare a CRD chart since there are no CRDs at %s", filepath.Join(mainChartWorkingDir, ChartCRDDirpath))
+			return fmt.Errorf("Unable to prepare a CRD chart since there are no CRDs at %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
 		}
-		if err := GenerateCRDChartFromTemplate(pkgFs, c.WorkingDir, filepath.Join(PackageTemplatesDirpath, c.CRDChartOptions.TemplateDirectory), c.CRDChartOptions.CRDDirectory); err != nil {
+		if err := GenerateCRDChartFromTemplate(pkgFs, c.WorkingDir, filepath.Join(path.PackageTemplatesDir, c.CRDChartOptions.TemplateDirectory), c.CRDChartOptions.CRDDirectory); err != nil {
 			return fmt.Errorf("Encountered error while trying to generate CRD chart from template at %s: %s", c.CRDChartOptions.TemplateDirectory, err)
 		}
 	} else {
@@ -124,7 +116,7 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 	}
 	if c.Upstream != nil {
 		// Only upstream charts support patches
-		err := ApplyChanges(pkgFs, c.WorkingDir, c.GeneratedChangesRootDir())
+		err := change.ApplyChanges(pkgFs, c.WorkingDir, c.GeneratedChangesRootDir())
 		if err != nil {
 			return fmt.Errorf("Encountered error while trying to apply changes to %s: %s", c.WorkingDir, err)
 		}
@@ -134,7 +126,7 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 
 // getMainChartWorkingDir gets the working directory of the main chart
 func (c *AdditionalChart) getMainChartWorkingDir(pkgFs billy.Filesystem) (string, error) {
-	packageOpts, err := options.LoadPackageOptionsFromFile(pkgFs, PackageOptionsFilepath)
+	packageOpts, err := options.LoadPackageOptionsFromFile(pkgFs, path.PackageOptionsFile)
 	if err != nil {
 		return "", fmt.Errorf("Unable to read package.yaml: %s", err)
 	}
@@ -162,7 +154,7 @@ func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 
 	if c.CRDChartOptions != nil {
 		logrus.Warnf("Patches are not supported for additional charts using CRDChartOptions. Any local changes will be overridden; please make the changes directly at %s",
-			filepath.Join(PackageTemplatesDirpath, c.CRDChartOptions.TemplateDirectory))
+			filepath.Join(path.PackageTemplatesDir, c.CRDChartOptions.TemplateDirectory))
 		return nil
 	}
 
@@ -174,7 +166,7 @@ func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 		return fmt.Errorf("Encountered error while trying to prepare dependencies in %s: %s", c.OriginalDir(), err)
 	}
 	defer utils.RemoveAll(pkgFs, c.OriginalDir())
-	if err := GenerateChanges(pkgFs, c.OriginalDir(), c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
+	if err := change.GenerateChanges(pkgFs, c.OriginalDir(), c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
 		return fmt.Errorf("Encountered error while generating changes from %s to %s and placing it in %s: %s", c.OriginalDir(), c.WorkingDir, c.GeneratedChangesRootDir(), err)
 	}
 	return nil
@@ -182,7 +174,7 @@ func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 
 // GenerateChart generates the chart and stores it in the assets and charts directory
 func (c *AdditionalChart) GenerateChart(rootFs, pkgFs billy.Filesystem, packageVersion, packageAssetsDirpath, packageChartsDirpath string) error {
-	if err := ExportHelmChart(rootFs, pkgFs, c.WorkingDir, packageVersion, packageAssetsDirpath, packageChartsDirpath); err != nil {
+	if err := helm.ExportHelmChart(rootFs, pkgFs, c.WorkingDir, packageVersion, packageAssetsDirpath, packageChartsDirpath); err != nil {
 		return fmt.Errorf("Encountered error while trying to export Helm chart for %s: %s", c.WorkingDir, err)
 	}
 	return nil
@@ -195,5 +187,5 @@ func (c *AdditionalChart) OriginalDir() string {
 
 // GeneratedChangesRootDir stored the directory rooted at the package level where generated changes for this chart can be found
 func (c *AdditionalChart) GeneratedChangesRootDir() string {
-	return filepath.Join(GeneratedChangesDirpath, GeneratedChangesAdditionalChartDirpath, c.WorkingDir, GeneratedChangesDirpath)
+	return filepath.Join(path.GeneratedChangesDir, path.GeneratedChangesAdditionalChartDir, c.WorkingDir, path.GeneratedChangesDir)
 }

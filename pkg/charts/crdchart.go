@@ -10,12 +10,13 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
 
-// ValidateInstallCRDContentsFmt is the format for the contents of ChartValidateInstallCRDFilepath
+// ValidateInstallCRDContentsFmt is the format for the contents of ChartValidateInstallCRDFile
 const ValidateInstallCRDContentsFmt = `#{{- if gt (len (lookup "rbac.authorization.k8s.io/v1" "ClusterRole" "" "")) 0 -}}
 # {{- $found := dict -}}
 %s
@@ -55,7 +56,7 @@ func GenerateCRDChartFromTemplate(fs billy.Filesystem, dstHelmChartPath, templat
 // AddCRDValidationToChart adds the validate-install-crd.yaml to helmChartPathWithoutCRDs based on CRDs located in crdsDir within helmChartPathWithCRDs
 func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helmChartPathWithCRDs, crdsDir string) error {
 	// Get the CRDs
-	logrus.Infof("Adding %s to main chart", ChartValidateInstallCRDFilepath)
+	logrus.Infof("Adding %s to main chart", path.ChartValidateInstallCRDFile)
 	crdsDirpath := filepath.Join(helmChartPathWithCRDs, crdsDir)
 	var crdGVKs []string
 	type k8sCRDResource struct {
@@ -122,7 +123,7 @@ func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helm
 		return fmt.Errorf("Encountered error while trying to read CRDs from %s: %s", crdsDirpath, err)
 	}
 	if len(crdGVKs) == 0 {
-		return fmt.Errorf("Unable to pull any GroupVersionKinds for CRDs from %s to construct %s", crdsDirpath, ChartValidateInstallCRDFilepath)
+		return fmt.Errorf("Unable to pull any GroupVersionKinds for CRDs from %s to construct %s", crdsDirpath, path.ChartValidateInstallCRDFile)
 	}
 	// Format them
 	formattedCRDs := make([]string, len(crdGVKs))
@@ -130,7 +131,7 @@ func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helm
 		formattedCRDs[i] = fmt.Sprintf(ValidateInstallCRDPerGVKFmt, grv)
 	}
 	validateInstallCRDsContents := fmt.Sprintf(ValidateInstallCRDContentsFmt, strings.Join(formattedCRDs, "\n"))
-	validateInstallCRDsDestpath := filepath.Join(helmChartPathWithoutCRDs, ChartValidateInstallCRDFilepath)
+	validateInstallCRDsDestpath := filepath.Join(helmChartPathWithoutCRDs, path.ChartValidateInstallCRDFile)
 	// Write to file
 	err = ioutil.WriteFile(utils.GetAbsPath(fs, validateInstallCRDsDestpath), []byte(validateInstallCRDsContents), os.ModePerm)
 	if err != nil {
@@ -139,9 +140,9 @@ func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helm
 	return nil
 }
 
-// RemoveCRDValidationFromChart removes the ChartValidateInstallCRDFilepath from a given chart
+// RemoveCRDValidationFromChart removes the ChartValidateInstallCRDFile from a given chart
 func RemoveCRDValidationFromChart(fs billy.Filesystem, helmChartPath string) error {
-	if err := fs.Remove(filepath.Join(helmChartPath, ChartValidateInstallCRDFilepath)); err != nil {
+	if err := fs.Remove(filepath.Join(helmChartPath, path.ChartValidateInstallCRDFile)); err != nil {
 		return err
 	}
 	return nil

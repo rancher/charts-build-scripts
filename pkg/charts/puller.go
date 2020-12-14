@@ -8,6 +8,7 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/utils"
+	"github.com/sirupsen/logrus"
 )
 
 // LocalPackage represents source that is a package
@@ -26,11 +27,20 @@ func (u LocalPackage) Pull(rootFs, fs billy.Filesystem, path string) error {
 	if err != nil {
 		return err
 	}
-	if err := pkg.Prepare(); err != nil {
-		return err
+	// Check if the chart's working directory has already been prepared
+	packagePrepared, err := utils.PathExists(pkg.fs, pkg.Chart.WorkingDir)
+	if err != nil {
+		return fmt.Errorf("Encountered error while checking if package %s was already prepared: %s", u.Name, err)
 	}
-	defer pkg.Clean()
-	if pkg.Chart.Upstream.IsWithinPackage() {
+	if packagePrepared {
+		logrus.Infof("Package %s seems to be already prepared, skipping prepare", u.Name)
+	} else {
+		if err := pkg.Prepare(); err != nil {
+			return err
+		}
+		defer pkg.Clean()
+	}
+	if pkg.Chart.Upstream.IsWithinPackage() || packagePrepared {
 		// Copy
 		repositoryPackageWorkingDir, err := utils.GetRelativePath(rootFs, utils.GetAbsPath(pkg.fs, pkg.WorkingDir))
 		if err != nil {

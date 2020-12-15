@@ -10,7 +10,7 @@ package/
 ```
 
 {{- end }}{{ end }}
-{{- if .SyncOptions }}{{ if .ValidateOptions }}
+{{- if .SyncOptions }}{{ if .ValidateOptions -}}
 ## Staging Branch
 
 This branch contains generated assets that have not been officially released yet.

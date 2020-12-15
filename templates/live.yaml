@@ -1,3 +1,5 @@
+template: live
+
 sync:
 - url: https://github.com/aiyengar2/test-charts.git
   branch: dev-v2.5

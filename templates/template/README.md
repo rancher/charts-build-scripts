@@ -30,7 +30,7 @@ charts/
 ```
 
 {{- end }}{{ end }}
-{{- if .SyncOptions }}{{ if not .ValidateOptions }}
+{{- if .SyncOptions }}{{ if not .ValidateOptions -}}
 ## Live Branch
 
 This branch contains generated assets that have been officially released on {{ .HelmRepoConfiguration.CNAME }}.

@@ -1,27 +1,24 @@
 source:
-  overwrite:
-  - README.md
-  - .gitignore
-  - scripts
-  - Makefile
-  - packages/README.md
+- README.md
+- .gitignore
+- scripts/pull-scripts
+- Makefile
+- packages/README.md
 staging:
-  overwrite:
-  - README.md
-  - .gitignore
-  - scripts
-  - Makefile
-  - assets/README.md
-  - charts/README.md
-  - CNAME
-  - index.html
+- README.md
+- .gitignore
+- scripts/pull-scripts
+- Makefile
+- assets/README.md
+- charts/README.md
+- CNAME
+- index.html
 live:
-  overwrite:
-  - README.md
-  - .gitignore
-  - scripts
-  - Makefile
-  - assets/README.md
-  - charts/README.md
-  - CNAME
-  - index.html
+- README.md
+- .gitignore
+- scripts/pull-scripts
+- Makefile
+- assets/README.md
+- charts/README.md
+- CNAME
+- index.html

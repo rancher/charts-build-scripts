@@ -11,6 +11,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/sync"
+	"github.com/rancher/charts-build-scripts/pkg/update"
 	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
@@ -108,6 +109,11 @@ func main() {
 			Name:   "sync",
 			Usage:  "Pull in new generated assets from branches that the configuration.yaml has set your current branch to sync with",
 			Action: synchronizeRepo,
+		},
+		{
+			Usage:  "Pulls in the latest docs to this repository",
+			Name:   "docs",
+			Action: getDocs,
 		},
 	}
 
@@ -298,6 +304,19 @@ func synchronizeRepo(c *cli.Context) {
 	} else {
 		logrus.Infof("Nothing to sync. Working directory is up to date.")
 	}
+}
+
+func getDocs(c *cli.Context) {
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		logrus.Fatalf("Unable to get current working directory: %s", err)
+	}
+	repoFs := utils.GetFilesystem(repoRoot)
+	chartsScriptOptions := parseScriptOptions()
+	if err := update.GetDocumentation(repoFs, *chartsScriptOptions); err != nil {
+		logrus.Fatalf("Failed to update docs: %s", err)
+	}
+	logrus.Infof("Successfully pulled new updated docs into working directory.")
 }
 
 func parseScriptOptions() *options.ChartsScriptOptions {

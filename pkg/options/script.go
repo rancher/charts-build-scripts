@@ -8,6 +8,8 @@ type ChartsScriptOptions struct {
 	ValidateOptions ValidateOptions `yaml:"validate"`
 	// HelmRepoConfiguration represents the configuration of the Helm Repository that exposes your charts
 	HelmRepoConfiguration `yaml:"helmRepo"`
+	// Template can be 'source', 'staging', or 'live'
+	Template string `yaml:"template"`
 }
 
 // SyncOptions represent any options that are configurable when exporting a chart

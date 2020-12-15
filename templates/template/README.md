@@ -1,5 +1,4 @@
-{{- if eq (len .SyncOptions) 0 }}
-{{- if ge (len .ValidateOptions) 0 }}
+{{ if not .SyncOptions }}{{ if .ValidateOptions -}}
 ## Source Branch
 
 This branch contains packages that contain Packages that will be synced to another branch. See the README.md under `packages/` for more information.
@@ -10,11 +9,8 @@ package/
   <package>/
 ```
 
-{{- end }}
-{{- end }}
-
-{{- if ge (len .SyncOptions) 0 }}
-{{- if ge (len .ValidateOptions) 0 }}
+{{- end }}{{ end }}
+{{- if .SyncOptions }}{{ if .ValidateOptions }}
 ## Staging Branch
 
 This branch contains generated assets that have not been officially released yet.
@@ -33,10 +29,8 @@ charts/
   ...
 ```
 
-{{- end }}
-{{- end }}
-{{- if ge (len .SyncOptions) 0 }}
-{{- if eq (len .ValidateOptions) 0 }}
+{{- end }}{{ end }}
+{{- if .SyncOptions }}{{ if not .ValidateOptions }}
 ## Live Branch
 
 This branch contains generated assets that have been officially released on {{ .HelmRepoConfiguration.CNAME }}.
@@ -54,13 +48,14 @@ charts/
         # Unarchived Helm chart
 ```
 
-{{- end }}
-{{- end }}
+{{- end }}{{ end }}
+
 ### Configuration
 
 This repository branch contains a `configuration.yaml` file that is used to specify how it interacts with other repository branches.
 
-{{- if ge (len .SyncOptions) 0 }}
+{{- if .SyncOptions }}
+
 #### Sync
 
 This branch syncs with the generated assets from the following branches:
@@ -71,7 +66,8 @@ This branch syncs with the generated assets from the following branches:
 To release a new version of a chart, please open the relevant PRs to one of these branches. Merging should trigger a sync workflow on pushing to these branches.
 
 {{- end }}
-{{- if ge (len .ValidateOptions) 0 }}
+{{- if .ValidateOptions }}
+
 #### Validate
 
 This branch validates against the generated assets of the following branches to make sure it isn't overriding already released charts.
@@ -95,7 +91,7 @@ Before submitting any PRs, a Github Workflow will check to see if your package d
 
 `make clean`: Cleans up all the working directories of charts to get your repository ready for a PR
 
-#### Repository-Branch-Level (requires either packages/ or assets/ + charts/)
+#### Branch-Level (requires either packages/ or assets/ + charts/)
 
 `make pull-scripts`: Pulls in the version of the `charts-build-scripts` indicated in scripts
 

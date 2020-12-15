@@ -1,1 +1,1 @@
-{{ .HelmRepoConfiguration.URL }}
+{{ .HelmRepoConfiguration.CNAME }}

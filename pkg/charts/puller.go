@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -28,7 +28,7 @@ func (u LocalPackage) Pull(rootFs, fs billy.Filesystem, path string) error {
 		return err
 	}
 	// Check if the chart's working directory has already been prepared
-	packagePrepared, err := utils.PathExists(pkg.fs, pkg.Chart.WorkingDir)
+	packagePrepared, err := filesystem.PathExists(pkg.fs, pkg.Chart.WorkingDir)
 	if err != nil {
 		return fmt.Errorf("Encountered error while checking if package %s was already prepared: %s", u.Name, err)
 	}
@@ -42,25 +42,25 @@ func (u LocalPackage) Pull(rootFs, fs billy.Filesystem, path string) error {
 	}
 	if pkg.Chart.Upstream.IsWithinPackage() || packagePrepared {
 		// Copy
-		repositoryPackageWorkingDir, err := utils.GetRelativePath(rootFs, utils.GetAbsPath(pkg.fs, pkg.WorkingDir))
+		repositoryPackageWorkingDir, err := filesystem.GetRelativePath(rootFs, filesystem.GetAbsPath(pkg.fs, pkg.WorkingDir))
 		if err != nil {
 			return err
 		}
-		repositoryPath, err := utils.GetRelativePath(rootFs, utils.GetAbsPath(fs, path))
+		repositoryPath, err := filesystem.GetRelativePath(rootFs, filesystem.GetAbsPath(fs, path))
 		if err != nil {
 			return err
 		}
-		if err := utils.CopyDir(rootFs, repositoryPackageWorkingDir, repositoryPath); err != nil {
+		if err := filesystem.CopyDir(rootFs, repositoryPackageWorkingDir, repositoryPath); err != nil {
 			return fmt.Errorf("Encountered error while moving prepared package into path: %s", err)
 		}
 	} else {
 		// Move
-		if err := os.Rename(utils.GetAbsPath(pkg.fs, pkg.WorkingDir), utils.GetAbsPath(fs, path)); err != nil {
+		if err := os.Rename(filesystem.GetAbsPath(pkg.fs, pkg.WorkingDir), filesystem.GetAbsPath(fs, path)); err != nil {
 			return fmt.Errorf("Encountered error while renaming prepared package into path: %s", err)
 		}
 	}
 	if u.Subdirectory != nil && len(*u.Subdirectory) > 0 {
-		if err := utils.MakeSubdirectoryRoot(fs, path, *u.Subdirectory); err != nil {
+		if err := filesystem.MakeSubdirectoryRoot(fs, path, *u.Subdirectory); err != nil {
 			return err
 		}
 	}

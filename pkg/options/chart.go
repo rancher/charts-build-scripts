@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/go-git/go-billy/v5"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"gopkg.in/yaml.v2"
 )
 
@@ -31,14 +31,14 @@ type UpstreamOptions struct {
 // LoadChartOptionsFromFile unmarshalls the struct found at the file to YAML and reads it into memory
 func LoadChartOptionsFromFile(fs billy.Filesystem, path string) (ChartOptions, error) {
 	var chartOptions ChartOptions
-	exists, err := utils.PathExists(fs, path)
+	exists, err := filesystem.PathExists(fs, path)
 	if err != nil {
 		return chartOptions, err
 	}
 	if !exists {
-		return chartOptions, fmt.Errorf("Unable to load chart options from file %s since it does not exist", utils.GetAbsPath(fs, path))
+		return chartOptions, fmt.Errorf("Unable to load chart options from file %s since it does not exist", filesystem.GetAbsPath(fs, path))
 	}
-	chartOptionsBytes, err := ioutil.ReadFile(utils.GetAbsPath(fs, path))
+	chartOptionsBytes, err := ioutil.ReadFile(filesystem.GetAbsPath(fs, path))
 	if err != nil {
 		return chartOptions, err
 	}
@@ -51,13 +51,13 @@ func (c ChartOptions) WriteToFile(fs billy.Filesystem, path string) error {
 	if err != nil {
 		return err
 	}
-	exists, err := utils.PathExists(fs, path)
+	exists, err := filesystem.PathExists(fs, path)
 	if err != nil {
 		return err
 	}
 	var file billy.File
 	if !exists {
-		file, err = utils.CreateFileAndDirs(fs, path)
+		file, err = filesystem.CreateFileAndDirs(fs, path)
 	} else {
 		file, err = fs.OpenFile(path, os.O_RDWR, os.ModePerm)
 	}

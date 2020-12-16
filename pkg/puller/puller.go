@@ -9,8 +9,9 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
+	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/sirupsen/logrus"
 )
 
@@ -85,10 +86,10 @@ func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
 		URL: r.GetHTTPSURL(),
 	}
 	if r.branch != nil {
-		cloneOptions.ReferenceName = utils.GetLocalBranchRefName(*r.branch)
+		cloneOptions.ReferenceName = repository.GetLocalBranchRefName(*r.branch)
 		cloneOptions.SingleBranch = true
 	}
-	repo, err := git.PlainClone(utils.GetAbsPath(fs, path), false, &cloneOptions)
+	repo, err := git.PlainClone(filesystem.GetAbsPath(fs, path), false, &cloneOptions)
 	if err != nil {
 		return err
 	}
@@ -104,11 +105,11 @@ func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
 			return err
 		}
 	}
-	if err := utils.RemoveAll(fs, filepath.Join(path, ".git")); err != nil {
+	if err := filesystem.RemoveAll(fs, filepath.Join(path, ".git")); err != nil {
 		return err
 	}
 	if r.Subdirectory != nil && len(*r.Subdirectory) > 0 {
-		if err := utils.MakeSubdirectoryRoot(fs, path, *r.Subdirectory); err != nil {
+		if err := filesystem.MakeSubdirectoryRoot(fs, path, *r.Subdirectory); err != nil {
 			return err
 		}
 	}
@@ -151,19 +152,19 @@ type Archive struct {
 // Pull grabs the archive
 func (u Archive) Pull(rootFs, fs billy.Filesystem, path string) error {
 	logrus.Infof("Pulling %s from upstream into %s", u, path)
-	if err := utils.GetChartArchive(fs, u.URL, chartArchiveFilepath); err != nil {
+	if err := filesystem.GetChartArchive(fs, u.URL, chartArchiveFilepath); err != nil {
 		return err
 	}
 	defer fs.Remove(chartArchiveFilepath)
 	if err := fs.MkdirAll(path, os.ModePerm); err != nil {
 		return err
 	}
-	defer utils.PruneEmptyDirsInPath(fs, path)
+	defer filesystem.PruneEmptyDirsInPath(fs, path)
 	var subdirectory string
 	if u.Subdirectory != nil {
 		subdirectory = *u.Subdirectory
 	}
-	if err := utils.UnarchiveTgz(fs, chartArchiveFilepath, subdirectory, path, true); err != nil {
+	if err := filesystem.UnarchiveTgz(fs, chartArchiveFilepath, subdirectory, path, true); err != nil {
 		return err
 	}
 	return nil

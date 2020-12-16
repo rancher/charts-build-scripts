@@ -7,12 +7,13 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
+	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/rancher/charts-build-scripts/pkg/sync"
 	"github.com/rancher/charts-build-scripts/pkg/update"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"gopkg.in/yaml.v2"
@@ -224,7 +225,7 @@ func validateRepo(c *cli.Context) {
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
 	}
-	repo, err := utils.GetRepo(repoRoot)
+	repo, err := repository.GetRepo(repoRoot)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -256,7 +257,7 @@ func synchronizeRepo(c *cli.Context) {
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
 	}
-	repo, err := utils.GetRepo(repoRoot)
+	repo, err := repository.GetRepo(repoRoot)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -311,7 +312,7 @@ func getDocs(c *cli.Context) {
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
 	}
-	repoFs := utils.GetFilesystem(repoRoot)
+	repoFs := filesystem.GetFilesystem(repoRoot)
 	chartsScriptOptions := parseScriptOptions()
 	if err := update.GetDocumentation(repoFs, *chartsScriptOptions); err != nil {
 		logrus.Fatalf("Failed to update docs: %s", err)

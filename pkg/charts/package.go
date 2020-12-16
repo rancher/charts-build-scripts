@@ -6,10 +6,10 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/change"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -97,7 +97,7 @@ func (p *Package) GenerateCharts() error {
 
 // GenerateRebasePatch creates a patch on the upstream provided in the RebasePackageOptionsFile
 func (p *Package) GenerateRebasePatch() error {
-	exists, err := utils.PathExists(p.fs, path.RebasePackageOptionsFile)
+	exists, err := filesystem.PathExists(p.fs, path.RebasePackageOptionsFile)
 	if err != nil {
 		return fmt.Errorf("Error while trying to check if %s exists: %s", path.RebasePackageOptionsFile, err)
 	}
@@ -107,7 +107,7 @@ func (p *Package) GenerateRebasePatch() error {
 	// Pull the main chart if it needs to be pulled
 	if !p.Chart.Upstream.IsWithinPackage() {
 		err := p.Chart.Upstream.Pull(p.rootFs, p.fs, p.Chart.WorkingDir)
-		defer utils.RemoveAll(p.fs, p.Chart.WorkingDir)
+		defer filesystem.RemoveAll(p.fs, p.Chart.WorkingDir)
 		if err != nil {
 			return fmt.Errorf("Encountered error while trying to pull upstream into %s: %s", p.Chart.WorkingDir, err)
 		}
@@ -128,7 +128,7 @@ func (p *Package) GenerateRebasePatch() error {
 	// Pull the rebased chart if it needs to be pulled
 	if !r.Upstream.IsWithinPackage() {
 		err := r.Upstream.Pull(p.rootFs, p.fs, r.WorkingDir)
-		defer utils.RemoveAll(p.fs, r.WorkingDir)
+		defer filesystem.RemoveAll(p.fs, r.WorkingDir)
 		if err != nil {
 			return fmt.Errorf("Encountered error while trying to pull upstream into %s: %s", r.WorkingDir, err)
 		}
@@ -156,21 +156,21 @@ func (p *Package) Clean() error {
 		chartPathsToClean = append(chartPathsToClean, additionalChart.OriginalDir(), additionalChart.WorkingDir)
 	}
 	for _, chartPath := range chartPathsToClean {
-		if err := utils.RemoveAll(p.fs, chartPath); err != nil {
+		if err := filesystem.RemoveAll(p.fs, chartPath); err != nil {
 			return fmt.Errorf("Encountered error while trying to remove %s from package %s: %s", chartPath, p.Name, err)
 		}
 	}
 	// Remove rebase changes
 	rebasePathToClean := filepath.Join(path.GeneratedChangesDir, "rebase", path.GeneratedChangesDir)
-	if err := utils.RemoveAll(p.fs, rebasePathToClean); err != nil {
+	if err := filesystem.RemoveAll(p.fs, rebasePathToClean); err != nil {
 		return fmt.Errorf("Encountered error while trying to remove %s from generated changes: %s", rebasePathToClean, err)
 	}
-	exists, err := utils.PathExists(p.fs, filepath.Dir(rebasePathToClean))
+	exists, err := filesystem.PathExists(p.fs, filepath.Dir(rebasePathToClean))
 	if err != nil {
 		return fmt.Errorf("Encountered error while trying to check if %s is empty: %s", filepath.Dir(rebasePathToClean), err)
 	}
 	if exists {
-		if err := utils.PruneEmptyDirsInPath(p.fs, filepath.Dir(rebasePathToClean)); err != nil {
+		if err := filesystem.PruneEmptyDirsInPath(p.fs, filepath.Dir(rebasePathToClean)); err != nil {
 			return fmt.Errorf("Encountered error while trying to prune directory in path %s: %s", rebasePathToClean, err)
 		}
 	}

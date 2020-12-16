@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
-	"github.com/rancher/charts-build-scripts/pkg/path"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
 )
 
 var (
@@ -21,7 +21,7 @@ var (
 // GetPackages returns all packages found within the repository. If there is a specific package provided, it will return just that Package in the list
 func GetPackages(repoRoot string, specificPackage string) ([]*Package, error) {
 	var packages []*Package
-	rootFs := utils.GetFilesystem(repoRoot)
+	rootFs := filesystem.GetFilesystem(repoRoot)
 	if len(specificPackage) != 0 {
 		pkg, err := GetPackage(rootFs, specificPackage)
 		if err != nil {
@@ -32,7 +32,7 @@ func GetPackages(repoRoot string, specificPackage string) ([]*Package, error) {
 		}
 		return packages, nil
 	}
-	exists, err := utils.PathExists(rootFs, path.RepositoryPackagesDir)
+	exists, err := filesystem.PathExists(rootFs, path.RepositoryPackagesDir)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func GetPackages(repoRoot string, specificPackage string) ([]*Package, error) {
 func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 	// Get pkgFs
 	packageRoot := filepath.Join(path.RepositoryPackagesDir, name)
-	exists, err := utils.PathExists(rootFs, packageRoot)
+	exists, err := filesystem.PathExists(rootFs, packageRoot)
 	if err != nil {
 		return nil, err
 	}

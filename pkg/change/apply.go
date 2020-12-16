@@ -6,8 +6,9 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/diff"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -26,58 +27,58 @@ func ApplyChanges(fs billy.Filesystem, toDir, gcRootDir string) error {
 			return nil
 		}
 		logrus.Infof("Applying: %s", patchPath)
-		return utils.ApplyPatch(fs, patchPath, toDir)
+		return diff.ApplyPatch(fs, patchPath, toDir)
 	}
 
 	applyOverlayFile := func(fs billy.Filesystem, overlayPath string, isDir bool) error {
 		if isDir {
 			return nil
 		}
-		filepath, err := utils.MovePath(overlayPath, chartsOverlayDirpath, toDir)
+		filepath, err := filesystem.MovePath(overlayPath, chartsOverlayDirpath, toDir)
 		if err != nil {
 			return err
 		}
 		logrus.Infof("Adding: %s", filepath)
-		return utils.CopyFile(fs, overlayPath, filepath)
+		return filesystem.CopyFile(fs, overlayPath, filepath)
 	}
 
 	applyExcludeFile := func(fs billy.Filesystem, excludePath string, isDir bool) error {
 		if isDir {
 			return nil
 		}
-		filepath, err := utils.MovePath(excludePath, chartsExcludeDirpath, toDir)
+		filepath, err := filesystem.MovePath(excludePath, chartsExcludeDirpath, toDir)
 		if err != nil {
 			return err
 		}
 		logrus.Infof("Removing: %s", filepath)
-		return utils.RemoveAll(fs, filepath)
+		return filesystem.RemoveAll(fs, filepath)
 	}
-	exists, err := utils.PathExists(fs, chartsPatchDirpath)
+	exists, err := filesystem.PathExists(fs, chartsPatchDirpath)
 	if err != nil {
 		return err
 	}
 	if exists {
-		err = utils.WalkDir(fs, chartsPatchDirpath, applyPatchFile)
+		err = filesystem.WalkDir(fs, chartsPatchDirpath, applyPatchFile)
 		if err != nil {
 			return err
 		}
 	}
-	exists, err = utils.PathExists(fs, chartsOverlayDirpath)
+	exists, err = filesystem.PathExists(fs, chartsOverlayDirpath)
 	if err != nil {
 		return err
 	}
 	if exists {
-		err = utils.WalkDir(fs, chartsOverlayDirpath, applyOverlayFile)
+		err = filesystem.WalkDir(fs, chartsOverlayDirpath, applyOverlayFile)
 		if err != nil {
 			return err
 		}
 	}
-	exists, err = utils.PathExists(fs, chartsExcludeDirpath)
+	exists, err = filesystem.PathExists(fs, chartsExcludeDirpath)
 	if err != nil {
 		return err
 	}
 	if exists {
-		err = utils.WalkDir(fs, chartsExcludeDirpath, applyExcludeFile)
+		err = filesystem.WalkDir(fs, chartsExcludeDirpath, applyExcludeFile)
 		if err != nil {
 			return err
 		}

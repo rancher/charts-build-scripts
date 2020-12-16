@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"gopkg.in/yaml.v2"
 )
 
@@ -40,7 +40,7 @@ func GetDocumentation(rootFs billy.Filesystem, chartsScriptOptions options.Chart
 		return fmt.Errorf("Encountered error while trying to create temporary directory: %s", err)
 	}
 	defer os.RemoveAll(absTempDir)
-	tempDir, err := utils.GetRelativePath(rootFs, absTempDir)
+	tempDir, err := filesystem.GetRelativePath(rootFs, absTempDir)
 	if err != nil {
 		return fmt.Errorf("Encounterede error while trying to get the relative path to %s: %s", absTempDir, err)
 	}

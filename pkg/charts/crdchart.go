@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
@@ -37,7 +37,7 @@ const ValidateInstallCRDPerGVKFmt = `# {{- set $found "%s" false -}}`
 
 // GenerateCRDChartFromTemplate copies templateDir over to dstPath
 func GenerateCRDChartFromTemplate(fs billy.Filesystem, dstHelmChartPath, templateDir, crdsDir string) error {
-	exists, err := utils.PathExists(fs, templateDir)
+	exists, err := filesystem.PathExists(fs, templateDir)
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func GenerateCRDChartFromTemplate(fs billy.Filesystem, dstHelmChartPath, templat
 	if err := fs.MkdirAll(filepath.Join(dstHelmChartPath, crdsDir), os.ModePerm); err != nil {
 		return err
 	}
-	if err := utils.CopyDir(fs, templateDir, dstHelmChartPath); err != nil {
+	if err := filesystem.CopyDir(fs, templateDir, dstHelmChartPath); err != nil {
 		return err
 	}
 	return nil
@@ -72,11 +72,11 @@ func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helm
 			} `yaml:"versions,omitempty"`
 		} `yaml:"spec,omitempty"`
 	}
-	err := utils.WalkDir(fs, crdsDirpath, func(fs billy.Filesystem, path string, isDir bool) error {
+	err := filesystem.WalkDir(fs, crdsDirpath, func(fs billy.Filesystem, path string, isDir bool) error {
 		if isDir {
 			return nil
 		}
-		absPath := utils.GetAbsPath(fs, path)
+		absPath := filesystem.GetAbsPath(fs, path)
 		yamlFile, err := ioutil.ReadFile(absPath)
 		if err != nil {
 			return fmt.Errorf("Unable to read file %s: %s", absPath, err)
@@ -133,7 +133,7 @@ func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helm
 	validateInstallCRDsContents := fmt.Sprintf(ValidateInstallCRDContentsFmt, strings.Join(formattedCRDs, "\n"))
 	validateInstallCRDsDestpath := filepath.Join(helmChartPathWithoutCRDs, path.ChartValidateInstallCRDFile)
 	// Write to file
-	err = ioutil.WriteFile(utils.GetAbsPath(fs, validateInstallCRDsDestpath), []byte(validateInstallCRDsContents), os.ModePerm)
+	err = ioutil.WriteFile(filesystem.GetAbsPath(fs, validateInstallCRDsDestpath), []byte(validateInstallCRDsContents), os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("Encountered error while writing into %s: %s", validateInstallCRDsDestpath, err)
 	}

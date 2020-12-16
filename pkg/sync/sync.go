@@ -7,10 +7,10 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -25,14 +25,14 @@ func SynchronizeRepository(rootFs billy.Filesystem, compareGeneratedAssetsOption
 		if err := rootFs.MkdirAll(d, os.ModePerm); err != nil {
 			return fmt.Errorf("Failed to make directory %s: %s", d, err)
 		}
-		defer utils.PruneEmptyDirsInPath(rootFs, d)
+		defer filesystem.PruneEmptyDirsInPath(rootFs, d)
 		if d == path.RepositoryAssetsDir || d == path.RepositoryChartsDir {
 			continue
 		}
-		defer utils.RemoveAll(rootFs, d)
+		defer filesystem.RemoveAll(rootFs, d)
 	}
-	defer utils.RemoveAll(rootFs, path.ChartsRepositoryCurrentBranchDir)
-	defer utils.RemoveAll(rootFs, path.ChartsRepositoryUpstreamBranchDir)
+	defer filesystem.RemoveAll(rootFs, path.ChartsRepositoryCurrentBranchDir)
+	defer filesystem.RemoveAll(rootFs, path.ChartsRepositoryUpstreamBranchDir)
 	// Copy current assets to original assets
 	packages, err := charts.GetPackages(rootFs.Root(), "")
 	if err != nil {
@@ -43,10 +43,10 @@ func SynchronizeRepository(rootFs billy.Filesystem, compareGeneratedAssetsOption
 			return err
 		}
 	}
-	if err := utils.CopyDir(rootFs, path.RepositoryAssetsDir, originalAssets); err != nil {
+	if err := filesystem.CopyDir(rootFs, path.RepositoryAssetsDir, originalAssets); err != nil {
 		return fmt.Errorf("Failed to copy %s into %s: %s", path.RepositoryAssetsDir, originalAssets, err)
 	}
-	if err := utils.CopyDir(rootFs, path.RepositoryChartsDir, originalCharts); err != nil {
+	if err := filesystem.CopyDir(rootFs, path.RepositoryChartsDir, originalCharts); err != nil {
 		return fmt.Errorf("Failed to copy %s into %s: %s", path.RepositoryChartsDir, originalCharts, err)
 	}
 	// Copy upstream assets to new assets
@@ -57,7 +57,7 @@ func SynchronizeRepository(rootFs billy.Filesystem, compareGeneratedAssetsOption
 	if err := newChartsUpstream.Pull(rootFs, rootFs, path.ChartsRepositoryUpstreamBranchDir); err != nil {
 		return fmt.Errorf("Failed to pull chart from upstream: %s", err)
 	}
-	packages, err = charts.GetPackages(utils.GetAbsPath(rootFs, path.ChartsRepositoryUpstreamBranchDir), "")
+	packages, err = charts.GetPackages(filesystem.GetAbsPath(rootFs, path.ChartsRepositoryUpstreamBranchDir), "")
 	if err != nil {
 		return fmt.Errorf("Failed to get packages in %s: %s", path.ChartsRepositoryUpstreamBranchDir, err)
 	}

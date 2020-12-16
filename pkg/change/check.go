@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"golang.org/x/mod/sumdb/dirhash"
 )
 
@@ -13,11 +13,11 @@ import (
 // If the directories provided are not available on the repository or do not go down that many subdirectories, it returns no error
 func DoesNotModifyContentsAtLevel(rootFs billy.Filesystem, oldDir, newDir string, level int) error {
 	// Check if there are charts to compare to each other
-	oldDirExists, err := utils.PathExists(rootFs, oldDir)
+	oldDirExists, err := filesystem.PathExists(rootFs, oldDir)
 	if err != nil {
 		return fmt.Errorf("Encountered error while checking if %s exists: %s", oldDir, err)
 	}
-	newDirExists, err := utils.PathExists(rootFs, newDir)
+	newDirExists, err := filesystem.PathExists(rootFs, newDir)
 	if err != nil {
 		return fmt.Errorf("Encountered error while checking if %s exists: %s", newDir, err)
 	}
@@ -27,8 +27,8 @@ func DoesNotModifyContentsAtLevel(rootFs billy.Filesystem, oldDir, newDir string
 	}
 	// Check hashes if reached level
 	if level <= 1 {
-		absNewDir := utils.GetAbsPath(rootFs, newDir)
-		absOldDir := utils.GetAbsPath(rootFs, oldDir)
+		absNewDir := filesystem.GetAbsPath(rootFs, newDir)
+		absOldDir := filesystem.GetAbsPath(rootFs, oldDir)
 		newHash, err := dirhash.HashDir(absNewDir, "", dirhash.DefaultHash)
 		if err != nil {
 			return fmt.Errorf("Error while trying to generate hash of %s: %s", absNewDir, err)

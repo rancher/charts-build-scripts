@@ -1,4 +1,4 @@
-package utils
+package diff
 
 import (
 	"bufio"
@@ -7,6 +7,7 @@ import (
 	"os/exec"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/sirupsen/logrus"
 )
 
@@ -38,7 +39,7 @@ func GeneratePatch(fs billy.Filesystem, patchPath, srcPath, dstPath string) (boo
 		return false, nil
 	}
 	// Patch exists
-	patchFile, err := CreateFileAndDirs(fs, patchPath)
+	patchFile, err := filesystem.CreateFileAndDirs(fs, patchPath)
 	if err != nil {
 		return false, err
 	}
@@ -66,7 +67,7 @@ func ApplyPatch(fs billy.Filesystem, patchPath, destDir string) error {
 	defer patchFile.Close()
 
 	cmd := exec.Command(pathToPatchCmd, "-E", "-p1")
-	cmd.Dir = GetAbsPath(fs, destDir)
+	cmd.Dir = filesystem.GetAbsPath(fs, destDir)
 	cmd.Stdin = patchFile
 	cmd.Stdout = &buf
 

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/sirupsen/logrus"
 	helmAction "helm.sh/helm/v3/pkg/action"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
@@ -18,7 +18,7 @@ import (
 // packageChartsPath is a relative path (rooted at the repository level) where the generated chart will be placed
 func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, chartVersion string, packageAssetsDirpath, packageChartsDirpath string) error {
 	// Try to load the chart to see if it can be exported
-	absHelmChartPath := utils.GetAbsPath(fs, helmChartPath)
+	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
 	chart, err := helmLoader.Load(absHelmChartPath)
 	if err != nil {
 		return fmt.Errorf("Could not load Helm chart: %s", err)
@@ -36,27 +36,27 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, chartVer
 	if err := rootFs.MkdirAll(chartAssetsDirpath, os.ModePerm); err != nil {
 		return fmt.Errorf("Failed to create directory for assets at %s: %s", chartAssetsDirpath, err)
 	}
-	defer utils.PruneEmptyDirsInPath(rootFs, chartAssetsDirpath)
+	defer filesystem.PruneEmptyDirsInPath(rootFs, chartAssetsDirpath)
 	if err := rootFs.MkdirAll(chartChartsDirpath, os.ModePerm); err != nil {
 		return fmt.Errorf("Failed to create directory for charts at %s: %s", chartChartsDirpath, err)
 	}
-	defer utils.PruneEmptyDirsInPath(rootFs, chartChartsDirpath)
+	defer filesystem.PruneEmptyDirsInPath(rootFs, chartChartsDirpath)
 	// Run helm package
 	pkg := helmAction.NewPackage()
 	pkg.Version = chartVersion
-	pkg.Destination = utils.GetAbsPath(rootFs, chartAssetsDirpath)
+	pkg.Destination = filesystem.GetAbsPath(rootFs, chartAssetsDirpath)
 	pkg.DependencyUpdate = false
 	absTgzPath, err := pkg.Run(absHelmChartPath, nil)
 	if err != nil {
 		return err
 	}
-	tgzPath, err := utils.GetRelativePath(rootFs, absTgzPath)
+	tgzPath, err := filesystem.GetRelativePath(rootFs, absTgzPath)
 	if err != nil {
 		return err
 	}
 	logrus.Infof("Generated archive: %s", tgzPath)
 	// Unarchive the generated package
-	if err := utils.UnarchiveTgz(rootFs, tgzPath, "", chartChartsDirpath, true); err != nil {
+	if err := filesystem.UnarchiveTgz(rootFs, tgzPath, "", chartChartsDirpath, true); err != nil {
 		return err
 	}
 	logrus.Infof("Generated chart: %s", chartChartsDirpath)

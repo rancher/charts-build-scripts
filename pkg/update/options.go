@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
 )
 
 // Options are a list of options on what files to copy
@@ -30,25 +30,25 @@ func (u Options) CopyTemplate(rootFs billy.Filesystem, chartsScriptOptions optio
 		return fmt.Errorf("Encountered error while trying to create temporary directory: %s", err)
 	}
 	defer os.RemoveAll(absTempDir)
-	tempDir, err := utils.GetRelativePath(rootFs, absTempDir)
+	tempDir, err := filesystem.GetRelativePath(rootFs, absTempDir)
 	if err != nil {
 		return fmt.Errorf("Encountered error while getting relative path for %s in %s: %s", absTempDir, rootFs.Root(), err)
 	}
-	tempFs := utils.GetFilesystem(absTempDir)
-	err = utils.WalkDir(rootFs, templateDir, func(fs billy.Filesystem, path string, isDir bool) error {
-		repoPath, err := utils.MovePath(path, templateDir, "")
+	tempFs := filesystem.GetFilesystem(absTempDir)
+	err = filesystem.WalkDir(rootFs, templateDir, func(fs billy.Filesystem, path string, isDir bool) error {
+		repoPath, err := filesystem.MovePath(path, templateDir, "")
 		if err != nil {
 			return fmt.Errorf("Unable to get path of %s within %s: %s", repoPath, templateDir, err)
 		}
 		if exists, ok := templateFileMap[repoPath]; !ok || !exists {
 			return nil
 		}
-		f, err := utils.CreateFileAndDirs(tempFs, repoPath)
+		f, err := filesystem.CreateFileAndDirs(tempFs, repoPath)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
-		t := template.Must(template.New(filepath.Base(path)).ParseFiles(utils.GetAbsPath(rootFs, path)))
+		t := template.Must(template.New(filepath.Base(path)).ParseFiles(filesystem.GetAbsPath(rootFs, path)))
 		if err := t.Execute(f, chartsScriptOptions); err != nil {
 			return fmt.Errorf("Error while executing Go template for %s: %s", path, err)
 		}
@@ -57,5 +57,5 @@ func (u Options) CopyTemplate(rootFs billy.Filesystem, chartsScriptOptions optio
 	if err != nil {
 		return err
 	}
-	return utils.CopyDir(rootFs, tempDir, ".")
+	return filesystem.CopyDir(rootFs, tempDir, ".")
 }

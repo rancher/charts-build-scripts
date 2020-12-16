@@ -6,11 +6,11 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/change"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -26,7 +26,7 @@ type AdditionalChart struct {
 
 // ApplyMainChanges applies any changes on the main chart introduced by the AdditionalChart
 func (c *AdditionalChart) ApplyMainChanges(pkgFs billy.Filesystem) error {
-	if exists, err := utils.PathExists(pkgFs, c.WorkingDir); err != nil {
+	if exists, err := filesystem.PathExists(pkgFs, c.WorkingDir); err != nil {
 		return fmt.Errorf("Encountered error while trying to check if %s exists: %s", c.WorkingDir, err)
 	} else if !exists {
 		return fmt.Errorf("Working directory %s has not been prepared yet", c.WorkingDir)
@@ -54,7 +54,7 @@ func (c *AdditionalChart) ApplyMainChanges(pkgFs billy.Filesystem) error {
 
 // RevertMainChanges reverts any changes on the main chart introduced by the AdditionalChart
 func (c *AdditionalChart) RevertMainChanges(pkgFs billy.Filesystem) error {
-	if exists, err := utils.PathExists(pkgFs, c.WorkingDir); err != nil {
+	if exists, err := filesystem.PathExists(pkgFs, c.WorkingDir); err != nil {
 		return fmt.Errorf("Encountered error while trying to check if %s exists: %s", c.WorkingDir, err)
 	} else if !exists {
 		return fmt.Errorf("Working directory %s has not been prepared yet", c.WorkingDir)
@@ -87,7 +87,7 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 		return nil
 	}
 
-	if err := utils.RemoveAll(pkgFs, c.WorkingDir); err != nil {
+	if err := filesystem.RemoveAll(pkgFs, c.WorkingDir); err != nil {
 		return fmt.Errorf("Encountered error while trying to clean up %s before preparing: %s", c.WorkingDir, err)
 	}
 	if c.CRDChartOptions != nil {
@@ -95,7 +95,7 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 		if err != nil {
 			return fmt.Errorf("Encountered error while trying to get the main chart's working directory: %s", err)
 		}
-		exists, err := utils.PathExists(pkgFs, filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
+		exists, err := filesystem.PathExists(pkgFs, filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
 		if err != nil {
 			return fmt.Errorf("Encountered error while trying to check if %s exists: %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir), err)
 		}
@@ -146,7 +146,7 @@ func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 		logrus.Infof("Local chart does not need to be patched")
 		return nil
 	}
-	if exists, err := utils.PathExists(pkgFs, c.WorkingDir); err != nil {
+	if exists, err := filesystem.PathExists(pkgFs, c.WorkingDir); err != nil {
 		return fmt.Errorf("Encountered error while trying to check if %s exists: %s", c.WorkingDir, err)
 	} else if !exists {
 		return fmt.Errorf("Working directory %s has not been prepared yet", c.WorkingDir)
@@ -165,7 +165,7 @@ func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 	if err := PrepareDependencies(rootFs, pkgFs, c.OriginalDir(), c.GeneratedChangesRootDir()); err != nil {
 		return fmt.Errorf("Encountered error while trying to prepare dependencies in %s: %s", c.OriginalDir(), err)
 	}
-	defer utils.RemoveAll(pkgFs, c.OriginalDir())
+	defer filesystem.RemoveAll(pkgFs, c.OriginalDir())
 	if err := change.GenerateChanges(pkgFs, c.OriginalDir(), c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
 		return fmt.Errorf("Encountered error while generating changes from %s to %s and placing it in %s: %s", c.OriginalDir(), c.WorkingDir, c.GeneratedChangesRootDir(), err)
 	}

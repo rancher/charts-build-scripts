@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"gopkg.in/yaml.v2"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
@@ -14,7 +14,7 @@ import (
 // UpdateHelmMetadataWithName updates the name of the chart in the metadata
 func UpdateHelmMetadataWithName(fs billy.Filesystem, mainHelmChartPath string, name string) error {
 	// Check if Helm chart is valid
-	chart, err := helmLoader.Load(utils.GetAbsPath(fs, mainHelmChartPath))
+	chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, mainHelmChartPath))
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func UpdateHelmMetadataWithName(fs billy.Filesystem, mainHelmChartPath string, n
 //TrimRCVersionFromHelmMetadataVersion updates the name of the chart in the metadata
 func TrimRCVersionFromHelmMetadataVersion(fs billy.Filesystem, mainHelmChartPath string) error {
 	// Check if Helm chart is valid
-	chart, err := helmLoader.Load(utils.GetAbsPath(fs, mainHelmChartPath))
+	chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, mainHelmChartPath))
 	if err != nil {
 		return err
 	}

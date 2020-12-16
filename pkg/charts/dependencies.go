@@ -8,10 +8,10 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	helmChart "helm.sh/helm/v3/pkg/chart"
@@ -36,7 +36,7 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 	}
 	// Remove all existing stuff from the charts/ directory by deleting and recreating it
 	dependenciesDestPath := filepath.Join(mainHelmChartPath, "charts")
-	if err := utils.RemoveAll(pkgFs, dependenciesDestPath); err != nil {
+	if err := filesystem.RemoveAll(pkgFs, dependenciesDestPath); err != nil {
 		return err
 	}
 	if err := pkgFs.MkdirAll(dependenciesDestPath, os.ModePerm); err != nil {
@@ -49,19 +49,19 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 		if err != nil {
 			return err
 		}
-		absDependencyChartSrcPath := utils.GetAbsPath(dependencyFs, dependency.WorkingDir)
-		absDependencyChartDestPath := utils.GetAbsPath(pkgFs, filepath.Join(dependenciesDestPath, dependencyName))
+		absDependencyChartSrcPath := filesystem.GetAbsPath(dependencyFs, dependency.WorkingDir)
+		absDependencyChartDestPath := filesystem.GetAbsPath(pkgFs, filepath.Join(dependenciesDestPath, dependencyName))
 		if dependency.Upstream.IsWithinPackage() {
 			// Copy the local chart into dependencyDestPath
-			repositoryDependencyChartsSrcPath, err := utils.GetRelativePath(rootFs, absDependencyChartSrcPath)
+			repositoryDependencyChartsSrcPath, err := filesystem.GetRelativePath(rootFs, absDependencyChartSrcPath)
 			if err != nil {
 				return fmt.Errorf("Encountered error while getting absolute path of %s in %s: %s", absDependencyChartSrcPath, rootFs.Root(), err)
 			}
-			repositoryDependencyChartsDestPath, err := utils.GetRelativePath(rootFs, absDependencyChartDestPath)
+			repositoryDependencyChartsDestPath, err := filesystem.GetRelativePath(rootFs, absDependencyChartDestPath)
 			if err != nil {
 				return fmt.Errorf("Encountered error while getting absolute path of %s in %s: %s", absDependencyChartDestPath, rootFs.Root(), err)
 			}
-			if err = utils.CopyDir(rootFs, repositoryDependencyChartsSrcPath, repositoryDependencyChartsDestPath); err != nil {
+			if err = filesystem.CopyDir(rootFs, repositoryDependencyChartsSrcPath, repositoryDependencyChartsDestPath); err != nil {
 				return fmt.Errorf("Encountered while copying local dependency: %s", err)
 			}
 			if err = helm.UpdateHelmMetadataWithName(rootFs, repositoryDependencyChartsDestPath, dependencyName); err != nil {
@@ -69,7 +69,7 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 			}
 			continue
 		}
-		if utils.RemoveAll(dependencyFs, dependency.WorkingDir); err != nil {
+		if filesystem.RemoveAll(dependencyFs, dependency.WorkingDir); err != nil {
 			return err
 		}
 		if err := dependency.Upstream.Pull(rootFs, dependencyFs, dependency.WorkingDir); err != nil {
@@ -100,7 +100,7 @@ func getMainChartUpstreamOptions(pkgFs billy.Filesystem, gcRootDir string) (*opt
 		return nil, fmt.Errorf("Unable to figure out main chart options given generated changes root directory at %s", gcRootDir)
 	}
 	// Get additional chart working dir by parsing chart name out of generated-changes/additional-charts/{chart-name}/generated-changes
-	additionalChartWorkingDir, err := utils.MovePath(filepath.Dir(gcRootDir), additionalChartPrefix, "")
+	additionalChartWorkingDir, err := filesystem.MovePath(filepath.Dir(gcRootDir), additionalChartPrefix, "")
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 		return err
 	}
 	// Load the main chart
-	mainChart, err := helmLoader.Load(utils.GetAbsPath(pkgFs, mainHelmChartPath))
+	mainChart, err := helmLoader.Load(filesystem.GetAbsPath(pkgFs, mainHelmChartPath))
 	if err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 		}
 		dependencyName := dependency.Name
 		dependencyOptionsPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir, dependencyName, path.DependencyOptionsFile)
-		dependencyExists, err := utils.PathExists(pkgFs, dependencyOptionsPath)
+		dependencyExists, err := filesystem.PathExists(pkgFs, dependencyOptionsPath)
 		if err != nil {
 			return err
 		}
@@ -163,7 +163,7 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 		dependencyName := dependency.Name
 		dependencyOptionsPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir, dependencyName, path.DependencyOptionsFile)
 		// Check if dependency already exists
-		dependencyExists, err := utils.PathExists(pkgFs, dependencyOptionsPath)
+		dependencyExists, err := filesystem.PathExists(pkgFs, dependencyOptionsPath)
 		if err != nil {
 			return err
 		}
@@ -199,7 +199,7 @@ func GetDependencyMap(pkgFs billy.Filesystem, gcRootDir string) (map[string]*Cha
 	dependencyMap := make(map[string]*Chart)
 	// Check whether any dependenices exist
 	dependenciesRootPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir)
-	exists, err := utils.PathExists(pkgFs, dependenciesRootPath)
+	exists, err := filesystem.PathExists(pkgFs, dependenciesRootPath)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +234,7 @@ func GetDependencyMap(pkgFs billy.Filesystem, gcRootDir string) (map[string]*Cha
 // For each dependency in dependencies, it will replace the entry in the requirements.yaml / Chart.yaml with a URL pointing to the local chart archive
 func UpdateHelmMetadataWithDependencies(fs billy.Filesystem, mainHelmChartPath string, dependencyMap map[string]*Chart) error {
 	// Check if Helm chart is valid
-	chart, err := helmLoader.Load(utils.GetAbsPath(fs, mainHelmChartPath))
+	chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, mainHelmChartPath))
 	if err != nil {
 		return err
 	}

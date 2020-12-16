@@ -10,16 +10,17 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/rancher/charts-build-scripts/pkg/change"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/utils"
+	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/sirupsen/logrus"
 )
 
 // CompareGeneratedAssets compares the newCharts against originalCharts and newAssets against originalAssets, while processing dropping release candidate versions if necessary
 func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, originalCharts, originalAssets string, dropReleaseCandidates bool, keepNewAssets bool) error {
 	// Ensures that any modified files are cleared out, but not added files
-	repo, err := utils.GetRepo(rootFs.Root())
+	repo, err := repository.GetRepo(rootFs.Root())
 	if err != nil {
 		return fmt.Errorf("Could not retrieve the repository: %s", err)
 	}
@@ -27,7 +28,7 @@ func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, origi
 	if err != nil {
 		return fmt.Errorf("Could not retrieve current worktree: %s", err)
 	}
-	currentBranchRefName, err := utils.GetCurrentBranchRefName(repo)
+	currentBranchRefName, err := repository.GetCurrentBranchRefName(repo)
 	if err != nil {
 		return fmt.Errorf("Could not get the current branch's reference name: %s", err)
 	}
@@ -40,13 +41,13 @@ func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, origi
 			if err := rootFs.MkdirAll(d, os.ModePerm); err != nil {
 				return fmt.Errorf("Failed to make directory %s: %s", d, err)
 			}
-			defer utils.PruneEmptyDirsInPath(rootFs, d)
-			defer utils.RemoveAll(rootFs, d)
+			defer filesystem.PruneEmptyDirsInPath(rootFs, d)
+			defer filesystem.RemoveAll(rootFs, d)
 		}
 		// Only keep the biggest RC of any packageVersion
 		visitedChart := make(map[string]bool)
 		latestRC := make(map[string]string)
-		err := utils.WalkDir(rootFs, newCharts, func(rootFs billy.Filesystem, path string, isDir bool) error {
+		err := filesystem.WalkDir(rootFs, newCharts, func(rootFs billy.Filesystem, path string, isDir bool) error {
 			// new-assets/charts/{package}/{chart}
 			if strings.Count(path, "/") != 3 {
 				return nil
@@ -77,7 +78,7 @@ func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, origi
 					continue
 				}
 				latestRC[chartVersionWithoutRC] = chartVersion
-				if err := utils.RemoveAll(rootFs, filepath.Join(path, latestRCSeenSoFar)); err != nil {
+				if err := filesystem.RemoveAll(rootFs, filepath.Join(path, latestRCSeenSoFar)); err != nil {
 					return fmt.Errorf("Failed to remove older RC %s: %s", filepath.Join(path, latestRCSeenSoFar), err)
 				}
 				logrus.Infof("Purged old release candidate version: %s", latestRCSeenSoFar)
@@ -89,7 +90,7 @@ func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, origi
 		}
 		logrus.Infof("Found the following latest release candidate versions: %s", latestRC)
 		// Export each helm chart to newChartsWithoutRC
-		err = utils.WalkDir(rootFs, newCharts, func(rootFs billy.Filesystem, path string, isDir bool) error {
+		err = filesystem.WalkDir(rootFs, newCharts, func(rootFs billy.Filesystem, path string, isDir bool) error {
 			// new-assets/charts/{package}/{chart}/{version}
 			if strings.Count(path, "/") != 4 {
 				return nil
@@ -122,10 +123,10 @@ func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, origi
 		return nil
 	}
 	// Ensure that assets are kept by copying them into the assets and charts directory
-	if err := utils.CopyDir(rootFs, checkAssets, path.RepositoryAssetsDir); err != nil {
+	if err := filesystem.CopyDir(rootFs, checkAssets, path.RepositoryAssetsDir); err != nil {
 		return fmt.Errorf("Encountered error while copying over new assets: %s", err)
 	}
-	if err := utils.CopyDir(rootFs, checkCharts, path.RepositoryChartsDir); err != nil {
+	if err := filesystem.CopyDir(rootFs, checkCharts, path.RepositoryChartsDir); err != nil {
 		return fmt.Errorf("Encountered error while copying over new charts: %s", err)
 	}
 	// Ensure that you don't wipe out new assets on a clean

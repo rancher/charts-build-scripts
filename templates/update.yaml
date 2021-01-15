@@ -2,12 +2,14 @@ source:
 - README.md
 - .gitignore
 - scripts/pull-scripts
+- scripts/regenerate-packages
 - Makefile
 - packages/README.md
 staging:
 - README.md
 - .gitignore
 - scripts/pull-scripts
+- scripts/regenerate-assets
 - Makefile
 - assets/README.md
 - charts/README.md
@@ -17,6 +19,7 @@ live:
 - README.md
 - .gitignore
 - scripts/pull-scripts
+- scripts/regenerate-assets
 - Makefile
 - assets/README.md
 - charts/README.md

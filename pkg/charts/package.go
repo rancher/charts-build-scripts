@@ -153,6 +153,10 @@ func (p *Package) Clean() error {
 			// Working directory never needs to be clean for an additional chart
 			continue
 		}
+		if err := additionalChart.RevertMainChanges(p.fs); err != nil {
+			return fmt.Errorf("Encountered error while reverting changes from %s to main chart: %s", additionalChart.WorkingDir, err)
+		}
+		// TODO: call revert here for each additional chart before cleaning
 		chartPathsToClean = append(chartPathsToClean, additionalChart.OriginalDir(), additionalChart.WorkingDir)
 	}
 	for _, chartPath := range chartPathsToClean {

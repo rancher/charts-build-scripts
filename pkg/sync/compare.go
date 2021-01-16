@@ -33,7 +33,7 @@ func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, origi
 	currentBranchRefName, err := repository.GetCurrentBranchRefName(repo)
 	useBranch := (err != nil)
 	if err != nil {
-		logrus.Warnf("Encountered errror while trying to get the current branch's reference name: %s", err)
+		logrus.Warnf("Encountered error while trying to get the current branch's reference name: %s", err)
 		logrus.Warnf("Using current head hash to reset index to expected values after comparing changes")
 		// Operating in detached mode, so use the commit instead
 		currentHeadHash, err = repository.GetHead(repo)

@@ -282,6 +282,7 @@ func synchronizeRepo(c *cli.Context) {
 		}
 		logrus.Infof("Successfully synchronized with %s!", compareGeneratedAssetsOptions.Branch)
 	}
+	logrus.Infof("Creating or updating the Helm index with the newly added assets...")
 	// Delete the Helm index if it was the only thing updated, whether or not changes failed
 	status, err = wt.Status()
 	if err != nil {

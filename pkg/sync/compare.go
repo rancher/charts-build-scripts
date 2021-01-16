@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/rancher/charts-build-scripts/pkg/change"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
@@ -28,9 +29,17 @@ func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, origi
 	if err != nil {
 		return fmt.Errorf("Could not retrieve current worktree: %s", err)
 	}
+	var currentHeadHash plumbing.Hash
 	currentBranchRefName, err := repository.GetCurrentBranchRefName(repo)
+	useBranch := (err != nil)
 	if err != nil {
-		return fmt.Errorf("Could not get the current branch's reference name: %s", err)
+		logrus.Warnf("Encountered errror while trying to get the current branch's reference name: %s", err)
+		logrus.Warnf("Using current head hash to reset index to expected values after comparing changes")
+		// Operating in detached mode, so use the commit instead
+		currentHeadHash, err = repository.GetHead(repo)
+		if err != nil {
+			return fmt.Errorf("Could not get head hash reference: %s", err)
+		}
 	}
 	checkCharts := newCharts
 	checkAssets := newAssets
@@ -139,10 +148,17 @@ func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, origi
 			wt.Excludes = append(wt.Excludes, gitignore.ParsePattern(p, []string{}))
 		}
 	}
-	err = wt.Checkout(&git.CheckoutOptions{
-		Branch: currentBranchRefName,
-		Force:  true,
-	})
+	if useBranch {
+		err = wt.Checkout(&git.CheckoutOptions{
+			Branch: currentBranchRefName,
+			Force:  true,
+		})
+	} else {
+		err = wt.Checkout(&git.CheckoutOptions{
+			Hash:  currentHeadHash,
+			Force: true,
+		})
+	}
 	if err != nil {
 		return fmt.Errorf("Could not clean up current repository to get it ready for a commit: %s", err)
 	}

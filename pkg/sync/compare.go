@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/rancher/charts-build-scripts/pkg/change"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
@@ -16,6 +15,10 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	temporaryBranchName = "charts-build-scripts-temporary-branch-012345"
 )
 
 // CompareGeneratedAssets compares the newCharts against originalCharts and newAssets against originalAssets, while processing dropping release candidate versions if necessary
@@ -29,17 +32,20 @@ func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, origi
 	if err != nil {
 		return fmt.Errorf("Could not retrieve current worktree: %s", err)
 	}
-	var currentHeadHash plumbing.Hash
 	currentBranchRefName, err := repository.GetCurrentBranchRefName(repo)
-	useBranch := (err != nil)
 	if err != nil {
 		logrus.Warnf("Encountered error while trying to get the current branch's reference name: %s", err)
-		logrus.Warnf("Using current head hash to reset index to expected values after comparing changes")
+		logrus.Warnf("Using current head hash to create a brand new branch that will be used for making changes")
 		// Operating in detached mode, so use the commit instead
-		currentHeadHash, err = repository.GetHead(repo)
+		currentHeadHash, err := repository.GetHead(repo)
 		if err != nil {
 			return fmt.Errorf("Could not get head hash reference: %s", err)
 		}
+		if err := repository.CreateBranch(repo, temporaryBranchName, currentHeadHash); err != nil {
+			return fmt.Errorf("Could not create new branch from detached head: %s", err)
+		}
+		defer logrus.Warnf("You must manually clean up the branch %s", temporaryBranchName)
+		currentBranchRefName = repository.GetLocalBranchRefName(temporaryBranchName)
 	}
 	checkCharts := newCharts
 	checkAssets := newAssets
@@ -148,17 +154,10 @@ func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, origi
 			wt.Excludes = append(wt.Excludes, gitignore.ParsePattern(p, []string{}))
 		}
 	}
-	if useBranch {
-		err = wt.Checkout(&git.CheckoutOptions{
-			Branch: currentBranchRefName,
-			Force:  true,
-		})
-	} else {
-		err = wt.Checkout(&git.CheckoutOptions{
-			Hash:  currentHeadHash,
-			Force: true,
-		})
-	}
+	err = wt.Checkout(&git.CheckoutOptions{
+		Branch: currentBranchRefName,
+		Force:  true,
+	})
 	if err != nil {
 		return fmt.Errorf("Could not clean up current repository to get it ready for a commit: %s", err)
 	}

@@ -32,6 +32,11 @@ func CreateBranch(repo *git.Repository, branch string, hash plumbing.Hash) error
 	return repo.Storer.SetReference(hashRef)
 }
 
+// DeleteBranch deletes a branch within a given repository or returns an error
+func DeleteBranch(repo *git.Repository, branch string) error {
+	return repo.Storer.RemoveReference(GetLocalBranchRefName(branch))
+}
+
 // GetCurrentBranch gets the current branch of the repositry or returns an error
 func GetCurrentBranch(repo *git.Repository) (string, error) {
 	branchRefName, err := GetCurrentBranchRefName(repo)

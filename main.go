@@ -299,6 +299,7 @@ func synchronizeRepo(c *cli.Context) {
 				logrus.Fatalf("Sync was successful but was unable to update the Helm index: %s", err)
 			}
 			chartsIntroduced = true
+			break
 		}
 	}
 	if chartsIntroduced {

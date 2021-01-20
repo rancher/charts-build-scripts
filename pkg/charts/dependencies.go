@@ -286,7 +286,16 @@ func UpdateHelmMetadataWithDependencies(fs billy.Filesystem, mainHelmChartPath s
 	if err != nil {
 		return err
 	}
-	file, err := fs.OpenFile(path, os.O_RDWR, os.ModePerm)
+	exists, err := filesystem.PathExists(fs, path)
+	if err != nil {
+		return err
+	}
+	var file billy.File
+	if !exists {
+		file, err = filesystem.CreateFileAndDirs(fs, path)
+	} else {
+		file, err = fs.OpenFile(path, os.O_RDWR, os.ModePerm)
+	}
 	if err != nil {
 		return err
 	}

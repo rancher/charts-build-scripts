@@ -24,6 +24,9 @@ type Chart struct {
 func (c *Chart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 	if c.Upstream.IsWithinPackage() {
 		logrus.Infof("Local chart does not need to be prepared")
+		if err := PrepareDependencies(rootFs, pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
+			return fmt.Errorf("Encountered error while trying to prepare dependencies in %s: %s", c.WorkingDir, err)
+		}
 		return nil
 	}
 	if err := filesystem.RemoveAll(pkgFs, c.WorkingDir); err != nil {

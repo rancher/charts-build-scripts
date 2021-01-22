@@ -2,7 +2,6 @@ package charts
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
@@ -40,23 +39,22 @@ func (u LocalPackage) Pull(rootFs, fs billy.Filesystem, path string) error {
 		}
 		defer pkg.Clean()
 	}
-	if pkg.Chart.Upstream.IsWithinPackage() || packagePrepared {
-		// Copy
-		repositoryPackageWorkingDir, err := filesystem.GetRelativePath(rootFs, filesystem.GetAbsPath(pkg.fs, pkg.WorkingDir))
-		if err != nil {
-			return err
-		}
-		repositoryPath, err := filesystem.GetRelativePath(rootFs, filesystem.GetAbsPath(fs, path))
-		if err != nil {
-			return err
-		}
-		if err := filesystem.CopyDir(rootFs, repositoryPackageWorkingDir, repositoryPath); err != nil {
-			return fmt.Errorf("Encountered error while moving prepared package into path: %s", err)
-		}
-	} else {
-		// Move
-		if err := os.Rename(filesystem.GetAbsPath(pkg.fs, pkg.WorkingDir), filesystem.GetAbsPath(fs, path)); err != nil {
-			return fmt.Errorf("Encountered error while renaming prepared package into path: %s", err)
+	// Copy
+	repositoryPackageWorkingDir, err := filesystem.GetRelativePath(rootFs, filesystem.GetAbsPath(pkg.fs, pkg.WorkingDir))
+	if err != nil {
+		return err
+	}
+	repositoryPath, err := filesystem.GetRelativePath(rootFs, filesystem.GetAbsPath(fs, path))
+	if err != nil {
+		return err
+	}
+	if err := filesystem.CopyDir(rootFs, repositoryPackageWorkingDir, repositoryPath); err != nil {
+		return fmt.Errorf("Encountered error while copying prepared package into path: %s", err)
+	}
+	if !pkg.Chart.Upstream.IsWithinPackage() && packagePrepared {
+		// Remove the non-local prepared package
+		if err = filesystem.RemoveAll(rootFs, repositoryPackageWorkingDir); err != nil {
+			return fmt.Errorf("Encountered error while removing already copied package: %s", err)
 		}
 	}
 	if u.Subdirectory != nil && len(*u.Subdirectory) > 0 {

@@ -15,7 +15,7 @@ import (
 
 var (
 	// ChartsBuildScriptsRepositoryURL is the URL pointing to the charts builds scripts
-	ChartsBuildScriptsRepositoryURL = "https://github.com/aiyengar2/charts-build-scripts.git" // TODO(aiyengar2): change to rancher
+	ChartsBuildScriptsRepositoryURL = "https://github.com/rancher/charts-build-scripts.git"
 	// ChartsBuildScriptsRepositoryBranch is the branch that has the latest documentation
 	ChartsBuildScriptsRepositoryBranch = "master"
 	// ChartsBuildScriptRepositoryTemplatesDirectory is the folder within our repository that contains templates

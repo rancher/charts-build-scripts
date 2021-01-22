@@ -1,7 +1,7 @@
 template: live
 
 sync:
-- url: https://github.com/aiyengar2/test-charts.git
+- url: https://github.com/rancher/charts.git
   branch: dev-v2.5
   dropReleaseCandidates: true
 helmRepo:

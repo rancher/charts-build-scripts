@@ -114,7 +114,7 @@ func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, origi
 				return fmt.Errorf("Expected chart version to be found at %s, but that path does not represent a directory", path)
 			}
 			packageName := filepath.Base(filepath.Dir(filepath.Dir(path)))
-			err := helm.TrimRCVersionFromHelmMetadataVersion(rootFs, path)
+			err := helm.TrimRCVersionFromHelmChart(rootFs, path)
 			if err != nil {
 				return fmt.Errorf("Encountered error when dropping rc from %s", path)
 			}

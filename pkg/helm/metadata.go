@@ -37,14 +37,27 @@ func UpdateHelmMetadataWithName(fs billy.Filesystem, mainHelmChartPath string, n
 	return nil
 }
 
-//TrimRCVersionFromHelmMetadataVersion updates the name of the chart in the metadata
-func TrimRCVersionFromHelmMetadataVersion(fs billy.Filesystem, mainHelmChartPath string) error {
+// TrimRCVersionFromHelmChart updates the chart's metadata to remove RC versions
+func TrimRCVersionFromHelmChart(fs billy.Filesystem, mainHelmChartPath string) error {
 	// Check if Helm chart is valid
 	chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, mainHelmChartPath))
 	if err != nil {
 		return err
 	}
 	chart.Metadata.Version = strings.SplitN(chart.Metadata.Version, "-rc", 2)[0]
+	// Remove RC version from specific annotations
+	for annotation, val := range chart.Metadata.Annotations {
+		exportAnnotation, ok := exportAnnotations[annotation]
+		if !ok {
+			// No need to update annotations
+			continue
+		}
+		newVal, updated := exportAnnotation.dropRCVersion(val)
+		if !updated {
+			continue
+		}
+		chart.Metadata.Annotations[annotation] = newVal
+	}
 	// Write to either the Chart.yaml or the requirements.yaml, depending on the version
 	path := filepath.Join(mainHelmChartPath, "Chart.yaml")
 	data := chart.Metadata

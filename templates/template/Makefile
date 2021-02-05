@@ -1,9 +1,11 @@
 pull-scripts:
 	./scripts/pull-scripts
 
-{{- if (eq .Template "staging") }}
+{{ if (eq .Template "staging") -}}
+
 release:
 	./scripts/release-assets
+
 {{ end -}}
 
 TARGETS := prepare patch charts clean sync validate rebase docs

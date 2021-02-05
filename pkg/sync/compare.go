@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -81,18 +82,19 @@ func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, origi
 			for _, f := range fileInfos {
 				chartVersion := f.Name()
 				splitChartVersion := strings.Split(chartVersion, "-rc")
-				chartVersionWithoutRC := strings.Join(splitChartVersion[:len(splitChartVersion)-1], "")
-				latestRCSeenSoFar, ok := latestRC[chartVersionWithoutRC]
+				chartVersionWithName := fmt.Sprintf("%s/%s", chart, chartVersion)
+				chartVersionWithNameWithoutRC := fmt.Sprintf("%s/%s", chart, splitChartVersion[0])
+				latestRCSeenSoFar, ok := latestRC[chartVersionWithNameWithoutRC]
 				if !ok {
 					// First time seeing this RC
-					latestRC[chartVersionWithoutRC] = chartVersion
+					latestRC[chartVersionWithNameWithoutRC] = chartVersionWithName
 					continue
 				}
 				// Compare with existing value
-				if latestRCSeenSoFar >= chartVersion {
+				if latestRCSeenSoFar >= chartVersionWithName {
 					continue
 				}
-				latestRC[chartVersionWithoutRC] = chartVersion
+				latestRC[chartVersionWithNameWithoutRC] = chartVersionWithName
 				if err := filesystem.RemoveAll(rootFs, filepath.Join(path, latestRCSeenSoFar)); err != nil {
 					return fmt.Errorf("Failed to remove older RC %s: %s", filepath.Join(path, latestRCSeenSoFar), err)
 				}
@@ -103,7 +105,14 @@ func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, origi
 		if err != nil {
 			return err
 		}
-		logrus.Infof("Found the following latest release candidate versions: %s", latestRC)
+		// pretty print on the console
+		prettyLatestRC, err := json.MarshalIndent(latestRC, "", " ")
+		if err != nil {
+			// Ignore error, just fall back to printing the map directly
+			logrus.Infof("Found the following latest release candidate versions: %s", latestRC)
+		} else {
+			logrus.Infof("Found the following latest release candidate versions: %s", prettyLatestRC)
+		}
 		// Export each helm chart to newChartsWithoutRC
 		err = filesystem.WalkDir(rootFs, newCharts, func(rootFs billy.Filesystem, path string, isDir bool) error {
 			// new-assets/charts/{package}/{chart}/{version}

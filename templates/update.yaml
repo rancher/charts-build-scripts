@@ -10,9 +10,11 @@ staging:
 - .gitignore
 - scripts/pull-scripts
 - scripts/regenerate-assets
+- scripts/release-assets
 - Makefile
 - assets/README.md
 - charts/README.md
+- released/README.md
 - CNAME
 - index.html
 live:

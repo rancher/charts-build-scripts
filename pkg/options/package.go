@@ -21,6 +21,8 @@ type PackageOptions struct {
 	MainChartOptions ChartOptions `yaml:",inline"`
 	// AdditionalChartOptions represent options presented to the user to configure any additional charts
 	AdditionalChartOptions []AdditionalChartOptions `yaml:"additionalCharts,omitempty"`
+	// DoNotRelease represents a boolean flag that indicates a package should not be tracked in make charts
+	DoNotRelease bool `yaml:"doNotRelease,omitempty"`
 }
 
 // LoadPackageOptionsFromFile unmarshalls the struct found at the file to YAML and reads it into memory

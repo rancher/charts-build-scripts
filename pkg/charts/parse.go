@@ -99,6 +99,7 @@ func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 		PackageVersion:          packageOpt.PackageVersion,
 		AdditionalCharts:        additionalCharts,
 		ReleaseCandidateVersion: packageOpt.ReleaseCandidateVersion,
+		DoNotRelease:            packageOpt.DoNotRelease,
 
 		fs:     pkgFs,
 		rootFs: rootFs,

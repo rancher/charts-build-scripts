@@ -13,12 +13,12 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 	helmChart "helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 	helmCli "helm.sh/helm/v3/pkg/cli"
 	helmGetter "helm.sh/helm/v3/pkg/getter"
 	helmRepo "helm.sh/helm/v3/pkg/repo"
+	"sigs.k8s.io/yaml"
 )
 
 // PrepareDependencies prepares all of the dependencies of a given chart and regenerates the requirements.yaml or Chart.yaml

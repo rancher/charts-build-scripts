@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"gopkg.in/yaml.v2"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
+	"sigs.k8s.io/yaml"
 )
 
 // UpdateHelmMetadataWithName updates the name of the chart in the metadata

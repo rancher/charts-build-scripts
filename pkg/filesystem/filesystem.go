@@ -137,7 +137,7 @@ func CopyFile(fs billy.Filesystem, srcPath string, dstPath string) error {
 	if !dstExists {
 		dstFile, err = CreateFileAndDirs(fs, dstPath)
 	} else {
-		dstFile, err = fs.OpenFile(dstPath, os.O_WRONLY, os.ModePerm)
+		dstFile, err = fs.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 	}
 	if err != nil {
 		return err
@@ -184,7 +184,7 @@ func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string
 		}
 	}
 	// Check if you can open the tgzPath as a tar file
-	tgz, err := fs.OpenFile(tgzPath, os.O_RDWR, os.ModePerm)
+	tgz, err := fs.OpenFile(tgzPath, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		return err
 	}

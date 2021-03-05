@@ -54,7 +54,7 @@ func (p PackageOptions) WriteToFile(fs billy.Filesystem, path string) error {
 	if !exists {
 		file, err = filesystem.CreateFileAndDirs(fs, path)
 	} else {
-		file, err = fs.OpenFile(path, os.O_RDWR, os.ModePerm)
+		file, err = fs.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 	}
 	if err != nil {
 		return err

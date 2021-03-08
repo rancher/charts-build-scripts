@@ -6,7 +6,6 @@ if [ "${BRANCH_ROLE}" != "source" ] && [ "${BRANCH_ROLE}" != "staging" ] && [ "$
     exit 1
 fi
 
-# cd into the Git repository that you are converting into a charts repository
 CBS_RAW_LINK=https://raw.githubusercontent.com/rancher/charts-build-scripts/master
 
 mkdir -p scripts
@@ -36,6 +35,6 @@ else
     echo "You will need to run make docs manually after filling in the configuration.yaml"
     echo "To add a template for Github Workflow based pull-requests, run the following script and update .github/workflows/pull-request.yaml manually"
     echo "curl ${CBS_RAW_LINK}/templates/.github/workflows/pull-request.yaml --output .github/workflows/pull-request.yaml"
-     echo "To add a template for Github Workflow based automatic pushes, run the following script and update .github/workflows/push.yaml manually"
+    echo "To add a template for Github Workflow based automatic pushes, run the following script and update .github/workflows/push.yaml manually"
     echo "curl ${CBS_RAW_LINK}/templates/.github/workflows/push.yaml --output .github/workflows/push.yaml"
 fi

@@ -7,7 +7,7 @@ charts-build-scripts
 
 #### If you are creating a new charts repository 
 
-Checkout into the Git branch that corresponds to your Source, Staging, or Live branch.
+Checkout the Git branch that corresponds to your Source, Staging, or Live branch.
 
 Export BRANCH_ROLE as `source`, `staging`, `live`, or `custom`. Then run:
 

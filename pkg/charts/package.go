@@ -25,6 +25,8 @@ type Package struct {
 	ReleaseCandidateVersion int `yaml:"releaseCandidateVersion"`
 	// AdditionalCharts are other charts that should be packaged together with this
 	AdditionalCharts []AdditionalChart `yaml:"additionalCharts,omitempty"`
+	// DoNotRelease represents a boolean flag that indicates a package should not be tracked in make charts
+	DoNotRelease bool `yaml:"doNotRelease,omitempty"`
 
 	// fs is a filesystem rooted at the package
 	fs billy.Filesystem
@@ -86,6 +88,10 @@ func (p *Package) GeneratePatch() error {
 
 // GenerateCharts creates Helm chart archives for each chart after preparing it
 func (p *Package) GenerateCharts() error {
+	if p.DoNotRelease {
+		logrus.Infof("Skipping package marked doNotRelease")
+		return nil
+	}
 	if err := p.Prepare(); err != nil {
 		return fmt.Errorf("Encountered error while trying to prepare package: %s", err)
 	}

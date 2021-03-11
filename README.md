@@ -5,16 +5,19 @@ charts-build-scripts
 
 ## Before running the scripts
 
-#### If you are creating a new charts repository with `charts-build-scripts init`
+#### If you are creating a new charts repository 
 
-Set the environment variable `GITHUB_AUTH_TOKEN` to your [personal Github Access Token](https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token).
+Checkout the Git branch that corresponds to your Source, Staging, or Live branch.
 
-This allows the scripts to automatically make requests to the Github API for you. The Personal Access Token you provide should have a `repo` scope.
+Export BRANCH_ROLE as `source`, `staging`, `live`, or `custom`. Then run:
+
+```
+curl -s https://raw.githubusercontent.com/rancher/charts-build-scripts/master/init.sh > /dev/null | sh
+```
 
 ## Building
 
 `make`
-
 
 ## Running
 

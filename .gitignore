@@ -5,3 +5,4 @@
 *.swp
 .idea
 charts-build-scripts
+charts-integration-test/

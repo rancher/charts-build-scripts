@@ -1,0 +1,87 @@
+#!/bin/bash
+set -e
+
+cd $(dirname $0)
+
+cd ..
+
+if [ -z ${REPOSITORY} ] || [ -z ${BRANCH} ]; then
+    echo "usage: REPOSITORY=https://github.com/myorg/myrepo.git BRANCH=my-source-branch ./scripts/integration"
+    exit 1
+fi
+
+CHARTS_DIRECTORY=charts-integration-test
+
+rm -rf ${CHARTS_DIRECTORY}
+
+# Run integration tests
+
+echo "Pulling in ${REPOSITORY} at ${BRANCH}"
+git clone --depth 1 --branch ${BRANCH} ${REPOSITORY} ${CHARTS_DIRECTORY} 2>/dev/null
+
+cd ${CHARTS_DIRECTORY}
+mkdir -p bin
+cp ../charts-build-scripts ./bin/charts-build-scripts
+echo "> Detecting type of branch"
+TEMPLATE=$(yq r configuration.yaml 'template')
+if [ "${TEMPLATE}" = "source" ] || [ "${TEMPLATE}" = "staging" ] || [ "${TEMPLATE}" = "live" ]; then
+    echo "Branch ${BRANCH} is a ${TEMPLATE} branch"
+else
+    echo "${BRANCH} has invalid template type ${TEMPLATE}"
+    exit 1
+fi
+if [ "${TEMPLATE}" = "source" ]; then
+    echo "> Running make prepare"
+    make prepare
+    echo "> Running make patch"
+    make patch
+    echo "> Running make clean"
+    make clean
+    echo "> Checking if Git is clean..."
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "Cannot run rebase on unclean repository:"
+        git status --porcelain
+        exit 1
+    fi
+    echo "> Running make validate"
+    make validate
+    echo "> Checking if Git is clean..."
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "Cannot run rebase on unclean repository:"
+        git status --porcelain
+        exit 1
+    fi
+else
+    if [ -z ${SYNC_REPO} ] || [ -z ${SYNC_BRANCH} ]; then
+        echo "> Running sync on the following:" 
+        yq r configuration.yaml 'sync'
+    else
+        echo "> Modifying configuration.yaml to sync with ${SYNC_REPO}@${SYNC_BRANCH}"
+        yq d configuration.yaml 'sync' \
+            | yq w - 'sync[0].url' ${SYNC_REPO} \
+            | yq w - 'sync[0].branch' ${SYNC_BRANCH} > configuration.yaml
+        git add configuration.yaml && git commit -m "Modified configuration.yaml" 2>/dev/null
+    fi
+    if [ -z ${VALIDATE_REPO} ] || [ -z ${VALIDATE_BRANCH} ]; then
+        echo "> Running sync on the following:" 
+        yq r configuration.yaml 'validate'
+    else
+        echo "> Modifying configuration.yaml to sync with ${VALIDATE_REPO}@${VALIDATE_BRANCH}"
+        yq d configuration.yaml 'validate' \
+            | yq w - 'validate[0].url' ${VALIDATE_REPO} \
+            | yq w - 'validate[0].branch' ${VALIDATE_BRANCH} > configuration.yaml
+        git add configuration.yaml && git commit -m "Modified configuration.yaml" 2>/dev/null
+    fi
+    echo "> Running make validate"
+    make validate
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "Cannot run rebase on unclean repository:"
+        git status --porcelain
+        exit 1
+    fi
+    echo "> Running make sync"
+    make sync
+fi
+echo "Successfully validated changes do not break ${TEMPLATE} branch."
+
+rm -rf ${CHARTS_DIRECTORY}

@@ -197,7 +197,7 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 // GetDependencyMap gets a map between a dependency's name and a Chart representing that dependency for all rooted at gcRootDir
 func GetDependencyMap(pkgFs billy.Filesystem, gcRootDir string) (map[string]*Chart, error) {
 	dependencyMap := make(map[string]*Chart)
-	// Check whether any dependenices exist
+	// Check whether any dependencies exist
 	dependenciesRootPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir)
 	exists, err := filesystem.PathExists(pkgFs, dependenciesRootPath)
 	if err != nil {

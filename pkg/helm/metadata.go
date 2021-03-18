@@ -26,7 +26,7 @@ func UpdateHelmMetadataWithName(fs billy.Filesystem, mainHelmChartPath string, n
 	if err != nil {
 		return err
 	}
-	file, err := fs.OpenFile(path, os.O_RDWR, os.ModePerm)
+	file, err := fs.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func TrimRCVersionFromHelmChart(fs billy.Filesystem, mainHelmChartPath string) e
 	if err != nil {
 		return err
 	}
-	file, err := fs.OpenFile(path, os.O_RDWR, os.ModePerm)
+	file, err := fs.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		return err
 	}

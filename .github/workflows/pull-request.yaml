@@ -5,7 +5,9 @@ on: [pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
+    container: 
+      image: rancher/dapper:v0.5.4
     steps:
-      - uses: actions/checkout@v2
-      - name: Pull scripts
-        run: make ci
+      - uses: actions/checkout@v1
+      - name: Run CI
+        run: dapper ci

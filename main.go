@@ -116,76 +116,36 @@ func main() {
 }
 
 func prepareCharts(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	if len(packages) == 0 {
-		logrus.Fatalf("Could not find any packages in packages/")
-	}
+	packages := getPackages()
 	for _, p := range packages {
-		if err = p.Prepare(); err != nil {
+		if err := p.Prepare(); err != nil {
 			logrus.Fatal(err)
 		}
 	}
 }
 
 func generatePatch(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	if len(packages) == 0 {
-		logrus.Fatalf("Could not find any packages in packages/")
-	}
+	packages := getPackages()
 	for _, p := range packages {
-		if err = p.GeneratePatch(); err != nil {
+		if err := p.GeneratePatch(); err != nil {
 			logrus.Fatal(err)
 		}
 	}
 }
 
 func generateCharts(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	if len(packages) == 0 {
-		logrus.Fatalf("Could not find any packages in packages/")
-	}
+	packages := getPackages()
 	for _, p := range packages {
-		if err = p.GenerateCharts(); err != nil {
+		if err := p.GenerateCharts(); err != nil {
 			logrus.Fatal(err)
 		}
 	}
 }
 
 func cleanRepository(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	if len(packages) == 0 {
-		logrus.Fatalf("Could not find any packages in packages/")
-	}
+	packages := getPackages()
 	for _, p := range packages {
-		if err = p.Clean(); err != nil {
+		if err := p.Clean(); err != nil {
 			logrus.Fatal(err)
 		}
 	}
@@ -213,23 +173,7 @@ func rebaseChart(c *cli.Context) {
 }
 
 func validateRepo(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	repo, err := repository.GetRepo(repoRoot)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	// Check if git is clean
-	wt, err := repo.Worktree()
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	status, err := wt.Status()
-	if err != nil {
-		logrus.Fatal(err)
-	}
+	wt, status := getGitInfo()
 	if !status.IsClean() {
 		logrus.Fatalf("Current repository is not clean:\n%s", status)
 	}
@@ -245,23 +189,7 @@ func validateRepo(c *cli.Context) {
 }
 
 func synchronizeRepo(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	repo, err := repository.GetRepo(repoRoot)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	// Check if git is clean
-	wt, err := repo.Worktree()
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	status, err := wt.Status()
-	if err != nil {
-		logrus.Fatal(err)
-	}
+	wt, status := getGitInfo()
 	if !status.IsClean() {
 		logrus.Fatalf("Current repository is not clean:\n%s", status)
 	}
@@ -276,10 +204,7 @@ func synchronizeRepo(c *cli.Context) {
 	}
 	logrus.Infof("Creating or updating the Helm index with the newly added assets...")
 	// Delete the Helm index if it was the only thing updated, whether or not changes failed
-	status, err = wt.Status()
-	if err != nil {
-		logrus.Fatalf("Could not retrieve current git status after sync: %s", err)
-	}
+	wt, status = getGitInfo()
 	chartsIntroduced := false
 	for p, fileStatus := range status {
 		if p == path.RepositoryHelmIndexFile {
@@ -324,4 +249,40 @@ func parseScriptOptions() *options.ChartsScriptOptions {
 		logrus.Fatalf("Unable to unmarshall configuration file: %s", err)
 	}
 	return &chartsScriptOptions
+}
+
+func getPackages() []*charts.Package {
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		logrus.Fatalf("Unable to get current working directory: %s", err)
+	}
+	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	if len(packages) == 0 {
+		logrus.Fatalf("Could not find any packages in packages/")
+	}
+	return packages
+}
+
+func getGitInfo() (*git.Worktree, git.Status) {
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		logrus.Fatalf("Unable to get current working directory: %s", err)
+	}
+	repo, err := repository.GetRepo(repoRoot)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	// Check if git is clean
+	wt, err := repo.Worktree()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	status, err := wt.Status()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	return wt, status
 }

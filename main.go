@@ -61,14 +61,6 @@ func main() {
 		Destination: &CurrentPackage,
 		EnvVar:      DefaultPackageEnvironmentVariable,
 	}
-	// Github Auth Token is currently not used
-	_ = cli.StringFlag{
-		Name:        "github-auth-token,g",
-		Usage:       "Github Access Token that can be used to make requests to the Github API on your behalf",
-		Required:    true,
-		EnvVar:      "GITHUB_AUTH_TOKEN",
-		Destination: &GithubToken,
-	}
 	app.Commands = []cli.Command{
 		{
 			Name:   "prepare",
@@ -332,20 +324,4 @@ func parseScriptOptions() *options.ChartsScriptOptions {
 		logrus.Fatalf("Unable to unmarshall configuration file: %s", err)
 	}
 	return &chartsScriptOptions
-}
-
-func validateRepoPointingToBranch(repo *git.Repository, branch string) error {
-	ref, err := repo.Head()
-	if err != nil {
-		return err
-	}
-	refName := ref.Name()
-	if !refName.IsBranch() {
-		return fmt.Errorf("Unable to find current branch")
-	}
-	currentBranch := refName.Short()
-	if currentBranch != branch {
-		return fmt.Errorf("Cannot execute command on current branch (%s). You must be in %s to run this command", currentBranch, branch)
-	}
-	return nil
 }

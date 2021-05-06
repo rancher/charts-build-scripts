@@ -1,24 +1,15 @@
-{{ if (eq .Template "source") -}}
-## Source Branch
+{{- if (eq .Template "staging") -}}
+## Staging Branch
 
-This branch contains packages that contain Packages that will be synced to another branch.
+This branch contains Packages and generated assets that have not been officially released yet.
 
-See the README.md under `packages/` for more information.
+See the README.md under `packages/`, `assets/`, and `charts/` for more information.
 
 The following directory structure is expected:
 ```text
 package/
   <package>/
-```
-{{- end }}
-
-{{- if (eq .Template "staging") -}}
-## Staging Branch
-
-This branch contains generated assets that have not been officially released yet.
-
-The following directory structure is expected:
-```text
+  ...
 assets/
   <package>/
     <chart>-<packageVersion>.tgz
@@ -55,34 +46,20 @@ charts/
 
 This repository branch contains a `configuration.yaml` file that is used to specify how it interacts with other repository branches.
 
-{{- if .SyncOptions }}
-
-#### Sync
-
-This branch syncs with the generated assets from the following branches:
-{{- range .SyncOptions }}
-- {{ .Branch }} at {{ .UpstreamOptions.URL }}{{ if .DropReleaseCandidates }} (only latest assets){{ end }}
-{{- end }}
-
-To release a new version of a chart, please open the relevant PRs to one of these branches. 
-
-Merging should trigger a sync workflow on pushing to these branches.
-
-{{- end }}
 {{- if .ValidateOptions }}
 
 #### Validate
 
 This branch validates against the generated assets of the following branches to make sure it isn't overriding already released charts.
 {{- range .ValidateOptions }}
-- {{ .Branch }} at {{ .UpstreamOptions.URL }}{{ if .DropReleaseCandidates }} (only latest assets){{ end }}
+- {{ .Branch }} at {{ .UpstreamOptions.URL }}
 {{- end }}
 
 Before submitting any PRs, a Github Workflow will check to see if your package doesn't break any already released packages in these repository branches.
 
 {{- end }}
 
-{{- if (eq .Template "source") }}
+{{- if (eq .Template "staging") }}
 
 ### Making Changes
 
@@ -106,7 +83,7 @@ If you are working with a single Package, set `export PACKAGE=<packageName>` to 
 
 This will prevent the scripts from running commands on every package in this repository.
 
-You'll also want to update the `packageVersion` and `releaseCandidateVersion` located in `packages/${PACKAGE}/package.yaml`.
+You'll also want to update the `packageVersion` located in `packages/${PACKAGE}/package.yaml`.
 
 See the section below for how to update this field.
 
@@ -122,30 +99,9 @@ Once your directory is clean, you are ready to submit a PR.
 
 #### Versioning Packages
 
-If this `major.minor.patch` (e.g. `0.0.1`) version of the Chart has never been released, reset the `packageVersion` to `01` and the `releaseCandidateVersion` to `00`.
+If this `major.minor.patch` (e.g. `0.0.1`) version of the Chart has never been released, reset the `packageVersion` to `01`.
 
-If this `major.minor.patch` (e.g. `0.0.1`) version of the Chart has been released before:
-- If this is the first time you are making a change to this chart for a specific Rancher release (i.e. the current `packageVersion` has already been released in the Live Branch), increment the `packageVersion` by 1 and reset the `releaseCandidateVersion` to `00`.
-- Otherwise, only increment the `releaseCandidateVersion` by 1.
-
-{{ end -}}
-
-{{- if (eq .Template "staging") }}
-
-### Cutting a Release
-
-In the Staging branch, cutting a release involves moving the contents of the `assets/` directory into `released/assets/`, deleting the contents of the `charts/` directory, and updating the `index.yaml` to point to the new location for those assets.
-
-This process is entirely automated via the `make release` command.
-
-Once you successfully run the `make release` command, ensure the following is true:
-- The `assets/` and `charts/` directories each only have a single file contained within them: `README.md`
-- The `released/assets/` directory has a .tgz file for each releaseCandidateVersion of a Chart that was created during this release.
-- The `index.yaml` and `released/assets/index.yaml` both are identical and the `index.yaml`'s diff shows only two types of changes: a timestamp update or a modification of an existing URL from `assets/*` to `released/assets/*`.
-
-No other changes are expected.
-
-Note: these steps should be taken only after following the steps to cut a release to your Live Branch.
+If this `major.minor.patch` (e.g. `0.0.1`) version of the Chart has been released before, increment the ``packageVersion`.
 
 {{ end -}}
 
@@ -153,22 +109,27 @@ Note: these steps should be taken only after following the steps to cut a releas
 
 ### Cutting a Release
 
-In the Live branch, cutting a release requires you to run the `make sync` command.
+In the Live branch, cutting a release requires you to copy the contents of the Staging branch into your Live Branch, which can be done with the following simple Bash script.
 
-This command will automatically get the latest charts / resources merged into the the branches you sync with (as indicated in this branch's `configuration.yaml`) and will fail if any of those branches try to modify already released assets.
+```bash
+# Assuming that your upstream remote (e.g. https://github.com/rancher/charts.git) is named `upstream` 
+# Replace the following environment variables
+STAGING_BRANCH=dev-v2.x
+LIVE_BRANCH=release-v2.x
+FORKED_BRANCH=release-v2.x.y
+git fetch upstream
+git checkout upstream/${LIVE_BRANCH} -b ${FORKED_BRANCH}
+git branch -u origin/${FORKED_BRANCH}
+git checkout upstream/${STAGING_BRANCH} -- charts assets index.yaml
+git add charts assets index.yaml
+git commit -m "Releasing chart"
+git push --set-upstream origin ${FORKED_BRANCH}
+# Create your pull request!
+```
 
-If the `make sync` command fails, you might have to manually make changes to the contents of the Staging Branch to resolve any issues.
-
-Once you successfully run the `make sync` command, the logs outputted will itemize the releaseCandidateVersions picked out from the Staging branch and make exactly two changes:
-
-1. It will update the `Chart.yaml`'s version for each chart to drop the `-rcXX` from it
-
-2. It will update the `Chart.yaml`'s annotations for each chart to drop the `-rcXX` from it only for some special annotations (note: currently, the only special annotation we track is `catalog.cattle.io/auto-install`).
-
-Once you successfully run the `make release` command, ensure the following is true:
-- The `assets/` and `charts/` directories each only have a single file contained within them: `README.md`
-- The `released/assets/` directory has a .tgz file for each releaseCandidateVersion of a Chart that was created during this release.
-- The `index.yaml` and `released/assets/index.yaml` both are identical and the `index.yaml`'s diff shows only two types of changes: a timestamp update or a modification of an existing URL from `assets/*` to `released/assets/*`.
+Once complete, you should see the following:
+- The `assets/` and `charts/` directories have been updated to match the Staging branch. All entires should be additions, not modifications.
+- The `index.yaml`'s diff shows only adds additional entries and does not modify or remove existing ones.
 
 No other changes are expected.
 
@@ -180,7 +141,7 @@ No other changes are expected.
 
 `make pull-scripts`: Pulls in the version of the `charts-build-scripts` indicated in scripts.
 
-{{- if (eq .Template "source") }}
+{{- if (eq .Template "staging") }}
 
 `make prepare`: Pulls in your charts from upstream and creates a basic `generated-changes/` directory with your dependencies from upstream
 
@@ -188,21 +149,12 @@ No other changes are expected.
 
 `make clean`: Cleans up all the working directories of charts to get your repository ready for a PR
 
-#### Advanced Commands
-
 `make charts`: Runs `make prepare` and then exports your charts to `assets/` and `charts/` and generates or updates your `index.yaml`.
 
-{{ else }}
+#### Advanced Commands
 
-`make sync`: Syncs the assets in your current repository with the merged contents of all of the repository branches indicated in your configuration.yaml
-
-{{ end -}}
+{{- end }}
 
 `make validate`: Validates your current repository branch against all the repository branches indicated in your configuration.yaml
 
-`make docs`: Pulls in the latest docs, scripts, etc. from the charts-build-scripts repository
-
-{{- if (eq .Template "staging") }}
-
-`make release`: moves the contents of the `assets/` directory into `released/assets/`, deletes the contents of the `charts/` directory, and updates the `index.yaml` to point to the new location for those assets.
-{{ end -}}
+`make template`: Updates the current directory by applying the configuration.yaml on [upstream Go templates](https://github.com/rancher/charts-build-scripts/tree/master/templates/template) to pull in the most up-to-date docs, scripts, etc. from [rancher/charts-build-scripts](https://github.com/rancher/charts-build-scripts)

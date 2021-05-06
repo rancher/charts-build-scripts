@@ -67,7 +67,7 @@ func SynchronizeRepository(rootFs billy.Filesystem, compareGeneratedAssetsOption
 		}
 	}
 	// Compare the generated assets and keep the new assets
-	err = CompareGeneratedAssets(rootFs, newCharts, newAssets, originalCharts, originalAssets, compareGeneratedAssetsOptions.DropReleaseCandidates, true)
+	err = CompareGeneratedAssets(rootFs, newCharts, newAssets, originalCharts, originalAssets, true)
 	if err != nil {
 		return err
 	}

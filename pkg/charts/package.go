@@ -19,8 +19,6 @@ type Package struct {
 	Name string `yaml:"name"`
 	// PackageVersion represents the current version of the package. It needs to be incremented whenever there are changes
 	PackageVersion int `yaml:"packageVersion"`
-	// ReleaseCandidateVersion represents the version of the release candidate for a given package.
-	ReleaseCandidateVersion int `yaml:"releaseCandidateVersion"`
 	// AdditionalCharts are other charts that should be packaged together with this
 	AdditionalCharts []AdditionalChart `yaml:"additionalCharts,omitempty"`
 	// DoNotRelease represents a boolean flag that indicates a package should not be tracked in make charts
@@ -96,14 +94,13 @@ func (p *Package) GenerateCharts() error {
 	// Export Helm charts
 	packageAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, p.Name)
 	packageChartsDirpath := filepath.Join(path.RepositoryChartsDir, p.Name)
-	// Add the ReleaseCandidateVersion to the PackageVersion and format
-	chartVersion := fmt.Sprintf("%02d-rc%02d", p.PackageVersion, p.ReleaseCandidateVersion)
-	err := p.Chart.GenerateChart(p.rootFs, p.fs, chartVersion, packageAssetsDirpath, packageChartsDirpath)
+	// Add PackageVersion to format
+	err := p.Chart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, packageAssetsDirpath, packageChartsDirpath)
 	if err != nil {
 		return fmt.Errorf("Encountered error while exporting main chart: %s", err)
 	}
 	for _, additionalChart := range p.AdditionalCharts {
-		err = additionalChart.GenerateChart(p.rootFs, p.fs, chartVersion, packageAssetsDirpath, packageChartsDirpath)
+		err = additionalChart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, packageAssetsDirpath, packageChartsDirpath)
 		if err != nil {
 			return fmt.Errorf("Encountered error while exporting %s: %s", additionalChart.WorkingDir, err)
 		}

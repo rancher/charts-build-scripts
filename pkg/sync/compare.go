@@ -1,18 +1,13 @@
 package sync
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/rancher/charts-build-scripts/pkg/change"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/sirupsen/logrus"
@@ -22,8 +17,8 @@ const (
 	temporaryBranchName = "charts-build-scripts-temporary-branch-012345"
 )
 
-// CompareGeneratedAssets compares the newCharts against originalCharts and newAssets against originalAssets, while processing dropping release candidate versions if necessary
-func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, originalCharts, originalAssets string, dropReleaseCandidates bool, keepNewAssets bool) error {
+// CompareGeneratedAssets compares the newCharts against originalCharts and newAssets against originalAssets
+func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, originalCharts, originalAssets string, keepNewAssets bool) error {
 	// Ensures that any modified files are cleared out, but not added files
 	repo, err := repository.GetRepo(rootFs.Root())
 	if err != nil {
@@ -50,95 +45,6 @@ func CompareGeneratedAssets(rootFs billy.Filesystem, newCharts, newAssets, origi
 	}
 	checkCharts := newCharts
 	checkAssets := newAssets
-	if dropReleaseCandidates {
-		newChartsWithoutRC := fmt.Sprintf("%s-without-rc", newCharts)
-		newAssetsWithoutRC := fmt.Sprintf("%s-without-rc", newAssets)
-		for _, d := range []string{newAssetsWithoutRC, newChartsWithoutRC} {
-			if err := rootFs.MkdirAll(d, os.ModePerm); err != nil {
-				return fmt.Errorf("Failed to make directory %s: %s", d, err)
-			}
-			defer filesystem.PruneEmptyDirsInPath(rootFs, d)
-			defer filesystem.RemoveAll(rootFs, d)
-		}
-		// Only keep the biggest RC of any packageVersion
-		visitedChart := make(map[string]bool)
-		latestRC := make(map[string]string)
-		err := filesystem.WalkDir(rootFs, newCharts, func(rootFs billy.Filesystem, path string, isDir bool) error {
-			// new-assets/charts/{package}/{chart}
-			if strings.Count(path, "/") != 3 {
-				return nil
-			}
-			chart := filepath.Base(path)
-			if _, ok := visitedChart[chart]; ok {
-				// Already pruned this path
-				return nil
-			}
-			// No need to visit again
-			visitedChart[chart] = true
-			fileInfos, err := rootFs.ReadDir(path)
-			if err != nil {
-				return fmt.Errorf("Encountered an error while trying to read directories within %s: %s", path, err)
-			}
-			for _, f := range fileInfos {
-				chartVersion := f.Name()
-				splitChartVersion := strings.Split(chartVersion, "-rc")
-				chartVersionWithName := fmt.Sprintf("%s/%s", chart, chartVersion)
-				chartVersionWithNameWithoutRC := fmt.Sprintf("%s/%s", chart, splitChartVersion[0])
-				latestRCSeenSoFar, ok := latestRC[chartVersionWithNameWithoutRC]
-				if !ok {
-					// First time seeing this RC
-					latestRC[chartVersionWithNameWithoutRC] = chartVersionWithName
-					continue
-				}
-				// Compare with existing value
-				if latestRCSeenSoFar >= chartVersionWithName {
-					continue
-				}
-				latestRC[chartVersionWithNameWithoutRC] = chartVersionWithName
-				if err := filesystem.RemoveAll(rootFs, filepath.Join(path, latestRCSeenSoFar)); err != nil {
-					return fmt.Errorf("Failed to remove older RC %s: %s", filepath.Join(path, latestRCSeenSoFar), err)
-				}
-				logrus.Infof("Purged old release candidate version: %s", latestRCSeenSoFar)
-			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-		// pretty print on the console
-		prettyLatestRC, err := json.MarshalIndent(latestRC, "", " ")
-		if err != nil {
-			// Ignore error, just fall back to printing the map directly
-			logrus.Infof("Found the following latest release candidate versions: %s", latestRC)
-		} else {
-			logrus.Infof("Found the following latest release candidate versions: %s", prettyLatestRC)
-		}
-		// Export each helm chart to newChartsWithoutRC
-		err = filesystem.WalkDir(rootFs, newCharts, func(rootFs billy.Filesystem, path string, isDir bool) error {
-			// new-assets/charts/{package}/{chart}/{version}
-			if strings.Count(path, "/") != 4 {
-				return nil
-			}
-			if !isDir {
-				return fmt.Errorf("Expected chart version to be found at %s, but that path does not represent a directory", path)
-			}
-			packageName := filepath.Base(filepath.Dir(filepath.Dir(path)))
-			err := helm.TrimRCVersionFromHelmChart(rootFs, path)
-			if err != nil {
-				return fmt.Errorf("Encountered error when dropping rc from %s", path)
-			}
-			err = helm.ExportHelmChart(rootFs, rootFs, path, "", filepath.Join(newAssetsWithoutRC, packageName), filepath.Join(newChartsWithoutRC, packageName))
-			if err != nil {
-				return fmt.Errorf("Encountered error when re-exporting latest releaseCandidateVersion of package without the version: %s", err)
-			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-		checkCharts = newChartsWithoutRC
-		checkAssets = newAssetsWithoutRC
-	}
 	// level is 4 since the structure is charts/{package}/{chart}/{version}
 	if err := change.DoesNotModifyContentsAtLevel(rootFs, originalCharts, checkCharts, 4); err != nil {
 		return err

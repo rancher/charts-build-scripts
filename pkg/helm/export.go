@@ -16,7 +16,7 @@ import (
 // helmChartPath is a relative path (rooted at the package level) that contains the chart.
 // packageAssetsPath is a relative path (rooted at the repository level) where the generated chart archive will be placed
 // packageChartsPath is a relative path (rooted at the repository level) where the generated chart will be placed
-func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, chartVersion string, packageAssetsDirpath, packageChartsDirpath string) error {
+func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion int, packageAssetsDirpath, packageChartsDirpath string) error {
 	// Try to load the chart to see if it can be exported
 	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
 	chart, err := helmLoader.Load(absHelmChartPath)
@@ -26,7 +26,7 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, chartVer
 	if err := chart.Validate(); err != nil {
 		return fmt.Errorf("Failed while trying to validate Helm chart: %s", err)
 	}
-	chartVersion = chart.Metadata.Version + chartVersion
+	chartVersion := fmt.Sprintf("%s%02d", chart.Metadata.Version, packageVersion)
 
 	// All assets of each chart in a package are placed in a flat directory containing all versions
 	chartAssetsDirpath := packageAssetsDirpath

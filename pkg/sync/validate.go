@@ -77,7 +77,7 @@ func ValidateRepository(rootFs billy.Filesystem, compareGeneratedAssetsOptions o
 		}
 	}
 	// Compare the generated assets, but don't keep the new assets
-	err = CompareGeneratedAssets(rootFs, newCharts, newAssets, originalCharts, originalAssets, compareGeneratedAssetsOptions.DropReleaseCandidates, false)
+	err = CompareGeneratedAssets(rootFs, newCharts, newAssets, originalCharts, originalAssets, false)
 	if err != nil {
 		return err
 	}

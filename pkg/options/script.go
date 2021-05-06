@@ -24,8 +24,6 @@ type CompareGeneratedAssetsOptions struct {
 	UpstreamOptions UpstreamOptions `yaml:",inline"`
 	// Branch represents the branch of the GithubConfiguration that you want to compare against
 	Branch string `yaml:"branch"`
-	// DropReleaseCandidates indicates that we should drop the release candidate versions from the current branch when comparing with
-	DropReleaseCandidates bool `yaml:"dropReleaseCandidates"`
 }
 
 // HelmRepoConfiguration represents the configuration of the Helm Repository that exposes your charts

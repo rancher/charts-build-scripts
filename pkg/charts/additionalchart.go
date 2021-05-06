@@ -173,7 +173,7 @@ func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 }
 
 // GenerateChart generates the chart and stores it in the assets and charts directory
-func (c *AdditionalChart) GenerateChart(rootFs, pkgFs billy.Filesystem, packageVersion, packageAssetsDirpath, packageChartsDirpath string) error {
+func (c *AdditionalChart) GenerateChart(rootFs, pkgFs billy.Filesystem, packageVersion int, packageAssetsDirpath, packageChartsDirpath string) error {
 	if err := helm.ExportHelmChart(rootFs, pkgFs, c.WorkingDir, packageVersion, packageAssetsDirpath, packageChartsDirpath); err != nil {
 		return fmt.Errorf("Encountered error while trying to export Helm chart for %s: %s", c.WorkingDir, err)
 	}

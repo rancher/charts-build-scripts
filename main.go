@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/rancher/charts-build-scripts/pkg/update"
 	"github.com/rancher/charts-build-scripts/pkg/validate"
@@ -134,11 +138,68 @@ func generatePatch(c *cli.Context) {
 }
 
 func generateCharts(c *cli.Context) {
+	repo, _, status := getGitInfo()
+	if !status.IsClean() {
+		logrus.Warnf("Git is not clean:\n%s", status)
+		logrus.Fatal("Repository must be clean to generate charts")
+	}
+	currentBranchRefName, err := repository.GetCurrentBranchRefName(repo)
+	if err != nil {
+		logrus.Warnf("Due to limitations in the Git library used for the scripts, we cannot generated charts in a detached HEAD state.")
+		logrus.Fatalf("Could not get reference to current branch: %s", err)
+	}
+	// Generate charts
 	packages := getPackages()
 	for _, p := range packages {
 		if err := p.GenerateCharts(); err != nil {
 			logrus.Fatal(err)
 		}
+	}
+	// Copy in only assets from charts that have changed
+	_, wt, status := getGitInfo()
+	modifiedAssets := make(map[string]bool)
+	for p := range status {
+		if p == path.RepositoryHelmIndexFile {
+			wt.Excludes = append(wt.Excludes, gitignore.ParsePattern(p, []string{}))
+			logrus.Infof("Outputted %s", p)
+			continue
+		}
+		if !strings.HasPrefix(p, path.RepositoryChartsDir) {
+			continue
+		}
+		var modifiedAssetPath string
+		splitPath := strings.Split(p, "/")
+		switch len(splitPath) {
+		case 1:
+			// charts were generated for the first time
+			modifiedAssetPath = fmt.Sprintf("%s/*", path.RepositoryAssetsDir)
+		case 2:
+			// New package was introduced
+			modifiedAssetPath = fmt.Sprintf("%s/*", filepath.Join(path.RepositoryAssetsDir, splitPath[1]))
+		case 3:
+			// New chart was introduced
+			modifiedAssetPath = fmt.Sprintf("%s/*", filepath.Join(path.RepositoryAssetsDir, splitPath[1], splitPath[2]))
+		default:
+			// Existing chart was modified
+			modifiedAssetPath = fmt.Sprintf("%s-%s.tgz", filepath.Join(path.RepositoryAssetsDir, splitPath[1], splitPath[2]), splitPath[3])
+		}
+		// Add chart
+		wt.Excludes = append(wt.Excludes, gitignore.ParsePattern(p, []string{}))
+		logrus.Infof("Outputted %s", p)
+		// Add asset, but only once
+		if added, ok := modifiedAssets[modifiedAssetPath]; ok && added {
+			continue
+		}
+		modifiedAssets[modifiedAssetPath] = true
+		wt.Excludes = append(wt.Excludes, gitignore.ParsePattern(modifiedAssetPath, []string{}))
+		logrus.Infof("Outputted %s", modifiedAssetPath)
+	}
+	err = wt.Checkout(&git.CheckoutOptions{
+		Branch: currentBranchRefName,
+		Force:  true,
+	})
+	if err != nil {
+		logrus.Fatalf("Failed to clean up unchanged assets: %s", err)
 	}
 }
 
@@ -152,15 +213,16 @@ func cleanRepository(c *cli.Context) {
 }
 
 func validateRepo(c *cli.Context) {
-	_, status := getGitInfo()
+	_, _, status := getGitInfo()
 	if !status.IsClean() {
-		logrus.Fatalf("Repository must be clean to run validation:\n%s", status)
+		logrus.Warnf("Git is not clean:\n%s", status)
+		logrus.Fatal("Repository must be clean to run validation")
 	}
 
 	logrus.Infof("Generating charts and checking if Git is clean")
 	CurrentPackage = "" // Validate always runs on all packages
 	generateCharts(c)
-	wt, status := getGitInfo()
+	_, wt, status := getGitInfo()
 	if !status.IsClean() {
 		logrus.Warnf("Generated charts produced the following changes in Git.\n%s", status)
 		logrus.Fatalf("Please commit these changes and run validation again.")
@@ -174,7 +236,7 @@ func validateRepo(c *cli.Context) {
 		if err != nil {
 			logrus.Fatalf("Failed to validate against %s: %s", compareGeneratedAssetsOptions.Branch, err)
 		}
-		_, status := getGitInfo()
+		_, _, status := getGitInfo()
 		if notSubset {
 			logrus.Warnf("The following charts and assets exist in %s but do not exist in your current branch.\n%s", compareGeneratedAssetsOptions.Branch, status)
 			logrus.Fatalf("Please commit these changes and run validation again.")
@@ -223,7 +285,7 @@ func getPackages() []*charts.Package {
 	return packages
 }
 
-func getGitInfo() (*git.Worktree, git.Status) {
+func getGitInfo() (*git.Repository, *git.Worktree, git.Status) {
 	repoRoot, err := os.Getwd()
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
@@ -241,5 +303,5 @@ func getGitInfo() (*git.Worktree, git.Status) {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	return wt, status
+	return repo, wt, status
 }

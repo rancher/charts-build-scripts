@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/sirupsen/logrus"
@@ -16,7 +17,7 @@ import (
 // helmChartPath is a relative path (rooted at the package level) that contains the chart.
 // packageAssetsPath is a relative path (rooted at the repository level) where the generated chart archive will be placed
 // packageChartsPath is a relative path (rooted at the repository level) where the generated chart will be placed
-func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion int, packageAssetsDirpath, packageChartsDirpath string) error {
+func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion int, upstreamChartVersion, packageAssetsDirpath, packageChartsDirpath string) error {
 	// Try to load the chart to see if it can be exported
 	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
 	chart, err := helmLoader.Load(absHelmChartPath)
@@ -26,7 +27,20 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 	if err := chart.Validate(); err != nil {
 		return fmt.Errorf("Failed while trying to validate Helm chart: %s", err)
 	}
-	chartVersion := fmt.Sprintf("%s%02d", chart.Metadata.Version, packageVersion)
+	chartVersionSemver, err := semver.Make(chart.Metadata.Version)
+	if err != nil {
+		return fmt.Errorf("Cannot parse original chart version %s as valid semver", chart.Metadata.Version)
+	}
+	// Add packageVersion as string, preventing errors due to leading 0s
+	if packageVersion >= 999 {
+		return fmt.Errorf("Maximum number of packageVersions is 999, found %d", packageVersion)
+	}
+	chartVersionSemver.Patch = 1000*chartVersionSemver.Patch + uint64(packageVersion)
+	if len(upstreamChartVersion) > 0 {
+		// Add buildMetadataFlag for forked charts
+		chartVersionSemver.Build = append(chartVersionSemver.Build, fmt.Sprintf("up%s", upstreamChartVersion))
+	}
+	chartVersion := chartVersionSemver.String()
 
 	// All assets of each chart in a package are placed in a flat directory containing all versions
 	chartAssetsDirpath := packageAssetsDirpath

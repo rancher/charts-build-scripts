@@ -20,7 +20,7 @@ type Package struct {
 	// PackageVersion represents the current version of the package. It needs to be incremented whenever there are changes
 	PackageVersion int `yaml:"packageVersion"`
 	// AdditionalCharts are other charts that should be packaged together with this
-	AdditionalCharts []AdditionalChart `yaml:"additionalCharts,omitempty"`
+	AdditionalCharts []*AdditionalChart `yaml:"additionalCharts,omitempty"`
 	// DoNotRelease represents a boolean flag that indicates a package should not be tracked in make charts
 	DoNotRelease bool `yaml:"doNotRelease,omitempty"`
 
@@ -51,7 +51,7 @@ func (p *Package) Prepare() error {
 		}
 	}
 	for _, additionalChart := range p.AdditionalCharts {
-		if err := additionalChart.Prepare(p.rootFs, p.fs); err != nil {
+		if err := additionalChart.Prepare(p.rootFs, p.fs, p.Chart.upstreamChartVersion); err != nil {
 			return fmt.Errorf("Encountered error while preparing additional chart %s: %s", additionalChart.WorkingDir, err)
 		}
 		if err := additionalChart.ApplyMainChanges(p.fs); err != nil {

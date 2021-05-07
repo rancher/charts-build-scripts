@@ -10,6 +10,14 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+func GetHelmMetadataVersion(fs billy.Filesystem, mainHelmChartPath string) (string, error) {
+	chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, mainHelmChartPath))
+	if err != nil {
+		return "", err
+	}
+	return chart.Metadata.Version, nil
+}
+
 // UpdateHelmMetadataWithName updates the name of the chart in the metadata
 func UpdateHelmMetadataWithName(fs billy.Filesystem, mainHelmChartPath string, name string) error {
 	// Check if Helm chart is valid

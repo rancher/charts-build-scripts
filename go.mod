@@ -11,6 +11,7 @@ replace (
 
 require (
 	github.com/Microsoft/go-winio v0.4.16 // indirect
+	github.com/blang/semver v3.5.0+incompatible
 	github.com/go-git/go-billy/v5 v5.0.0
 	github.com/go-git/go-git/v5 v5.2.0
 	github.com/golang/protobuf v1.4.3 // indirect

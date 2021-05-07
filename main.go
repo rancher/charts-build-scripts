@@ -8,12 +8,10 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
-	"github.com/rancher/charts-build-scripts/pkg/sync"
 	"github.com/rancher/charts-build-scripts/pkg/update"
+	"github.com/rancher/charts-build-scripts/pkg/validate"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"gopkg.in/yaml.v2"
@@ -36,7 +34,7 @@ var (
 	ChartsScriptOptionsFile string
 	// GithubToken represents the Github Auth token; currently not used
 	GithubToken string
-	// CurrentPackage represents the specific chart within packages/ in the source branch which is being used
+	// CurrentPackage represents the specific chart within packages/ in the Staging branch which is being used
 	CurrentPackage string
 )
 
@@ -86,14 +84,9 @@ func main() {
 		},
 		{
 			Name:   "validate",
-			Usage:  "Ensure a sync will not overwrite generated assets in branches that the configuration.yaml wants you to validate against",
+			Usage:  "Run validation to ensure that contents of assets and charts won't overwrite released charts",
 			Action: validateRepo,
 			Flags:  []cli.Flag{packageFlag, configFlag},
-		},
-		{
-			Name:   "sync",
-			Usage:  "Pull in new generated assets from branches that the configuration.yaml has set your current branch to sync with",
-			Action: synchronizeRepo,
 		},
 		{
 			Usage:  "Updates the current directory by applying the configuration.yaml on upstream Go templates to pull in the most up-to-date docs, scripts, etc.",
@@ -159,56 +152,34 @@ func cleanRepository(c *cli.Context) {
 }
 
 func validateRepo(c *cli.Context) {
+	_, status := getGitInfo()
+	if !status.IsClean() {
+		logrus.Fatalf("Repository must be clean to run validation:\n%s", status)
+	}
+
+	logrus.Infof("Generating charts and checking if Git is clean")
+	CurrentPackage = "" // Validate always runs on all packages
+	generateCharts(c)
 	wt, status := getGitInfo()
 	if !status.IsClean() {
-		logrus.Fatalf("Current repository is not clean:\n%s", status)
+		logrus.Warnf("Generated charts produced the following changes in Git.\n%s", status)
+		logrus.Fatalf("Please commit these changes and run validation again.")
 	}
+	logrus.Infof("Successfully validated that current charts and assets are up to date.")
+
 	chartsScriptOptions := parseScriptOptions()
-	// Validate
 	for _, compareGeneratedAssetsOptions := range chartsScriptOptions.ValidateOptions {
 		logrus.Infof("Validating against released charts in %s", compareGeneratedAssetsOptions.Branch)
-		if err := sync.ValidateRepository(wt.Filesystem, compareGeneratedAssetsOptions, CurrentPackage); err != nil {
+		notSubset, err := validate.CompareGeneratedAssets(wt, compareGeneratedAssetsOptions)
+		if err != nil {
 			logrus.Fatalf("Failed to validate against %s: %s", compareGeneratedAssetsOptions.Branch, err)
 		}
+		_, status := getGitInfo()
+		if notSubset {
+			logrus.Warnf("The following charts and assets exist in %s but do not exist in your current branch.\n%s", compareGeneratedAssetsOptions.Branch, status)
+			logrus.Fatalf("Please commit these changes and run validation again.")
+		}
 		logrus.Infof("Successfully validated against %s!", compareGeneratedAssetsOptions.Branch)
-	}
-}
-
-func synchronizeRepo(c *cli.Context) {
-	wt, status := getGitInfo()
-	if !status.IsClean() {
-		logrus.Fatalf("Current repository is not clean:\n%s", status)
-	}
-	chartsScriptOptions := parseScriptOptions()
-	// Synchronize
-	for _, compareGeneratedAssetsOptions := range chartsScriptOptions.SyncOptions {
-		logrus.Infof("Synchronizing with charts that will be generated from %s", compareGeneratedAssetsOptions.Branch)
-		if err := sync.SynchronizeRepository(wt.Filesystem, compareGeneratedAssetsOptions); err != nil {
-			logrus.Fatalf("Failed to synchronize with %s: %s", compareGeneratedAssetsOptions.Branch, err)
-		}
-		logrus.Infof("Successfully synchronized with %s!", compareGeneratedAssetsOptions.Branch)
-	}
-	logrus.Infof("Creating or updating the Helm index with the newly added assets...")
-	// Delete the Helm index if it was the only thing updated, whether or not changes failed
-	wt, status = getGitInfo()
-	chartsIntroduced := false
-	for p, fileStatus := range status {
-		if p == path.RepositoryHelmIndexFile {
-			continue
-		}
-		if fileStatus.Worktree == git.Untracked && fileStatus.Staging == git.Untracked {
-			// Some charts were added
-			if err := helm.CreateOrUpdateHelmIndex(wt.Filesystem); err != nil {
-				logrus.Fatalf("Sync was successful but was unable to update the Helm index: %s", err)
-			}
-			chartsIntroduced = true
-			break
-		}
-	}
-	if chartsIntroduced {
-		logrus.Infof("Your working directory is ready for a commit.")
-	} else {
-		logrus.Infof("Nothing to sync. Working directory is up to date.")
 	}
 }
 

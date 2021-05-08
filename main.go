@@ -45,14 +45,12 @@ func main() {
 	app.Name = "charts-build-scripts"
 	app.Version = fmt.Sprintf("%s (%s)", Version, GitCommit)
 	app.Usage = "Build scripts used to maintain patches on Helm charts forked from other repositories"
-	app.Flags = []cli.Flag{
-		cli.StringFlag{
-			Name:        "config,c",
-			Usage:       "A configuration file with additional options for allowing this branch to interact with other branches",
-			TakesFile:   true,
-			Destination: &ChartsScriptOptionsFile,
-			Value:       DefaultChartsScriptOptionsFile,
-		},
+	configFlag := cli.StringFlag{
+		Name:        "config,c",
+		Usage:       "A configuration file with additional options for allowing this branch to interact with other branches",
+		TakesFile:   true,
+		Destination: &ChartsScriptOptionsFile,
+		Value:       DefaultChartsScriptOptionsFile,
 	}
 	packageFlag := cli.StringFlag{
 		Name:        "package,p",
@@ -90,7 +88,7 @@ func main() {
 			Name:   "validate",
 			Usage:  "Ensure a sync will not overwrite generated assets in branches that the configuration.yaml wants you to validate against",
 			Action: validateRepo,
-			Flags:  []cli.Flag{packageFlag},
+			Flags:  []cli.Flag{packageFlag, configFlag},
 		},
 		{
 			Name:   "sync",
@@ -102,6 +100,7 @@ func main() {
 			Name:   "template",
 			Action: createOrUpdateTemplate,
 			Flags: []cli.Flag{
+				configFlag,
 				cli.StringFlag{
 					Name:        "repositoryUrl,r",
 					Required:    false,

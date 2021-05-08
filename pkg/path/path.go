@@ -1,8 +1,6 @@
 package path
 
 const (
-	// ChartsRepositoryRebasePatchesDir is the directory where a synchronize call will generate any conflicts
-	ChartsRepositoryRebasePatchesDir = "rebase/generated-changes"
 	// ChartsRepositoryCurrentBranchDir is a directory that will be used to store your current assets
 	ChartsRepositoryCurrentBranchDir = "original-assets"
 	// ChartsRepositoryUpstreamBranchDir is a directory that will be used to store the latest copy of a branch you want to sync with
@@ -22,8 +20,6 @@ const (
 	PackageOptionsFile = "package.yaml"
 	// PackageTemplatesDir is a directory containing templates used as additional chart options
 	PackageTemplatesDir = "templates"
-	// RebasePackageOptionsFile is the name of a file that contains information about how to prepare your new upstream
-	RebasePackageOptionsFile = "rebase.yaml"
 
 	// GeneratedChangesDir is a directory that contains GeneratedChanges
 	GeneratedChangesDir = "generated-changes"

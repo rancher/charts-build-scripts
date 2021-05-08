@@ -87,12 +87,6 @@ func main() {
 			Flags:  []cli.Flag{packageFlag},
 		},
 		{
-			Name:   "rebase",
-			Usage:  "Provide a rebase.yaml to generate drift against your main chart",
-			Action: rebaseChart,
-			Flags:  []cli.Flag{packageFlag},
-		},
-		{
 			Name:   "validate",
 			Usage:  "Ensure a sync will not overwrite generated assets in branches that the configuration.yaml wants you to validate against",
 			Action: validateRepo,
@@ -148,27 +142,6 @@ func cleanRepository(c *cli.Context) {
 		if err := p.Clean(); err != nil {
 			logrus.Fatal(err)
 		}
-	}
-}
-
-func rebaseChart(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	if len(packages) == 0 {
-		logrus.Fatalf("Could not find any packages in packages/")
-	}
-	if len(packages) > 1 {
-		logrus.Fatalf("Can only run rebase on exactly one package")
-	}
-	p := packages[0]
-	if err = p.GenerateRebasePatch(); err != nil {
-		logrus.Fatal(err)
 	}
 }
 

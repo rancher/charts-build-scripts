@@ -98,9 +98,23 @@ func main() {
 			Action: synchronizeRepo,
 		},
 		{
-			Usage:  "Pulls in the latest docs to this repository",
-			Name:   "docs",
-			Action: getDocs,
+			Usage:  "Updates the current directory by applying the configuration.yaml on upstream Go templates to pull in the most up-to-date docs, scripts, etc.",
+			Name:   "template",
+			Action: createOrUpdateTemplate,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:        "repositoryUrl,r",
+					Required:    false,
+					Destination: &update.ChartsBuildScriptsRepositoryURL,
+					Value:       "https://github.com/rancher/charts-build-scripts.git",
+				},
+				cli.StringFlag{
+					Name:        "branch,b",
+					Required:    false,
+					Destination: &update.ChartsBuildScriptsRepositoryBranch,
+					Value:       "master",
+				},
+			},
 		},
 	}
 
@@ -199,17 +213,17 @@ func synchronizeRepo(c *cli.Context) {
 	}
 }
 
-func getDocs(c *cli.Context) {
+func createOrUpdateTemplate(c *cli.Context) {
 	repoRoot, err := os.Getwd()
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
 	}
 	repoFs := filesystem.GetFilesystem(repoRoot)
 	chartsScriptOptions := parseScriptOptions()
-	if err := update.GetDocumentation(repoFs, *chartsScriptOptions); err != nil {
-		logrus.Fatalf("Failed to update docs: %s", err)
+	if err := update.ApplyUpstreamTemplate(repoFs, *chartsScriptOptions); err != nil {
+		logrus.Fatalf("Failed to update repository based on upstream template: %s", err)
 	}
-	logrus.Infof("Successfully pulled new updated docs into working directory.")
+	logrus.Infof("Successfully updated repository based on upstream template.")
 }
 
 func parseScriptOptions() *options.ChartsScriptOptions {

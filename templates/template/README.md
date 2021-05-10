@@ -103,6 +103,35 @@ If this `major.minor.patch` (e.g. `0.0.1`) version of the Chart has never been r
 
 If this `major.minor.patch` (e.g. `0.0.1`) version of the Chart has been released before, increment the ``packageVersion`.
 
+### Porting over Charts / Assets from another Branch
+
+In the Staging branch, porting over charts from another branch (e.g. `dev-v2.x+1`) requires you to copy the contents of that branch into your Staging branch, which can be done with the following simple Bash script. However, you will need to manually regenerate the Helm index since you only want the index.yaml on the Staging branch to be updated to include the new chart.
+
+```bash
+# Assuming that your upstream remote (e.g. https://github.com/rancher/charts.git) is named `upstream` 
+# Replace the following environment variables
+OTHER_BRANCH=dev-v2.x+1
+STAGING_BRANCH=dev-v2.x
+FORKED_BRANCH=dev-v2.x-with-port
+git fetch upstream
+git checkout upstream/${STAGING_BRANCH} -b ${FORKED_BRANCH}
+git branch -u origin/${FORKED_BRANCH}
+git checkout upstream/${OTHER_BRANCH} -- charts assets
+helm repo index --merge ./index.yaml --url assets assets; # FYI: This will generate new 'created' timestamps across *all charts*.
+mv assets/index.yaml index.yaml
+git add charts assets index.yaml
+git commit -m "Porting a chart from ${OTHER_BRANCH}"
+git push --set-upstream origin ${FORKED_BRANCH}
+# Create your pull request!
+```
+
+Once complete, you should see the following:
+- The new chart should exist in `assets` and `charts`. Existing charts should not be modified.
+- The `index.yaml`'s diff should show an additional entry for your new chart.
+- The `index.yaml`'s diff should show modified `created` timestamps across all charts (due to the behavior of `helm repo index`).
+
+No other changes are expected.
+
 {{ end -}}
 
 {{- if (eq .Template "live") }}
@@ -130,6 +159,37 @@ git push --set-upstream origin ${FORKED_BRANCH}
 Once complete, you should see the following:
 - The `assets/` and `charts/` directories have been updated to match the Staging branch. All entires should be additions, not modifications.
 - The `index.yaml`'s diff shows only adds additional entries and does not modify or remove existing ones.
+
+No other changes are expected.
+
+### Cutting an Out-Of-Band Chart Release
+
+Similar to the above steps, cutting an out-of-band chart release will involve porting over the new chart from the Staging branch via `git checkout`. However, you will need to manually regenerate the Helm index since you only want the index.yaml on the Live branch to be updated to include the single new chart.
+
+Use the following example Bash script to execute this change:
+
+```bash
+# Assuming that your upstream remote (e.g. https://github.com/rancher/charts.git) is named `upstream` 
+# Replace the following environment variables
+STAGING_BRANCH=dev-v2.x
+LIVE_BRANCH=release-v2.x
+FORKED_BRANCH=release-v2.x.y
+git fetch upstream
+git checkout upstream/${LIVE_BRANCH} -b ${FORKED_BRANCH}
+git branch -u origin/${FORKED_BRANCH}
+git checkout upstream/${STAGING_BRANCH} -- charts assets
+helm repo index --merge ./index.yaml --url assets assets; # FYI: This will generate new 'created' timestamps across *all charts*.
+mv assets/index.yaml index.yaml
+git add charts assets index.yaml
+git commit -m "Releasing out-of-band chart"
+git push --set-upstream origin ${FORKED_BRANCH}
+# Create your pull request!
+```
+
+Once complete, you should see the following:
+- The new chart should exist in `assets` and `charts`. Existing charts should not be modified.
+- The `index.yaml`'s diff should show an additional entry for your new chart.
+- The `index.yaml`'s diff should show modified `created` timestamps across all charts (due to the behavior of `helm repo index`).
 
 No other changes are expected.
 

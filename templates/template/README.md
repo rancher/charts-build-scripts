@@ -113,13 +113,15 @@ In the Staging branch, porting over charts from another branch (e.g. `dev-v2.x+1
 OTHER_BRANCH=dev-v2.x+1
 STAGING_BRANCH=dev-v2.x
 FORKED_BRANCH=dev-v2.x-with-port
+NEW_CHART_DIR=charts/rancher-monitoring/rancher-monitoring/X.Y.Z
+NEW_ASSET_TGZ=assets/rancher-monitoring/rancher-monitoring-X.Y.Z.tgz
 git fetch upstream
 git checkout upstream/${STAGING_BRANCH} -b ${FORKED_BRANCH}
 git branch -u origin/${FORKED_BRANCH}
-git checkout upstream/${OTHER_BRANCH} -- charts assets
+git checkout upstream/${OTHER_BRANCH} -- ${NEW_CHART_DIR} ${NEW_ASSET_TGZ}
 helm repo index --merge ./index.yaml --url assets assets; # FYI: This will generate new 'created' timestamps across *all charts*.
 mv assets/index.yaml index.yaml
-git add charts assets index.yaml
+git add ${NEW_CHART_DIR} ${NEW_ASSET_TGZ} index.yaml
 git commit -m "Porting a chart from ${OTHER_BRANCH}"
 git push --set-upstream origin ${FORKED_BRANCH}
 # Create your pull request!
@@ -174,13 +176,15 @@ Use the following example Bash script to execute this change:
 STAGING_BRANCH=dev-v2.x
 LIVE_BRANCH=release-v2.x
 FORKED_BRANCH=release-v2.x.y
+NEW_CHART_DIR=charts/rancher-monitoring/rancher-monitoring/X.Y.Z
+NEW_ASSET_TGZ=assets/rancher-monitoring/rancher-monitoring-X.Y.Z.tgz
 git fetch upstream
 git checkout upstream/${LIVE_BRANCH} -b ${FORKED_BRANCH}
 git branch -u origin/${FORKED_BRANCH}
-git checkout upstream/${STAGING_BRANCH} -- charts assets
+git checkout upstream/${STAGING_BRANCH} -- ${NEW_CHART_DIR} ${NEW_ASSET_TGZ}
 helm repo index --merge ./index.yaml --url assets assets; # FYI: This will generate new 'created' timestamps across *all charts*.
 mv assets/index.yaml index.yaml
-git add charts assets index.yaml
+git add ${NEW_CHART_DIR} ${NEW_ASSET_TGZ} index.yaml
 git commit -m "Releasing out-of-band chart"
 git push --set-upstream origin ${FORKED_BRANCH}
 # Create your pull request!

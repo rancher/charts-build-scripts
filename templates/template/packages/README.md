@@ -94,21 +94,21 @@ To check whether the new packages you are introducing will cause any issues with
 
 #### Common Workflow
 
-- Make or update the `packages/<package>/package.yaml to point to your upstream and set any other chart options
+- Make or update the `packages/<package>/package.yaml` to point to your upstream and set any other chart options
 - Run `PACKAGE=<package> make prepare` to pull in your upstream repositories
-  - Note: On a prepare, the charts-build-scripts will automatically replace your charts existing dependencies with dependencies that will show up in `generated-changes/dependencies/<dependency>/dependency.yaml`. Since the spec of this file follows the `UpstreamConfiguration` described above, you can modify this to point your dependencies to a local chart (rooted at `generated-changes/dependencies/<dependency>/`, another package, a Chart archive (e.g. point it to a newer version of the dependency), or a Github Repository (at a subdirectory / commit.
+  - Note: On a prepare, the charts-build-scripts will automatically replace your charts existing dependencies with dependencies that will show up in `generated-changes/dependencies/<dependency>/dependency.yaml`. Since the spec of this file follows the `UpstreamConfiguration` described above, you can modify this to point your dependencies to a local chart (rooted at `generated-changes/dependencies/<dependency>/`), another package, a Chart archive (e.g. point it to a newer version of the dependency), or a Github Repository (at a subdirectory / commit).
   - Note: As part of replacing your dependencies, the Chart.yaml and requirements.yaml are considered "Managed Files". These files are prone to having conflicts and may need to be deleted / recreated on a prepare if there are conflicts. Please open up an issue if you encounter frequent bugs with these files so that we can take a look.
 - Make changes to the relevant working directories
 - Run `PACKAGE=<package> make patch` to save your changes
 - Run `make clean`
 - Run `make charts` to test your changes by committing the generated directories and pushing it to a branch. Once it is available at such a branch, it can be picked up by any tools that can point to Github based Helm Repositories (e.g. Rancher Cluster Explorer Apps & Marketplace).
 - If you encounter bugs, undo the `make charts` commit (e.g. `git reset HEAD~1 --hard` or `git reset HEAD~1 --soft; git checkout -- .; git clean -df` if you want to do it in multiple steps) and repeat the above steps.
-- Once you are ready to make a PR, ensure the last commit contains only the generated `make charts` changes and submit a PR. The PR worklow will automatically run `make validate` to ensure that your current repository wouldn't introduce any conflicts during a release.
+- Once you are ready to make a PR, ensure the last commit contains only the generated `make charts` changes and submit a PR. The PR workflow will automatically run `make validate` to ensure that your current repository wouldn't introduce any conflicts during a release.
 - Open up a PR with your changes.
 
 ### Troubleshooting
 
-Open up an issue on [https://github.com/rancher/charts-built-scripts](https://github.com/rancher/charts-built-scripts)
+Open up an issue on [https://github.com/rancher/charts-build-scripts](https://github.com/rancher/charts-build-scripts)
 
 ### Maintainers
 - aiyengar2 (arvind.iyengar@rancher.com)

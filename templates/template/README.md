@@ -101,7 +101,7 @@ Once your directory is clean, you are ready to submit a PR.
 
 If this `major.minor.patch` (e.g. `0.0.1`) version of the Chart has never been released, reset the `packageVersion` to `01`.
 
-If this `major.minor.patch` (e.g. `0.0.1`) version of the Chart has been released before, increment the ``packageVersion`.
+If this `major.minor.patch` (e.g. `0.0.1`) version of the Chart has been released before, increment the `packageVersion`.
 
 ### Porting over Charts / Assets from another Branch
 

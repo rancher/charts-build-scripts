@@ -2,6 +2,7 @@ package helm
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -11,6 +12,15 @@ import (
 	"github.com/sirupsen/logrus"
 	helmAction "helm.sh/helm/v3/pkg/action"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
+)
+
+const (
+	NumPatchDigits = 2
+)
+
+var (
+	PatchNumMultiplier = uint64(math.Pow10(2))
+	MaxPatchNum        = PatchNumMultiplier - 1
 )
 
 // ExportHelmChart creates a Helm chart archive and an unarchived Helm chart at RepositoryAssetDirpath and RepositoryChartDirPath
@@ -32,10 +42,10 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 		return fmt.Errorf("Cannot parse original chart version %s as valid semver", chart.Metadata.Version)
 	}
 	// Add packageVersion as string, preventing errors due to leading 0s
-	if packageVersion >= 999 {
-		return fmt.Errorf("Maximum number of packageVersions is 999, found %d", packageVersion)
+	if uint64(packageVersion) >= MaxPatchNum {
+		return fmt.Errorf("Maximum number of packageVersions is %d, found %d", MaxPatchNum, packageVersion)
 	}
-	chartVersionSemver.Patch = 1000*chartVersionSemver.Patch + uint64(packageVersion)
+	chartVersionSemver.Patch = PatchNumMultiplier*chartVersionSemver.Patch + uint64(packageVersion)
 	if len(upstreamChartVersion) > 0 {
 		// Add buildMetadataFlag for forked charts
 		chartVersionSemver.Build = append(chartVersionSemver.Build, fmt.Sprintf("up%s", upstreamChartVersion))

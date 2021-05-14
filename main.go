@@ -145,7 +145,7 @@ func generateCharts(c *cli.Context) {
 	}
 	currentBranchRefName, err := repository.GetCurrentBranchRefName(repo)
 	if err != nil {
-		logrus.Warnf("Due to limitations in the Git library used for the scripts, we cannot generate charts in a detached HEAD state.")
+		logrus.Warn("Due to limitations in the Git library used for the scripts, we cannot generate charts in a detached HEAD state.")
 		logrus.Fatalf("Could not get reference to current branch: %s", err)
 	}
 	// Generate charts
@@ -280,7 +280,7 @@ func getPackages() []*charts.Package {
 		logrus.Fatal(err)
 	}
 	if len(packages) == 0 {
-		logrus.Fatalf("Could not find any packages in packages/")
+		logrus.Fatal("Could not find any packages in packages/")
 	}
 	return packages
 }

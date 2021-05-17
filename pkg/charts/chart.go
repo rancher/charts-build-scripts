@@ -18,10 +18,17 @@ type Chart struct {
 	Upstream puller.Puller `yaml:"upstream"`
 	// WorkingDir represents the working directory of this chart
 	WorkingDir string `yaml:"workingDir" default:"charts"`
+
+	// The version of this chart in Upstream. This value is set to a non-nil value on Prepare.
+	// GenerateChart will fail if this value is not set (e.g. chart must be prepared first)
+	// If there is no upstream, this will be set to ""
+	upstreamChartVersion *string
 }
 
 // Prepare pulls in a package based on the spec to the local git repository
 func (c *Chart) Prepare(rootFs, pkgFs billy.Filesystem) error {
+	upstreamChartVersion := ""
+	defer func() { c.upstreamChartVersion = &upstreamChartVersion }()
 	if c.Upstream.IsWithinPackage() {
 		logrus.Infof("Local chart does not need to be prepared")
 		if err := PrepareDependencies(rootFs, pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
@@ -34,6 +41,11 @@ func (c *Chart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 	}
 	if err := c.Upstream.Pull(rootFs, pkgFs, c.WorkingDir); err != nil {
 		return fmt.Errorf("Encountered error while trying to pull upstream into %s: %s", c.WorkingDir, err)
+	}
+	var err error
+	upstreamChartVersion, err = helm.GetHelmMetadataVersion(pkgFs, c.WorkingDir)
+	if err != nil {
+		return fmt.Errorf("Encountered error while parsing original chart's version in %s: %s", c.WorkingDir, err)
 	}
 	if err := PrepareDependencies(rootFs, pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
 		return fmt.Errorf("Encountered error while trying to prepare dependencies in %s: %s", c.WorkingDir, err)
@@ -69,8 +81,11 @@ func (c *Chart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 }
 
 // GenerateChart generates the chart and stores it in the assets and charts directory
-func (c *Chart) GenerateChart(rootFs billy.Filesystem, pkgFs billy.Filesystem, chartVersion string, packageAssetsDirpath, packageChartsDirpath string) error {
-	if err := helm.ExportHelmChart(rootFs, pkgFs, c.WorkingDir, chartVersion, packageAssetsDirpath, packageChartsDirpath); err != nil {
+func (c *Chart) GenerateChart(rootFs, pkgFs billy.Filesystem, packageVersion int, packageAssetsDirpath, packageChartsDirpath string) error {
+	if c.upstreamChartVersion == nil {
+		return fmt.Errorf("Cannot generate chart since it has never been prepared: upstreamChartVersion is not set")
+	}
+	if err := helm.ExportHelmChart(rootFs, pkgFs, c.WorkingDir, packageVersion, *c.upstreamChartVersion, packageAssetsDirpath, packageChartsDirpath); err != nil {
 		return fmt.Errorf("Encountered error while trying to export Helm chart for %s: %s", c.WorkingDir, err)
 	}
 	return nil

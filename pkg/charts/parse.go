@@ -84,22 +84,21 @@ func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 	if err != nil {
 		return nil, err
 	}
-	var additionalCharts []AdditionalChart
+	var additionalCharts []*AdditionalChart
 	for _, additionalChartOptions := range packageOpt.AdditionalChartOptions {
 		additionalChart, err := GetAdditionalChartFromOptions(additionalChartOptions)
 		if err != nil {
 			return nil, err
 		}
-		additionalCharts = append(additionalCharts, additionalChart)
+		additionalCharts = append(additionalCharts, &additionalChart)
 	}
 	p := Package{
 		Chart: chart,
 
-		Name:                    name,
-		PackageVersion:          packageOpt.PackageVersion,
-		AdditionalCharts:        additionalCharts,
-		ReleaseCandidateVersion: packageOpt.ReleaseCandidateVersion,
-		DoNotRelease:            packageOpt.DoNotRelease,
+		Name:             name,
+		PackageVersion:   packageOpt.PackageVersion,
+		AdditionalCharts: additionalCharts,
+		DoNotRelease:     packageOpt.DoNotRelease,
 
 		fs:     pkgFs,
 		rootFs: rootFs,

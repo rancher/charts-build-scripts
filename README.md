@@ -7,9 +7,9 @@ charts-build-scripts
 
 #### If you are creating a new charts repository 
 
-Checkout the Git branch that corresponds to your Source, Staging, or Live branch.
+Checkout the Git branch that corresponds to your Staging or Live branch.
 
-Export BRANCH_ROLE as `source`, `staging`, `live`, or `custom`. Then run:
+Export BRANCH_ROLE as `staging`, `live`, or `custom`. Then run:
 
 ```
 curl -s https://raw.githubusercontent.com/rancher/charts-build-scripts/master/init.sh > /dev/null | sh

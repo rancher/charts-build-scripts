@@ -1,20 +1,15 @@
-source:
-- README.md
-- .gitignore
-- scripts/pull-scripts
-- scripts/regenerate-packages
-- Makefile
-- packages/README.md
 staging:
 - README.md
 - .gitignore
+- .github/workflows/pull-request.yaml
 - scripts/pull-scripts
+- scripts/package-ci
+- scripts/regenerate-packages
 - scripts/regenerate-assets
-- scripts/release-assets
 - Makefile
+- packages/README.md
 - assets/README.md
 - charts/README.md
-- released/README.md
 - CNAME
 - index.html
 live:

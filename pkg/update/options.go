@@ -19,7 +19,7 @@ type Options map[string][]string
 func (u Options) CopyTemplate(rootFs billy.Filesystem, chartsScriptOptions options.ChartsScriptOptions, templateDir string) error {
 	templateFiles, ok := u[chartsScriptOptions.Template]
 	if !ok {
-		return fmt.Errorf("No templates defined for type %s. Only source, staging, or live are supported", chartsScriptOptions.Template)
+		return fmt.Errorf("No templates defined for type %s. Only staging or live are supported", chartsScriptOptions.Template)
 	}
 	templateFileMap := make(map[string]bool, len(templateFiles))
 	for _, p := range templateFiles {

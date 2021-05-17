@@ -4,16 +4,18 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
-	"github.com/rancher/charts-build-scripts/pkg/sync"
 	"github.com/rancher/charts-build-scripts/pkg/update"
+	"github.com/rancher/charts-build-scripts/pkg/validate"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"gopkg.in/yaml.v2"
@@ -36,7 +38,7 @@ var (
 	ChartsScriptOptionsFile string
 	// GithubToken represents the Github Auth token; currently not used
 	GithubToken string
-	// CurrentPackage represents the specific chart within packages/ in the source branch which is being used
+	// CurrentPackage represents the specific chart within packages/ in the Staging branch which is being used
 	CurrentPackage string
 )
 
@@ -45,14 +47,12 @@ func main() {
 	app.Name = "charts-build-scripts"
 	app.Version = fmt.Sprintf("%s (%s)", Version, GitCommit)
 	app.Usage = "Build scripts used to maintain patches on Helm charts forked from other repositories"
-	app.Flags = []cli.Flag{
-		cli.StringFlag{
-			Name:        "config,c",
-			Usage:       "A configuration file with additional options for allowing this branch to interact with other branches",
-			TakesFile:   true,
-			Destination: &ChartsScriptOptionsFile,
-			Value:       DefaultChartsScriptOptionsFile,
-		},
+	configFlag := cli.StringFlag{
+		Name:        "config,c",
+		Usage:       "A configuration file with additional options for allowing this branch to interact with other branches",
+		TakesFile:   true,
+		Destination: &ChartsScriptOptionsFile,
+		Value:       DefaultChartsScriptOptionsFile,
 	}
 	packageFlag := cli.StringFlag{
 		Name:        "package,p",
@@ -60,14 +60,6 @@ func main() {
 		Required:    false,
 		Destination: &CurrentPackage,
 		EnvVar:      DefaultPackageEnvironmentVariable,
-	}
-	// Github Auth Token is currently not used
-	_ = cli.StringFlag{
-		Name:        "github-auth-token,g",
-		Usage:       "Github Access Token that can be used to make requests to the Github API on your behalf",
-		Required:    true,
-		EnvVar:      "GITHUB_AUTH_TOKEN",
-		Destination: &GithubToken,
 	}
 	app.Commands = []cli.Command{
 		{
@@ -95,26 +87,30 @@ func main() {
 			Flags:  []cli.Flag{packageFlag},
 		},
 		{
-			Name:   "rebase",
-			Usage:  "Provide a rebase.yaml to generate drift against your main chart",
-			Action: rebaseChart,
-			Flags:  []cli.Flag{packageFlag},
-		},
-		{
 			Name:   "validate",
-			Usage:  "Ensure a sync will not overwrite generated assets in branches that the configuration.yaml wants you to validate against",
+			Usage:  "Run validation to ensure that contents of assets and charts won't overwrite released charts",
 			Action: validateRepo,
-			Flags:  []cli.Flag{packageFlag},
+			Flags:  []cli.Flag{packageFlag, configFlag},
 		},
 		{
-			Name:   "sync",
-			Usage:  "Pull in new generated assets from branches that the configuration.yaml has set your current branch to sync with",
-			Action: synchronizeRepo,
-		},
-		{
-			Usage:  "Pulls in the latest docs to this repository",
-			Name:   "docs",
-			Action: getDocs,
+			Usage:  "Updates the current directory by applying the configuration.yaml on upstream Go templates to pull in the most up-to-date docs, scripts, etc.",
+			Name:   "template",
+			Action: createOrUpdateTemplate,
+			Flags: []cli.Flag{
+				configFlag,
+				cli.StringFlag{
+					Name:        "repositoryUrl,r",
+					Required:    false,
+					Destination: &update.ChartsBuildScriptsRepositoryURL,
+					Value:       "https://github.com/rancher/charts-build-scripts.git",
+				},
+				cli.StringFlag{
+					Name:        "branch,b",
+					Required:    false,
+					Destination: &update.ChartsBuildScriptsRepositoryBranch,
+					Value:       "master",
+				},
+			},
 		},
 	}
 
@@ -124,202 +120,142 @@ func main() {
 }
 
 func prepareCharts(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	if len(packages) == 0 {
-		logrus.Fatalf("Could not find any packages in packages/")
-	}
+	packages := getPackages()
 	for _, p := range packages {
-		if err = p.Prepare(); err != nil {
+		if err := p.Prepare(); err != nil {
 			logrus.Fatal(err)
 		}
 	}
 }
 
 func generatePatch(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	if len(packages) == 0 {
-		logrus.Fatalf("Could not find any packages in packages/")
-	}
+	packages := getPackages()
 	for _, p := range packages {
-		if err = p.GeneratePatch(); err != nil {
+		if err := p.GeneratePatch(); err != nil {
 			logrus.Fatal(err)
 		}
 	}
 }
 
 func generateCharts(c *cli.Context) {
-	repoRoot, err := os.Getwd()
+	repo, _, status := getGitInfo()
+	if !status.IsClean() {
+		logrus.Warnf("Git is not clean:\n%s", status)
+		logrus.Fatal("Repository must be clean to generate charts")
+	}
+	currentBranchRefName, err := repository.GetCurrentBranchRefName(repo)
 	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
+		logrus.Warn("Due to limitations in the Git library used for the scripts, we cannot generate charts in a detached HEAD state.")
+		logrus.Fatalf("Could not get reference to current branch: %s", err)
 	}
-	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	if len(packages) == 0 {
-		logrus.Fatalf("Could not find any packages in packages/")
-	}
+	// Generate charts
+	packages := getPackages()
 	for _, p := range packages {
-		if err = p.GenerateCharts(); err != nil {
+		if err := p.GenerateCharts(); err != nil {
 			logrus.Fatal(err)
 		}
+	}
+	// Copy in only assets from charts that have changed
+	_, wt, status := getGitInfo()
+	modifiedAssets := make(map[string]bool)
+	for p := range status {
+		if p == path.RepositoryHelmIndexFile {
+			wt.Excludes = append(wt.Excludes, gitignore.ParsePattern(p, []string{}))
+			logrus.Infof("Outputted %s", p)
+			continue
+		}
+		if !strings.HasPrefix(p, path.RepositoryChartsDir) {
+			continue
+		}
+		var modifiedAssetPath string
+		splitPath := strings.Split(p, "/")
+		switch len(splitPath) {
+		case 1:
+			// charts were generated for the first time
+			modifiedAssetPath = fmt.Sprintf("%s/*", path.RepositoryAssetsDir)
+		case 2:
+			// New package was introduced
+			modifiedAssetPath = fmt.Sprintf("%s/*", filepath.Join(path.RepositoryAssetsDir, splitPath[1]))
+		case 3:
+			// New chart was introduced
+			modifiedAssetPath = fmt.Sprintf("%s/*", filepath.Join(path.RepositoryAssetsDir, splitPath[1], splitPath[2]))
+		default:
+			// Existing chart was modified
+			modifiedAssetPath = fmt.Sprintf("%s-%s.tgz", filepath.Join(path.RepositoryAssetsDir, splitPath[1], splitPath[2]), splitPath[3])
+		}
+		// Add chart
+		wt.Excludes = append(wt.Excludes, gitignore.ParsePattern(p, []string{}))
+		logrus.Infof("Outputted %s", p)
+		// Add asset, but only once
+		if added, ok := modifiedAssets[modifiedAssetPath]; ok && added {
+			continue
+		}
+		modifiedAssets[modifiedAssetPath] = true
+		wt.Excludes = append(wt.Excludes, gitignore.ParsePattern(modifiedAssetPath, []string{}))
+		logrus.Infof("Outputted %s", modifiedAssetPath)
+	}
+	err = wt.Checkout(&git.CheckoutOptions{
+		Branch: currentBranchRefName,
+		Force:  true,
+	})
+	if err != nil {
+		logrus.Fatalf("Failed to clean up unchanged assets: %s", err)
 	}
 }
 
 func cleanRepository(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	if len(packages) == 0 {
-		logrus.Fatalf("Could not find any packages in packages/")
-	}
+	packages := getPackages()
 	for _, p := range packages {
-		if err = p.Clean(); err != nil {
+		if err := p.Clean(); err != nil {
 			logrus.Fatal(err)
 		}
 	}
 }
 
-func rebaseChart(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	if len(packages) == 0 {
-		logrus.Fatalf("Could not find any packages in packages/")
-	}
-	if len(packages) > 1 {
-		logrus.Fatalf("Can only run rebase on exactly one package")
-	}
-	p := packages[0]
-	if err = p.GenerateRebasePatch(); err != nil {
-		logrus.Fatal(err)
-	}
-}
-
 func validateRepo(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	repo, err := repository.GetRepo(repoRoot)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	// Check if git is clean
-	wt, err := repo.Worktree()
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	status, err := wt.Status()
-	if err != nil {
-		logrus.Fatal(err)
-	}
+	_, _, status := getGitInfo()
 	if !status.IsClean() {
-		logrus.Fatalf("Current repository is not clean:\n%s", status)
+		logrus.Warnf("Git is not clean:\n%s", status)
+		logrus.Fatal("Repository must be clean to run validation")
 	}
+
+	logrus.Infof("Generating charts and checking if Git is clean")
+	CurrentPackage = "" // Validate always runs on all packages
+	generateCharts(c)
+	_, wt, status := getGitInfo()
+	if !status.IsClean() {
+		logrus.Warnf("Generated charts produced the following changes in Git.\n%s", status)
+		logrus.Fatalf("Please commit these changes and run validation again.")
+	}
+	logrus.Infof("Successfully validated that current charts and assets are up to date.")
+
 	chartsScriptOptions := parseScriptOptions()
-	// Validate
 	for _, compareGeneratedAssetsOptions := range chartsScriptOptions.ValidateOptions {
 		logrus.Infof("Validating against released charts in %s", compareGeneratedAssetsOptions.Branch)
-		if err := sync.ValidateRepository(wt.Filesystem, compareGeneratedAssetsOptions, CurrentPackage); err != nil {
+		notSubset, err := validate.CompareGeneratedAssets(wt, compareGeneratedAssetsOptions)
+		if err != nil {
 			logrus.Fatalf("Failed to validate against %s: %s", compareGeneratedAssetsOptions.Branch, err)
+		}
+		_, _, status := getGitInfo()
+		if notSubset {
+			logrus.Warnf("The following charts and assets exist in %s but do not exist in your current branch.\n%s", compareGeneratedAssetsOptions.Branch, status)
+			logrus.Fatalf("Please commit these changes and run validation again.")
 		}
 		logrus.Infof("Successfully validated against %s!", compareGeneratedAssetsOptions.Branch)
 	}
 }
 
-func synchronizeRepo(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	repo, err := repository.GetRepo(repoRoot)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	// Check if git is clean
-	wt, err := repo.Worktree()
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	status, err := wt.Status()
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	if !status.IsClean() {
-		logrus.Fatalf("Current repository is not clean:\n%s", status)
-	}
-	chartsScriptOptions := parseScriptOptions()
-	// Synchronize
-	for _, compareGeneratedAssetsOptions := range chartsScriptOptions.SyncOptions {
-		logrus.Infof("Synchronizing with charts that will be generated from %s", compareGeneratedAssetsOptions.Branch)
-		if err := sync.SynchronizeRepository(wt.Filesystem, compareGeneratedAssetsOptions); err != nil {
-			logrus.Fatalf("Failed to synchronize with %s: %s", compareGeneratedAssetsOptions.Branch, err)
-		}
-		logrus.Infof("Successfully synchronized with %s!", compareGeneratedAssetsOptions.Branch)
-	}
-	logrus.Infof("Creating or updating the Helm index with the newly added assets...")
-	// Delete the Helm index if it was the only thing updated, whether or not changes failed
-	status, err = wt.Status()
-	if err != nil {
-		logrus.Fatalf("Could not retrieve current git status after sync: %s", err)
-	}
-	chartsIntroduced := false
-	for p, fileStatus := range status {
-		if p == path.RepositoryHelmIndexFile {
-			continue
-		}
-		if fileStatus.Worktree == git.Untracked && fileStatus.Staging == git.Untracked {
-			// Some charts were added
-			if err := helm.CreateOrUpdateHelmIndex(wt.Filesystem); err != nil {
-				logrus.Fatalf("Sync was successful but was unable to update the Helm index: %s", err)
-			}
-			chartsIntroduced = true
-			break
-		}
-	}
-	if chartsIntroduced {
-		logrus.Infof("Your working directory is ready for a commit.")
-	} else {
-		logrus.Infof("Nothing to sync. Working directory is up to date.")
-	}
-}
-
-func getDocs(c *cli.Context) {
+func createOrUpdateTemplate(c *cli.Context) {
 	repoRoot, err := os.Getwd()
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
 	}
 	repoFs := filesystem.GetFilesystem(repoRoot)
 	chartsScriptOptions := parseScriptOptions()
-	if err := update.GetDocumentation(repoFs, *chartsScriptOptions); err != nil {
-		logrus.Fatalf("Failed to update docs: %s", err)
+	if err := update.ApplyUpstreamTemplate(repoFs, *chartsScriptOptions); err != nil {
+		logrus.Fatalf("Failed to update repository based on upstream template: %s", err)
 	}
-	logrus.Infof("Successfully pulled new updated docs into working directory.")
+	logrus.Infof("Successfully updated repository based on upstream template.")
 }
 
 func parseScriptOptions() *options.ChartsScriptOptions {
@@ -334,18 +270,38 @@ func parseScriptOptions() *options.ChartsScriptOptions {
 	return &chartsScriptOptions
 }
 
-func validateRepoPointingToBranch(repo *git.Repository, branch string) error {
-	ref, err := repo.Head()
+func getPackages() []*charts.Package {
+	repoRoot, err := os.Getwd()
 	if err != nil {
-		return err
+		logrus.Fatalf("Unable to get current working directory: %s", err)
 	}
-	refName := ref.Name()
-	if !refName.IsBranch() {
-		return fmt.Errorf("Unable to find current branch")
+	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
+	if err != nil {
+		logrus.Fatal(err)
 	}
-	currentBranch := refName.Short()
-	if currentBranch != branch {
-		return fmt.Errorf("Cannot execute command on current branch (%s). You must be in %s to run this command", currentBranch, branch)
+	if len(packages) == 0 {
+		logrus.Fatal("Could not find any packages in packages/")
 	}
-	return nil
+	return packages
+}
+
+func getGitInfo() (*git.Repository, *git.Worktree, git.Status) {
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		logrus.Fatalf("Unable to get current working directory: %s", err)
+	}
+	repo, err := repository.GetRepo(repoRoot)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	// Check if git is clean
+	wt, err := repo.Worktree()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	status, err := wt.Status()
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	return repo, wt, status
 }

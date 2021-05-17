@@ -1,16 +1,12 @@
 package path
 
 const (
-	// ChartsRepositoryRebasePatchesDir is the directory where a synchronize call will generate any conflicts
-	ChartsRepositoryRebasePatchesDir = "rebase/generated-changes"
-	// ChartsRepositoryCurrentBranchDir is a directory that will be used to store your current assets
-	ChartsRepositoryCurrentBranchDir = "original-assets"
-	// ChartsRepositoryUpstreamBranchDir is a directory that will be used to store the latest copy of a branch you want to sync with
-	ChartsRepositoryUpstreamBranchDir = "new-assets"
+	// ChartsRepositoryUpstreamBranchDir is a directory that will be used to store the latest copy of the branch containing your released assets
+	ChartsRepositoryUpstreamBranchDir = "released-assets"
 
 	// RepositoryHelmIndexFile is the file on your Staging/Live branch that contains your Helm repository index
 	RepositoryHelmIndexFile = "index.yaml"
-	// RepositoryPackagesDir is a directory on your Source branch that contains the files necessary to generate your package
+	// RepositoryPackagesDir is a directory on your Staging branch that contains the files necessary to generate your package
 	RepositoryPackagesDir = "packages"
 	// RepositoryAssetsDir is a directory on your Staging/Live branch that contains chart archives for each version of your package
 	RepositoryAssetsDir = "assets"
@@ -22,8 +18,6 @@ const (
 	PackageOptionsFile = "package.yaml"
 	// PackageTemplatesDir is a directory containing templates used as additional chart options
 	PackageTemplatesDir = "templates"
-	// RebasePackageOptionsFile is the name of a file that contains information about how to prepare your new upstream
-	RebasePackageOptionsFile = "rebase.yaml"
 
 	// GeneratedChangesDir is a directory that contains GeneratedChanges
 	GeneratedChangesDir = "generated-changes"

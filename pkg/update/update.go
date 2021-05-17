@@ -14,10 +14,11 @@ import (
 )
 
 var (
+	// ChartsBuildScriptsRepositoryBranch is the branch that has the latest documentation. Defaults to master
+	ChartsBuildScriptsRepositoryBranch string
 	// ChartsBuildScriptsRepositoryURL is the URL pointing to the charts builds scripts
-	ChartsBuildScriptsRepositoryURL = "https://github.com/rancher/charts-build-scripts.git"
-	// ChartsBuildScriptsRepositoryBranch is the branch that has the latest documentation
-	ChartsBuildScriptsRepositoryBranch = "master"
+	ChartsBuildScriptsRepositoryURL string
+
 	// ChartsBuildScriptRepositoryTemplatesDirectory is the folder within our repository that contains templates
 	ChartsBuildScriptRepositoryTemplatesDirectory = "templates"
 	// ChartsBuildScriptRepositoryTemplateDirectory is the folder within templates that contains the Go templates to add to the repository
@@ -26,8 +27,8 @@ var (
 	ChartsBuildScriptRepositoryTemplateUpdateOptions = "update.yaml"
 )
 
-// GetDocumentation updates a charts-build-scripts repository with the latest docs
-func GetDocumentation(rootFs billy.Filesystem, chartsScriptOptions options.ChartsScriptOptions) error {
+// ApplyUpstreamTemplate updates a charts-build-scripts repository based on the Go templates tracked in this repository
+func ApplyUpstreamTemplate(rootFs billy.Filesystem, chartsScriptOptions options.ChartsScriptOptions) error {
 	templateRepository, err := puller.GetGithubRepository(options.UpstreamOptions{
 		URL:          ChartsBuildScriptsRepositoryURL,
 		Subdirectory: &ChartsBuildScriptRepositoryTemplatesDirectory,

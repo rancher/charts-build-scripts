@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/hashicorp/go-multierror"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/path"
@@ -142,4 +143,32 @@ func (p *Package) Clean() error {
 		}
 	}
 	return nil
+}
+
+func (p *Package) UpdateCRDChartTemplateVersion() error {
+	var multiErr error
+	for _, additionalChart := range p.AdditionalCharts {
+		if additionalChart == nil {
+			continue
+		}
+		if (*additionalChart).CRDChartOptions == nil {
+			continue
+		}
+		mainChartCurrentVersion, err := helm.GetHelmMetadataVersion(p.fs, p.Chart.WorkingDir)
+		if err != nil {
+			multiErr = multierror.Append(multiErr, err)
+			continue
+		}
+		// update the version in the /packages/your-package/charts-crd directory
+		if err = helm.UpdateHelmMetadataWithVersion(p.fs, (*additionalChart).WorkingDir, mainChartCurrentVersion); err != nil {
+			multiErr = multierror.Append(multiErr, err)
+			continue
+		}
+		// update the version in the /packages/your-package/template/crd-template directory
+		if err = helm.UpdateHelmMetadataWithVersion(p.fs, filepath.Join(path.PackageTemplatesDir, (*additionalChart).CRDChartOptions.TemplateDirectory), mainChartCurrentVersion); err != nil {
+			multiErr = multierror.Append(multiErr, err)
+			continue
+		}
+	}
+	return multiErr
 }

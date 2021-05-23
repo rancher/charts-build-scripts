@@ -207,7 +207,7 @@ No other changes are expected.
 
 {{- if (eq .Template "staging") }}
 
-`make prepare`: Pulls in your charts from upstream and creates a basic `generated-changes/` directory with your dependencies from upstream
+`make prepare`: Pulls in your charts from upstream and creates a basic `generated-changes/` directory with your dependencies from upstream. If you `export UPDATE_CRD_TEMPLATE=1`, it will automatically keep the CRD chart version up to date if the chart version bumps. You can also do this as a one-off action instead by running `./bin/charts-build-scripts prepare -u`.
 
 `make patch`: Updates your `generated-changes/` to reflect the difference between upstream and the current working directory of your branch (note: this command should only be run after `make prepare`).
 

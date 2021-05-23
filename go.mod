@@ -15,6 +15,7 @@ require (
 	github.com/go-git/go-billy/v5 v5.0.0
 	github.com/go-git/go-git/v5 v5.2.0
 	github.com/golang/protobuf v1.4.3 // indirect
+	github.com/hashicorp/go-multierror v1.0.0
 	github.com/imdario/mergo v0.3.11 // indirect
 	github.com/kevinburke/ssh_config v0.0.0-20201106050909-4977a11b4351 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
@@ -22,7 +23,6 @@ require (
 	github.com/urfave/cli v1.22.5
 	github.com/xanzy/ssh-agent v0.3.0 // indirect
 	golang.org/x/crypto v0.0.0-20201208171446-5f87f3452ae9 // indirect
-	golang.org/x/mod v0.4.0
 	golang.org/x/net v0.0.0-20201209123823-ac852fbbde11 // indirect
 	golang.org/x/oauth2 v0.0.0-20201208152858-08078c50e5b5 // indirect
 	golang.org/x/sys v0.0.0-20201214210602-f9fddec55a1e // indirect

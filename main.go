@@ -40,6 +40,9 @@ var (
 	GithubToken string
 	// CurrentPackage represents the specific chart within packages/ in the Staging branch which is being used
 	CurrentPackage string
+
+	// UpdateCRDChartTemplateVersion determines whether the CRD Chart's template version should be synced with the main chart on prepare.
+	UpdateCRDChartTemplateVersion bool
 )
 
 func main() {
@@ -66,7 +69,16 @@ func main() {
 			Name:   "prepare",
 			Usage:  "Pull in the chart specified from upstream to the charts directory and apply any patch files",
 			Action: prepareCharts,
-			Flags:  []cli.Flag{packageFlag},
+			Flags: []cli.Flag{
+				packageFlag,
+				cli.BoolFlag{
+					Name:        "updateCRDChartVersion,u",
+					EnvVar:      "UPDATE_CRD_TEMPLATE",
+					Usage:       "If using a CRD chart, this will update the template based on the main chart's contents",
+					Required:    false,
+					Destination: &UpdateCRDChartTemplateVersion,
+				},
+			},
 		},
 		{
 			Name:   "patch",
@@ -124,6 +136,14 @@ func prepareCharts(c *cli.Context) {
 	for _, p := range packages {
 		if err := p.Prepare(); err != nil {
 			logrus.Fatal(err)
+		}
+		if UpdateCRDChartTemplateVersion {
+			logrus.Infof("Attepting to sync CRD chart template version...")
+			if err := p.UpdateCRDChartTemplateVersion(); err != nil {
+				logrus.Warnf("Unable to update CRD chart template version, %s", err)
+			} else {
+				logrus.Infof("Successfully synced CRD chart template version!")
+			}
 		}
 	}
 }

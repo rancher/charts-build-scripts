@@ -43,3 +43,28 @@ func UpdateHelmMetadataWithName(fs billy.Filesystem, mainHelmChartPath string, n
 	}
 	return nil
 }
+
+// UpdateHelmMetadataWithVersion updates the version of the chart in the metadata
+func UpdateHelmMetadataWithVersion(fs billy.Filesystem, mainHelmChartPath string, version string) error {
+	// Check if Helm chart is valid
+	chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, mainHelmChartPath))
+	if err != nil {
+		return err
+	}
+	chart.Metadata.Version = version
+	path := filepath.Join(mainHelmChartPath, "Chart.yaml")
+	data := chart.Metadata
+	dataBytes, err := yaml.Marshal(data)
+	if err != nil {
+		return err
+	}
+	file, err := fs.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	if _, err := file.Write(dataBytes); err != nil {
+		return err
+	}
+	return nil
+}

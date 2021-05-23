@@ -1,6 +1,6 @@
 module github.com/rancher/charts-build-scripts
 
-go 1.15
+go 1.16
 
 replace (
 	// Needed to resolve issue on Darwin machines
@@ -22,7 +22,6 @@ require (
 	github.com/urfave/cli v1.22.5
 	github.com/xanzy/ssh-agent v0.3.0 // indirect
 	golang.org/x/crypto v0.0.0-20201208171446-5f87f3452ae9 // indirect
-	golang.org/x/mod v0.4.0
 	golang.org/x/net v0.0.0-20201209123823-ac852fbbde11 // indirect
 	golang.org/x/oauth2 v0.0.0-20201208152858-08078c50e5b5 // indirect
 	golang.org/x/sys v0.0.0-20201214210602-f9fddec55a1e // indirect

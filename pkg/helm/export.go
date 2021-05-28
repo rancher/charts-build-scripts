@@ -61,6 +61,11 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 		return fmt.Errorf("Failed to create directory for assets at %s: %s", chartAssetsDirpath, err)
 	}
 	defer filesystem.PruneEmptyDirsInPath(rootFs, chartAssetsDirpath)
+	// If we remove an overlay file, the file will not be removed from the charts directory if it already exists,
+	// the easiest way to solve this problem is to clean the target directory before un-archiving the chart's package
+	if err := filesystem.RemoveAll(rootFs, chartChartsDirpath); err != nil {
+		return fmt.Errorf("Failed to clean directory for charts at %s: %s", chartChartsDirpath, err)
+	}
 	if err := rootFs.MkdirAll(chartChartsDirpath, os.ModePerm); err != nil {
 		return fmt.Errorf("Failed to create directory for charts at %s: %s", chartChartsDirpath, err)
 	}

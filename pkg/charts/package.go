@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
@@ -17,8 +18,10 @@ type Package struct {
 
 	// Name is the name of the package
 	Name string `yaml:"name"`
+	// Version represents the version of the package. It will override other values if it exists
+	Version *semver.Version `yaml:"version,omitempty"`
 	// PackageVersion represents the current version of the package. It needs to be incremented whenever there are changes
-	PackageVersion int `yaml:"packageVersion"`
+	PackageVersion *int `yaml:"packageVersion"`
 	// AdditionalCharts are other charts that should be packaged together with this
 	AdditionalCharts []*AdditionalChart `yaml:"additionalCharts,omitempty"`
 	// DoNotRelease represents a boolean flag that indicates a package should not be tracked in make charts
@@ -95,12 +98,12 @@ func (p *Package) GenerateCharts() error {
 	packageAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, p.Name)
 	packageChartsDirpath := filepath.Join(path.RepositoryChartsDir, p.Name)
 	// Add PackageVersion to format
-	err := p.Chart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, packageAssetsDirpath, packageChartsDirpath)
+	err := p.Chart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, packageAssetsDirpath, packageChartsDirpath)
 	if err != nil {
 		return fmt.Errorf("Encountered error while exporting main chart: %s", err)
 	}
 	for _, additionalChart := range p.AdditionalCharts {
-		err = additionalChart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, packageAssetsDirpath, packageChartsDirpath)
+		err = additionalChart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, packageAssetsDirpath, packageChartsDirpath)
 		if err != nil {
 			return fmt.Errorf("Encountered error while exporting %s: %s", additionalChart.WorkingDir, err)
 		}

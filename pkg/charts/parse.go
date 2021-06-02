@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
@@ -79,6 +80,19 @@ func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 	if err != nil {
 		return nil, err
 	}
+	// version and packageVersion can not exist at the same time although both are optional
+	if packageOpt.Version != nil && packageOpt.PackageVersion != nil {
+		return nil, fmt.Errorf("Cannot have both version and packageVersion at the same time")
+	}
+	var version *semver.Version
+	if packageOpt.Version != nil {
+		temp, err := semver.Make(*packageOpt.Version)
+		if err != nil {
+			return nil, fmt.Errorf("Cannot parse version %s as an valid semver: %s", *packageOpt.Version, err)
+		}
+		version = &temp
+	}
+
 	// Get charts
 	chart, err := GetChartFromOptions(packageOpt.MainChartOptions)
 	if err != nil {
@@ -96,6 +110,7 @@ func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 		Chart: chart,
 
 		Name:             name,
+		Version:          version,
 		PackageVersion:   packageOpt.PackageVersion,
 		AdditionalCharts: additionalCharts,
 		DoNotRelease:     packageOpt.DoNotRelease,

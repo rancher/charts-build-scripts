@@ -13,8 +13,10 @@ import (
 // PackageOptions represent the options presented to users to be able to configure the way a package is built using these scripts
 // The YAML that corresponds to these options are stored within packages/<package-name>/package.yaml for each package
 type PackageOptions struct {
+	// Version represents the version of the package. It will override other values if it exists
+	Version *string `yaml:"version,omitempty"`
 	// PackageVersion represents the current version of the package. It needs to be incremented whenever there are changes
-	PackageVersion int `yaml:"packageVersion" default:"0"`
+	PackageVersion *int `yaml:"packageVersion" default:"0"`
 	// MainChartOptions represent options presented to the user to configure the main chart
 	MainChartOptions ChartOptions `yaml:",inline"`
 	// AdditionalChartOptions represent options presented to the user to configure any additional charts

@@ -27,7 +27,7 @@ var (
 // helmChartPath is a relative path (rooted at the package level) that contains the chart.
 // packageAssetsPath is a relative path (rooted at the repository level) where the generated chart archive will be placed
 // packageChartsPath is a relative path (rooted at the repository level) where the generated chart will be placed
-func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion int, upstreamChartVersion, packageAssetsDirpath, packageChartsDirpath string) error {
+func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion *int, version *semver.Version, upstreamChartVersion, packageAssetsDirpath, packageChartsDirpath string) error {
 	// Try to load the chart to see if it can be exported
 	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
 	chart, err := helmLoader.Load(absHelmChartPath)
@@ -41,12 +41,17 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 	if err != nil {
 		return fmt.Errorf("Cannot parse original chart version %s as valid semver", chart.Metadata.Version)
 	}
-	// Add packageVersion as string, preventing errors due to leading 0s
-	if uint64(packageVersion) >= MaxPatchNum {
-		return fmt.Errorf("Maximum number of packageVersions is %d, found %d", MaxPatchNum, packageVersion)
+	if version != nil {
+		chartVersionSemver = *version
+	} else if packageVersion != nil {
+		// Add packageVersion as string, preventing errors due to leading 0s
+		if uint64(*packageVersion) >= MaxPatchNum {
+			return fmt.Errorf("Maximum number of packageVersions is %d, found %d", MaxPatchNum, packageVersion)
+		}
+		chartVersionSemver.Patch = PatchNumMultiplier*chartVersionSemver.Patch + uint64(*packageVersion)
 	}
-	chartVersionSemver.Patch = PatchNumMultiplier*chartVersionSemver.Patch + uint64(packageVersion)
-	if len(upstreamChartVersion) > 0 {
+
+	if len(upstreamChartVersion) > 0 && upstreamChartVersion != chartVersionSemver.String() {
 		// Add buildMetadataFlag for forked charts
 		chartVersionSemver.Build = append(chartVersionSemver.Build, fmt.Sprintf("up%s", upstreamChartVersion))
 	}

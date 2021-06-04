@@ -1,7 +1,6 @@
 staging:
 - README.md
 - .gitignore
-- .github/workflows/pull-request.yaml
 - scripts/pull-scripts
 - scripts/package-ci
 - scripts/regenerate-packages

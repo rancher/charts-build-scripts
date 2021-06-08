@@ -48,7 +48,9 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 		if uint64(*packageVersion) >= MaxPatchNum {
 			return fmt.Errorf("Maximum number of packageVersions is %d, found %d", MaxPatchNum, packageVersion)
 		}
-		chartVersionSemver.Patch = PatchNumMultiplier*chartVersionSemver.Patch + uint64(*packageVersion)
+		if uint64(*packageVersion) > 0 {
+			chartVersionSemver.Patch = PatchNumMultiplier*chartVersionSemver.Patch + uint64(*packageVersion)
+		}
 	}
 
 	if len(upstreamChartVersion) > 0 && upstreamChartVersion != chartVersionSemver.String() {

@@ -139,7 +139,7 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 			logrus.Infof("Found chart options for %s in %s", dependencyName, dependencyOptionsPath)
 			continue
 		}
-		subdirectory := filepath.Join(strings.TrimPrefix(dependency.Repository, "file://"), dependencyName)
+		subdirectory := filepath.Join(filepath.Dir(strings.TrimPrefix(dependency.Repository, "file://")), dependencyName)
 		if mainChartUpstreamOpts.Subdirectory != nil {
 			subdirectory = filepath.Join(*mainChartUpstreamOpts.Subdirectory, subdirectory)
 		}

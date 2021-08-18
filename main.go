@@ -78,7 +78,7 @@ func main() {
 			Name:   "charts",
 			Usage:  "Create a local chart archive of your finalized chart for testing",
 			Action: generateCharts,
-			Flags:  []cli.Flag{packageFlag},
+			Flags:  []cli.Flag{packageFlag, configFlag},
 		},
 		{
 			Name:   "clean",
@@ -150,8 +150,9 @@ func generateCharts(c *cli.Context) {
 	}
 	// Generate charts
 	packages := getPackages()
+	chartsScriptOptions := parseScriptOptions()
 	for _, p := range packages {
-		if err := p.GenerateCharts(); err != nil {
+		if err := p.GenerateCharts(chartsScriptOptions.OmitBuildMetadataOnExport); err != nil {
 			logrus.Fatal(err)
 		}
 	}

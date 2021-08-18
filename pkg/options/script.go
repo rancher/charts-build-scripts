@@ -8,6 +8,9 @@ type ChartsScriptOptions struct {
 	HelmRepoConfiguration `yaml:"helmRepo"`
 	// Template can be 'staging' or 'live'
 	Template string `yaml:"template"`
+	// OmitBuildMetadataOnExport instructs the scripts to not add in a +up build metadata flag for forked charts
+	// If false, any forked chart whose version differs from the original source version will have the version VERSION+upORIGINAL_VERSION
+	OmitBuildMetadataOnExport bool `yaml:"omitBuildMetadataOnExport"`
 }
 
 // ValidateOptions represent any options that are configurable when validating a chart

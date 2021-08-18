@@ -82,11 +82,11 @@ func (c *Chart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 }
 
 // GenerateChart generates the chart and stores it in the assets and charts directory
-func (c *Chart) GenerateChart(rootFs, pkgFs billy.Filesystem, packageVersion *int, version *semver.Version, packageAssetsDirpath, packageChartsDirpath string) error {
+func (c *Chart) GenerateChart(rootFs, pkgFs billy.Filesystem, packageVersion *int, version *semver.Version, packageAssetsDirpath, packageChartsDirpath string, omitBuildMetadataOnExport bool) error {
 	if c.upstreamChartVersion == nil {
 		return fmt.Errorf("Cannot generate chart since it has never been prepared: upstreamChartVersion is not set")
 	}
-	if err := helm.ExportHelmChart(rootFs, pkgFs, c.WorkingDir, packageVersion, version, *c.upstreamChartVersion, packageAssetsDirpath, packageChartsDirpath); err != nil {
+	if err := helm.ExportHelmChart(rootFs, pkgFs, c.WorkingDir, packageVersion, version, *c.upstreamChartVersion, packageAssetsDirpath, packageChartsDirpath, omitBuildMetadataOnExport); err != nil {
 		return fmt.Errorf("Encountered error while trying to export Helm chart for %s: %s", c.WorkingDir, err)
 	}
 	return nil

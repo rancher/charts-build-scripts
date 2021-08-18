@@ -1,5 +1,5 @@
 {{- if (eq .Template "staging") -}}
-## Staging Branch
+## Dev Branch
 
 This branch contains Packages and generated assets that have not been officially released yet.
 
@@ -7,7 +7,7 @@ See the README.md under `packages/`, `assets/`, and `charts/` for more informati
 
 The following directory structure is expected:
 ```text
-package/
+packages/
   <package>/
   ...
 assets/
@@ -21,6 +21,19 @@ charts/
         # Unarchived Helm chart
   ...
 ```
+
+### "Orphaned" Charts
+
+Not all charts tracked in `charts/` and `assets/` will have a corresponding entry in `packages/`,
+but all charts tracked in `packages/` must exist in `charts/` and `assets/` to pass a `make validate`.
+
+Some situations that would merit "orphaned" charts include, but are not limited to:
+- Charts that are no longer in active development (e.g. deprecated charts, older versions of released charts)
+- Charts that are forward-ported / backward-ported over from other Helm repositories
+
+Note: as long as it doesn't modify an already released version of a chart (which will be checked on a `make validate`),
+you can always bring back a previously removed package to the `packages/` directory to move it back to active development.
+
 {{- end }}
 
 {{- if (eq .Template "live") -}}

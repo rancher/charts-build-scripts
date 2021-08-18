@@ -78,7 +78,7 @@ func main() {
 			Name:   "charts",
 			Usage:  "Create a local chart archive of your finalized chart for testing",
 			Action: generateCharts,
-			Flags:  []cli.Flag{packageFlag},
+			Flags:  []cli.Flag{packageFlag, configFlag},
 		},
 		{
 			Name:   "clean",

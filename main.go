@@ -150,8 +150,9 @@ func generateCharts(c *cli.Context) {
 	}
 	// Generate charts
 	packages := getPackages()
+	chartsScriptOptions := parseScriptOptions()
 	for _, p := range packages {
-		if err := p.GenerateCharts(); err != nil {
+		if err := p.GenerateCharts(chartsScriptOptions.OmitBuildMetadataOnExport); err != nil {
 			logrus.Fatal(err)
 		}
 	}

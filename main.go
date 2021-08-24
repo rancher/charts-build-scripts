@@ -130,10 +130,11 @@ func prepareCharts(c *cli.Context) {
 
 func generatePatch(c *cli.Context) {
 	packages := getPackages()
-	for _, p := range packages {
-		if err := p.GeneratePatch(); err != nil {
-			logrus.Fatal(err)
-		}
+	if len(packages) != 1 {
+		logrus.Fatalf("No PACKAGE is set. Run export PACKAGE=<package> before running this command.")
+	}
+	if err := packages[0].GeneratePatch(); err != nil {
+		logrus.Fatal(err)
 	}
 }
 

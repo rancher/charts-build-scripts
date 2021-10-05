@@ -33,7 +33,7 @@ func LoadPackageOptionsFromFile(fs billy.Filesystem, path string) (PackageOption
 		return packageOptions, err
 	}
 	if !exists {
-		return packageOptions, fmt.Errorf("Unable to load package options from file %s since it does not exist", filesystem.GetAbsPath(fs, path))
+		return packageOptions, fmt.Errorf("unable to load package options from file %s since it does not exist", filesystem.GetAbsPath(fs, path))
 	}
 	chartOptionsBytes, err := ioutil.ReadFile(filesystem.GetAbsPath(fs, path))
 	if err != nil {

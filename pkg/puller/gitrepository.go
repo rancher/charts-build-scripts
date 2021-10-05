@@ -67,7 +67,7 @@ func (r GithubRepository) GetSSHURL() string {
 func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
 	logrus.Infof("Pulling %s from upstream into %s", r, path)
 	if r.Commit == nil && r.branch == nil {
-		return fmt.Errorf("If you are pulling from a Git repository, a commit is required in the package.yaml")
+		return fmt.Errorf("if you are pulling from a Git repository, a commit is required in the package.yaml")
 	}
 	cloneOptions := git.CloneOptions{
 		URL: r.GetHTTPSURL(),

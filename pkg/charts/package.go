@@ -36,29 +36,29 @@ type Package struct {
 // Prepare pulls in a package based on the spec to the local git repository
 func (p *Package) Prepare() error {
 	if err := p.Chart.Prepare(p.rootFs, p.fs); err != nil {
-		return fmt.Errorf("Encountered error while preparing main chart: %s", err)
+		return fmt.Errorf("encountered error while preparing main chart: %s", err)
 	}
 	if p.Chart.Upstream.IsWithinPackage() {
 		for _, additionalChart := range p.AdditionalCharts {
 			exists, err := filesystem.PathExists(p.fs, additionalChart.WorkingDir)
 			if err != nil {
-				return fmt.Errorf("Encountered error while trying to check if %s exists: %s", additionalChart.WorkingDir, err)
+				return fmt.Errorf("encountered error while trying to check if %s exists: %s", additionalChart.WorkingDir, err)
 			}
 			if !exists {
 				continue
 			}
 			// Local charts need to revert changes before trying to prepare additional charts
 			if err := additionalChart.RevertMainChanges(p.fs); err != nil {
-				return fmt.Errorf("Encountered error while reverting changes from %s to main chart: %s", additionalChart.WorkingDir, err)
+				return fmt.Errorf("encountered error while reverting changes from %s to main chart: %s", additionalChart.WorkingDir, err)
 			}
 		}
 	}
 	for _, additionalChart := range p.AdditionalCharts {
 		if err := additionalChart.Prepare(p.rootFs, p.fs, p.Chart.upstreamChartVersion); err != nil {
-			return fmt.Errorf("Encountered error while preparing additional chart %s: %s", additionalChart.WorkingDir, err)
+			return fmt.Errorf("encountered error while preparing additional chart %s: %s", additionalChart.WorkingDir, err)
 		}
 		if err := additionalChart.ApplyMainChanges(p.fs); err != nil {
-			return fmt.Errorf("Encountered error while applying main changes from %s to main chart: %s", additionalChart.WorkingDir, err)
+			return fmt.Errorf("encountered error while applying main changes from %s to main chart: %s", additionalChart.WorkingDir, err)
 		}
 	}
 	return nil
@@ -68,18 +68,18 @@ func (p *Package) Prepare() error {
 func (p *Package) GeneratePatch() error {
 	for _, additionalChart := range p.AdditionalCharts {
 		if err := additionalChart.RevertMainChanges(p.fs); err != nil {
-			return fmt.Errorf("Encountered error while reverting changes from %s to main chart: %s", additionalChart.WorkingDir, err)
+			return fmt.Errorf("encountered error while reverting changes from %s to main chart: %s", additionalChart.WorkingDir, err)
 		}
 	}
 	if err := p.Chart.GeneratePatch(p.rootFs, p.fs); err != nil {
-		return fmt.Errorf("Encountered error while generating patch on main chart: %s", err)
+		return fmt.Errorf("encountered error while generating patch on main chart: %s", err)
 	}
 	for _, additionalChart := range p.AdditionalCharts {
 		if err := additionalChart.ApplyMainChanges(p.fs); err != nil {
-			return fmt.Errorf("Encountered error while applying main changes from %s to main chart: %s", additionalChart.WorkingDir, err)
+			return fmt.Errorf("encountered error while applying main changes from %s to main chart: %s", additionalChart.WorkingDir, err)
 		}
 		if err := additionalChart.GeneratePatch(p.rootFs, p.fs); err != nil {
-			return fmt.Errorf("Encountered error while generating patch on additional chart %s: %s", additionalChart.WorkingDir, err)
+			return fmt.Errorf("encountered error while generating patch on additional chart %s: %s", additionalChart.WorkingDir, err)
 		}
 	}
 	return nil
@@ -92,7 +92,7 @@ func (p *Package) GenerateCharts(omitBuildMetadataOnExport bool) error {
 		return nil
 	}
 	if err := p.Prepare(); err != nil {
-		return fmt.Errorf("Encountered error while trying to prepare package: %s", err)
+		return fmt.Errorf("encountered error while trying to prepare package: %s", err)
 	}
 	// Export Helm charts
 	packageAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, p.Name)
@@ -100,12 +100,12 @@ func (p *Package) GenerateCharts(omitBuildMetadataOnExport bool) error {
 	// Add PackageVersion to format
 	err := p.Chart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, packageAssetsDirpath, packageChartsDirpath, omitBuildMetadataOnExport)
 	if err != nil {
-		return fmt.Errorf("Encountered error while exporting main chart: %s", err)
+		return fmt.Errorf("encountered error while exporting main chart: %s", err)
 	}
 	for _, additionalChart := range p.AdditionalCharts {
 		err = additionalChart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, packageAssetsDirpath, packageChartsDirpath, omitBuildMetadataOnExport)
 		if err != nil {
-			return fmt.Errorf("Encountered error while exporting %s: %s", additionalChart.WorkingDir, err)
+			return fmt.Errorf("encountered error while exporting %s: %s", additionalChart.WorkingDir, err)
 		}
 	}
 	if err := helm.CreateOrUpdateHelmIndex(p.rootFs); err != nil {
@@ -130,18 +130,18 @@ func (p *Package) Clean() error {
 		}
 		exists, err := filesystem.PathExists(p.fs, additionalChart.WorkingDir)
 		if err != nil {
-			return fmt.Errorf("Encountered error while trying to check if %s exists: %s", additionalChart.WorkingDir, err)
+			return fmt.Errorf("encountered error while trying to check if %s exists: %s", additionalChart.WorkingDir, err)
 		}
 		if exists {
 			if err := additionalChart.RevertMainChanges(p.fs); err != nil {
-				return fmt.Errorf("Encountered error while reverting changes from %s to main chart: %s", additionalChart.WorkingDir, err)
+				return fmt.Errorf("encountered error while reverting changes from %s to main chart: %s", additionalChart.WorkingDir, err)
 			}
 		}
 		chartPathsToClean = append(chartPathsToClean, additionalChart.OriginalDir(), additionalChart.WorkingDir)
 	}
 	for _, chartPath := range chartPathsToClean {
 		if err := filesystem.RemoveAll(p.fs, chartPath); err != nil {
-			return fmt.Errorf("Encountered error while trying to remove %s from package %s: %s", chartPath, p.Name, err)
+			return fmt.Errorf("encountered error while trying to remove %s from package %s: %s", chartPath, p.Name, err)
 		}
 	}
 	return nil

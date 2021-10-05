@@ -33,26 +33,26 @@ func (c *Chart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 	if c.Upstream.IsWithinPackage() {
 		logrus.Infof("Local chart does not need to be prepared")
 		if err := PrepareDependencies(rootFs, pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
-			return fmt.Errorf("Encountered error while trying to prepare dependencies in %s: %s", c.WorkingDir, err)
+			return fmt.Errorf("encountered error while trying to prepare dependencies in %s: %s", c.WorkingDir, err)
 		}
 		return nil
 	}
 	if err := filesystem.RemoveAll(pkgFs, c.WorkingDir); err != nil {
-		return fmt.Errorf("Encountered error while trying to clean up %s before preparing: %s", c.WorkingDir, err)
+		return fmt.Errorf("encountered error while trying to clean up %s before preparing: %s", c.WorkingDir, err)
 	}
 	if err := c.Upstream.Pull(rootFs, pkgFs, c.WorkingDir); err != nil {
-		return fmt.Errorf("Encountered error while trying to pull upstream into %s: %s", c.WorkingDir, err)
+		return fmt.Errorf("encountered error while trying to pull upstream into %s: %s", c.WorkingDir, err)
 	}
 	var err error
 	upstreamChartVersion, err = helm.GetHelmMetadataVersion(pkgFs, c.WorkingDir)
 	if err != nil {
-		return fmt.Errorf("Encountered error while parsing original chart's version in %s: %s", c.WorkingDir, err)
+		return fmt.Errorf("encountered error while parsing original chart's version in %s: %s", c.WorkingDir, err)
 	}
 	if err := PrepareDependencies(rootFs, pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
-		return fmt.Errorf("Encountered error while trying to prepare dependencies in %s: %s", c.WorkingDir, err)
+		return fmt.Errorf("encountered error while trying to prepare dependencies in %s: %s", c.WorkingDir, err)
 	}
 	if err := change.ApplyChanges(pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
-		return fmt.Errorf("Encountered error while trying to apply changes to %s: %s", c.WorkingDir, err)
+		return fmt.Errorf("encountered error while trying to apply changes to %s: %s", c.WorkingDir, err)
 	}
 	return nil
 }
@@ -64,19 +64,19 @@ func (c *Chart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 		return nil
 	}
 	if exists, err := filesystem.PathExists(pkgFs, c.WorkingDir); err != nil {
-		return fmt.Errorf("Encountered error while trying to clean up %s before preparing: %s", c.WorkingDir, err)
+		return fmt.Errorf("encountered error while trying to clean up %s before preparing: %s", c.WorkingDir, err)
 	} else if !exists {
-		return fmt.Errorf("Working directory %s has not been prepared yet", c.WorkingDir)
+		return fmt.Errorf("working directory %s has not been prepared yet", c.WorkingDir)
 	}
 	if err := c.Upstream.Pull(rootFs, pkgFs, c.OriginalDir()); err != nil {
-		return fmt.Errorf("Encountered error while trying to pull upstream into %s: %s", c.OriginalDir(), err)
+		return fmt.Errorf("encountered error while trying to pull upstream into %s: %s", c.OriginalDir(), err)
 	}
 	if err := PrepareDependencies(rootFs, pkgFs, c.OriginalDir(), c.GeneratedChangesRootDir()); err != nil {
-		return fmt.Errorf("Encountered error while trying to prepare dependencies in %s: %s", c.OriginalDir(), err)
+		return fmt.Errorf("encountered error while trying to prepare dependencies in %s: %s", c.OriginalDir(), err)
 	}
 	defer filesystem.RemoveAll(pkgFs, c.OriginalDir())
 	if err := change.GenerateChanges(pkgFs, c.OriginalDir(), c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
-		return fmt.Errorf("Encountered error while generating changes from %s to %s and placing it in %s: %s", c.OriginalDir(), c.WorkingDir, c.GeneratedChangesRootDir(), err)
+		return fmt.Errorf("encountered error while generating changes from %s to %s and placing it in %s: %s", c.OriginalDir(), c.WorkingDir, c.GeneratedChangesRootDir(), err)
 	}
 	return nil
 }
@@ -84,10 +84,10 @@ func (c *Chart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 // GenerateChart generates the chart and stores it in the assets and charts directory
 func (c *Chart) GenerateChart(rootFs, pkgFs billy.Filesystem, packageVersion *int, version *semver.Version, packageAssetsDirpath, packageChartsDirpath string, omitBuildMetadataOnExport bool) error {
 	if c.upstreamChartVersion == nil {
-		return fmt.Errorf("Cannot generate chart since it has never been prepared: upstreamChartVersion is not set")
+		return fmt.Errorf("cannot generate chart since it has never been prepared: upstreamChartVersion is not set")
 	}
 	if err := helm.ExportHelmChart(rootFs, pkgFs, c.WorkingDir, packageVersion, version, *c.upstreamChartVersion, packageAssetsDirpath, packageChartsDirpath, omitBuildMetadataOnExport); err != nil {
-		return fmt.Errorf("Encountered error while trying to export Helm chart for %s: %s", c.WorkingDir, err)
+		return fmt.Errorf("encountered error while trying to export Helm chart for %s: %s", c.WorkingDir, err)
 	}
 	return nil
 }

@@ -16,7 +16,7 @@ import (
 
 var (
 	// ErrRemoteDoesNotExist indicates that the remote does not exist in the current repository
-	ErrRemoteDoesNotExist = errors.New("Repository does not have any matching remotes")
+	ErrRemoteDoesNotExist = errors.New("repository does not have any matching remotes")
 )
 
 // GetPackages returns all packages found within the repository. If there is a specific package provided, it will return just that Package in the list
@@ -82,13 +82,13 @@ func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 	}
 	// version and packageVersion can not exist at the same time although both are optional
 	if packageOpt.Version != nil && packageOpt.PackageVersion != nil {
-		return nil, fmt.Errorf("Cannot have both version and packageVersion at the same time")
+		return nil, fmt.Errorf("cannot have both version and packageVersion at the same time")
 	}
 	var version *semver.Version
 	if packageOpt.Version != nil {
 		temp, err := semver.Make(*packageOpt.Version)
 		if err != nil {
-			return nil, fmt.Errorf("Cannot parse version %s as an valid semver: %s", *packageOpt.Version, err)
+			return nil, fmt.Errorf("cannot parse version %s as an valid semver: %s", *packageOpt.Version, err)
 		}
 		version = &temp
 	}
@@ -141,16 +141,16 @@ func GetChartFromOptions(opt options.ChartOptions) (Chart, error) {
 func GetAdditionalChartFromOptions(opt options.AdditionalChartOptions) (AdditionalChart, error) {
 	var a AdditionalChart
 	if opt.UpstreamOptions != nil && opt.CRDChartOptions != nil {
-		return a, fmt.Errorf("Invalid additional chart options provided: cannot define both UpstreamOptions and CRDChartOptions")
+		return a, fmt.Errorf("invalid additional chart options provided: cannot define both UpstreamOptions and CRDChartOptions")
 	}
 	if opt.UpstreamOptions == nil && opt.CRDChartOptions == nil {
-		return a, fmt.Errorf("Cannot parse additional chart options: you must either provide a URL (UpstreamOptions) or provide CRDChartOptions")
+		return a, fmt.Errorf("cannot parse additional chart options: you must either provide a URL (UpstreamOptions) or provide CRDChartOptions")
 	}
 	if len(opt.WorkingDir) == 0 {
-		return a, fmt.Errorf("Cannot have additional chart without working directory")
+		return a, fmt.Errorf("cannot have additional chart without working directory")
 	}
 	if opt.WorkingDir == "charts" {
-		return a, fmt.Errorf("Working directory for an additional chart cannot be charts")
+		return a, fmt.Errorf("working directory for an additional chart cannot be charts")
 	}
 	a = AdditionalChart{
 		WorkingDir: opt.WorkingDir,

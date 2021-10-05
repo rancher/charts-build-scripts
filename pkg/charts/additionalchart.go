@@ -33,26 +33,26 @@ type AdditionalChart struct {
 // ApplyMainChanges applies any changes on the main chart introduced by the AdditionalChart
 func (c *AdditionalChart) ApplyMainChanges(pkgFs billy.Filesystem) error {
 	if exists, err := filesystem.PathExists(pkgFs, c.WorkingDir); err != nil {
-		return fmt.Errorf("Encountered error while trying to check if %s exists: %s", c.WorkingDir, err)
+		return fmt.Errorf("encountered error while trying to check if %s exists: %s", c.WorkingDir, err)
 	} else if !exists {
-		return fmt.Errorf("Working directory %s has not been prepared yet", c.WorkingDir)
+		return fmt.Errorf("working directory %s has not been prepared yet", c.WorkingDir)
 	}
 	if c.CRDChartOptions == nil {
 		return nil
 	}
 	mainChartWorkingDir, err := c.getMainChartWorkingDir(pkgFs)
 	if err != nil {
-		return fmt.Errorf("Encountered error while trying to get the main chart's working directory: %s", err)
+		return fmt.Errorf("encountered error while trying to get the main chart's working directory: %s", err)
 	}
 	if err := helm.CopyCRDsFromChart(pkgFs, mainChartWorkingDir, path.ChartCRDDir, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
-		return fmt.Errorf("Encountered error while trying to copy CRDs from %s to %s: %s", mainChartWorkingDir, c.WorkingDir, err)
+		return fmt.Errorf("encountered error while trying to copy CRDs from %s to %s: %s", mainChartWorkingDir, c.WorkingDir, err)
 	}
 	if err := helm.DeleteCRDsFromChart(pkgFs, mainChartWorkingDir); err != nil {
-		return fmt.Errorf("Encountered error while trying to delete CRDs from main chart: %s", err)
+		return fmt.Errorf("encountered error while trying to delete CRDs from main chart: %s", err)
 	}
 	if c.CRDChartOptions.AddCRDValidationToMainChart {
 		if err := AddCRDValidationToChart(pkgFs, mainChartWorkingDir, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
-			return fmt.Errorf("Encountered error while trying to add CRD validation to %s based on CRDs in %s: %s", mainChartWorkingDir, c.WorkingDir, err)
+			return fmt.Errorf("encountered error while trying to add CRD validation to %s based on CRDs in %s: %s", mainChartWorkingDir, c.WorkingDir, err)
 		}
 	}
 	return nil
@@ -61,23 +61,23 @@ func (c *AdditionalChart) ApplyMainChanges(pkgFs billy.Filesystem) error {
 // RevertMainChanges reverts any changes on the main chart introduced by the AdditionalChart
 func (c *AdditionalChart) RevertMainChanges(pkgFs billy.Filesystem) error {
 	if exists, err := filesystem.PathExists(pkgFs, c.WorkingDir); err != nil {
-		return fmt.Errorf("Encountered error while trying to check if %s exists: %s", c.WorkingDir, err)
+		return fmt.Errorf("encountered error while trying to check if %s exists: %s", c.WorkingDir, err)
 	} else if !exists {
-		return fmt.Errorf("Working directory %s has not been prepared yet", c.WorkingDir)
+		return fmt.Errorf("working directory %s has not been prepared yet", c.WorkingDir)
 	}
 	if c.CRDChartOptions == nil {
 		return nil
 	}
 	mainChartWorkingDir, err := c.getMainChartWorkingDir(pkgFs)
 	if err != nil {
-		return fmt.Errorf("Encountered error while trying to get the main chart's working directory: %s", err)
+		return fmt.Errorf("encountered error while trying to get the main chart's working directory: %s", err)
 	}
 	if err := helm.CopyCRDsFromChart(pkgFs, c.WorkingDir, c.CRDChartOptions.CRDDirectory, mainChartWorkingDir, path.ChartCRDDir); err != nil {
-		return fmt.Errorf("Encountered error while trying to copy CRDs from %s to %s: %s", c.WorkingDir, mainChartWorkingDir, err)
+		return fmt.Errorf("encountered error while trying to copy CRDs from %s to %s: %s", c.WorkingDir, mainChartWorkingDir, err)
 	}
 	if c.CRDChartOptions.AddCRDValidationToMainChart {
 		if err := RemoveCRDValidationFromChart(pkgFs, mainChartWorkingDir); err != nil {
-			return fmt.Errorf("Encountered error while trying to remove CRD validation from chart: %s", err)
+			return fmt.Errorf("encountered error while trying to remove CRD validation from chart: %s", err)
 		}
 	}
 	return nil
@@ -86,7 +86,7 @@ func (c *AdditionalChart) RevertMainChanges(pkgFs billy.Filesystem) error {
 // Prepare pulls in a package based on the spec to the local git repository
 func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem, mainChartUpstreamVersion *string) error {
 	if c.CRDChartOptions == nil && c.Upstream == nil {
-		return fmt.Errorf("No options provided to prepare additional chart")
+		return fmt.Errorf("no options provided to prepare additional chart")
 	}
 	if c.Upstream != nil && (*c.Upstream).IsWithinPackage() {
 		logrus.Infof("Local chart does not need to be patched")
@@ -94,44 +94,44 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem, mainChartUpstr
 	}
 
 	if err := filesystem.RemoveAll(pkgFs, c.WorkingDir); err != nil {
-		return fmt.Errorf("Encountered error while trying to clean up %s before preparing: %s", c.WorkingDir, err)
+		return fmt.Errorf("encountered error while trying to clean up %s before preparing: %s", c.WorkingDir, err)
 	}
 	if c.CRDChartOptions != nil {
 		c.upstreamChartVersion = mainChartUpstreamVersion
 		mainChartWorkingDir, err := c.getMainChartWorkingDir(pkgFs)
 		if err != nil {
-			return fmt.Errorf("Encountered error while trying to get the main chart's working directory: %s", err)
+			return fmt.Errorf("encountered error while trying to get the main chart's working directory: %s", err)
 		}
 		exists, err := filesystem.PathExists(pkgFs, filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
 		if err != nil {
-			return fmt.Errorf("Encountered error while trying to check if %s exists: %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir), err)
+			return fmt.Errorf("encountered error while trying to check if %s exists: %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir), err)
 		}
 		if !exists {
-			return fmt.Errorf("Unable to prepare a CRD chart since there are no CRDs at %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
+			return fmt.Errorf("unable to prepare a CRD chart since there are no CRDs at %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
 		}
 		if err := GenerateCRDChartFromTemplate(pkgFs, c.WorkingDir, filepath.Join(path.PackageTemplatesDir, c.CRDChartOptions.TemplateDirectory), c.CRDChartOptions.CRDDirectory); err != nil {
-			return fmt.Errorf("Encountered error while trying to generate CRD chart from template at %s: %s", c.CRDChartOptions.TemplateDirectory, err)
+			return fmt.Errorf("encountered error while trying to generate CRD chart from template at %s: %s", c.CRDChartOptions.TemplateDirectory, err)
 		}
 	} else {
 		u := *c.Upstream
 		if err := u.Pull(rootFs, pkgFs, c.WorkingDir); err != nil {
-			return fmt.Errorf("Encountered error while trying to pull upstream into %s: %s", c.WorkingDir, err)
+			return fmt.Errorf("encountered error while trying to pull upstream into %s: %s", c.WorkingDir, err)
 		}
 		var err error
 		upstreamChartVersion, err := helm.GetHelmMetadataVersion(pkgFs, c.WorkingDir)
 		if err != nil {
-			return fmt.Errorf("Encountered error while parsing original chart's version in %s: %s", c.WorkingDir, err)
+			return fmt.Errorf("encountered error while parsing original chart's version in %s: %s", c.WorkingDir, err)
 		}
 		c.upstreamChartVersion = &upstreamChartVersion
 	}
 	if err := PrepareDependencies(rootFs, pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
-		return fmt.Errorf("Encountered error while trying to prepare dependencies in %s: %s", c.WorkingDir, err)
+		return fmt.Errorf("encountered error while trying to prepare dependencies in %s: %s", c.WorkingDir, err)
 	}
 	if c.Upstream != nil {
 		// Only upstream charts support patches
 		err := change.ApplyChanges(pkgFs, c.WorkingDir, c.GeneratedChangesRootDir())
 		if err != nil {
-			return fmt.Errorf("Encountered error while trying to apply changes to %s: %s", c.WorkingDir, err)
+			return fmt.Errorf("encountered error while trying to apply changes to %s: %s", c.WorkingDir, err)
 		}
 	}
 	return nil
@@ -141,7 +141,7 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem, mainChartUpstr
 func (c *AdditionalChart) getMainChartWorkingDir(pkgFs billy.Filesystem) (string, error) {
 	packageOpts, err := options.LoadPackageOptionsFromFile(pkgFs, path.PackageOptionsFile)
 	if err != nil {
-		return "", fmt.Errorf("Unable to read package.yaml: %s", err)
+		return "", fmt.Errorf("unable to read package.yaml: %s", err)
 	}
 	workingDir := packageOpts.MainChartOptions.WorkingDir
 	if len(workingDir) == 0 {
@@ -153,16 +153,16 @@ func (c *AdditionalChart) getMainChartWorkingDir(pkgFs billy.Filesystem) (string
 // GeneratePatch generates a patch on a forked Helm chart based on local changes
 func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 	if c.CRDChartOptions == nil && c.Upstream == nil {
-		return fmt.Errorf("No options provided to prepare additional chart")
+		return fmt.Errorf("no options provided to prepare additional chart")
 	}
 	if c.Upstream != nil && (*c.Upstream).IsWithinPackage() {
 		logrus.Infof("Local chart does not need to be patched")
 		return nil
 	}
 	if exists, err := filesystem.PathExists(pkgFs, c.WorkingDir); err != nil {
-		return fmt.Errorf("Encountered error while trying to check if %s exists: %s", c.WorkingDir, err)
+		return fmt.Errorf("encountered error while trying to check if %s exists: %s", c.WorkingDir, err)
 	} else if !exists {
-		return fmt.Errorf("Working directory %s has not been prepared yet", c.WorkingDir)
+		return fmt.Errorf("working directory %s has not been prepared yet", c.WorkingDir)
 	}
 
 	if c.CRDChartOptions != nil {
@@ -173,14 +173,14 @@ func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 
 	u := *c.Upstream
 	if err := u.Pull(rootFs, pkgFs, c.OriginalDir()); err != nil {
-		return fmt.Errorf("Encountered error while trying to pull upstream into %s: %s", c.OriginalDir(), err)
+		return fmt.Errorf("encountered error while trying to pull upstream into %s: %s", c.OriginalDir(), err)
 	}
 	if err := PrepareDependencies(rootFs, pkgFs, c.OriginalDir(), c.GeneratedChangesRootDir()); err != nil {
-		return fmt.Errorf("Encountered error while trying to prepare dependencies in %s: %s", c.OriginalDir(), err)
+		return fmt.Errorf("encountered error while trying to prepare dependencies in %s: %s", c.OriginalDir(), err)
 	}
 	defer filesystem.RemoveAll(pkgFs, c.OriginalDir())
 	if err := change.GenerateChanges(pkgFs, c.OriginalDir(), c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
-		return fmt.Errorf("Encountered error while generating changes from %s to %s and placing it in %s: %s", c.OriginalDir(), c.WorkingDir, c.GeneratedChangesRootDir(), err)
+		return fmt.Errorf("encountered error while generating changes from %s to %s and placing it in %s: %s", c.OriginalDir(), c.WorkingDir, c.GeneratedChangesRootDir(), err)
 	}
 	return nil
 }
@@ -188,10 +188,10 @@ func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 // GenerateChart generates the chart and stores it in the assets and charts directory
 func (c *AdditionalChart) GenerateChart(rootFs, pkgFs billy.Filesystem, packageVersion *int, version *semver.Version, packageAssetsDirpath, packageChartsDirpath string, omitBuildMetadataOnExport bool) error {
 	if c.upstreamChartVersion == nil {
-		return fmt.Errorf("Cannot generate chart since it has never been prepared: upstreamChartVersion is not set")
+		return fmt.Errorf("cannot generate chart since it has never been prepared: upstreamChartVersion is not set")
 	}
 	if err := helm.ExportHelmChart(rootFs, pkgFs, c.WorkingDir, packageVersion, version, *c.upstreamChartVersion, packageAssetsDirpath, packageChartsDirpath, omitBuildMetadataOnExport); err != nil {
-		return fmt.Errorf("Encountered error while trying to export Helm chart for %s: %s", c.WorkingDir, err)
+		return fmt.Errorf("encountered error while trying to export Helm chart for %s: %s", c.WorkingDir, err)
 	}
 	return nil
 }

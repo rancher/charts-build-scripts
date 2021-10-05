@@ -34,28 +34,28 @@ func ApplyUpstreamTemplate(rootFs billy.Filesystem, chartsScriptOptions options.
 		Subdirectory: &ChartsBuildScriptRepositoryTemplatesDirectory,
 	}, &ChartsBuildScriptsRepositoryBranch)
 	if err != nil {
-		return fmt.Errorf("Unable to get the charts build script repository: %s", err)
+		return fmt.Errorf("unable to get the charts build script repository: %s", err)
 	}
 	absTempDir, err := ioutil.TempDir(rootFs.Root(), "templates")
 	if err != nil {
-		return fmt.Errorf("Encountered error while trying to create temporary directory: %s", err)
+		return fmt.Errorf("encountered error while trying to create temporary directory: %s", err)
 	}
 	defer os.RemoveAll(absTempDir)
 	tempDir, err := filesystem.GetRelativePath(rootFs, absTempDir)
 	if err != nil {
-		return fmt.Errorf("Encounterede error while trying to get the relative path to %s: %s", absTempDir, err)
+		return fmt.Errorf("encountered error while trying to get the relative path to %s: %s", absTempDir, err)
 	}
 	if err := templateRepository.Pull(rootFs, rootFs, tempDir); err != nil {
-		return fmt.Errorf("Unable to pull the charts build script repository: %s", err)
+		return fmt.Errorf("unable to pull the charts build script repository: %s", err)
 	}
 	absUpdateOptionsFilepath := filepath.Join(absTempDir, ChartsBuildScriptRepositoryTemplateUpdateOptions)
 	updateOptionsFile, err := ioutil.ReadFile(absUpdateOptionsFilepath)
 	if err != nil {
-		return fmt.Errorf("Unable to find update.yaml: %s", err)
+		return fmt.Errorf("unable to find update.yaml: %s", err)
 	}
 	var updateOptions Options
 	if err := yaml.UnmarshalStrict(updateOptionsFile, &updateOptions); err != nil {
-		return fmt.Errorf("Encountered error while trying to unmarshall update.yaml: %s", err)
+		return fmt.Errorf("encountered error while trying to unmarshall update.yaml: %s", err)
 	}
 	return updateOptions.CopyTemplate(rootFs, chartsScriptOptions, filepath.Join(tempDir, ChartsBuildScriptRepositoryTemplateDirectory))
 }

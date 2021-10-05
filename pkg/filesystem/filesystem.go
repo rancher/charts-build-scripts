@@ -33,7 +33,7 @@ func GetRelativePath(fs billy.Filesystem, abspath string) (string, error) {
 	fsRoot := fmt.Sprintf("%s/", filepath.Clean(fs.Root()))
 	relativePath := strings.TrimPrefix(abspath, fsRoot)
 	if relativePath == abspath {
-		return "", fmt.Errorf("Cannot get relative path; path %s does not exist within %s", abspath, fsRoot)
+		return "", fmt.Errorf("cannot get relative path; path %s does not exist within %s", abspath, fsRoot)
 	}
 	return relativePath, nil
 }
@@ -104,7 +104,7 @@ func IsEmptyDir(fs billy.Filesystem, path string) (bool, error) {
 		return false, err
 	}
 	if !exists {
-		return false, fmt.Errorf("Path %s does not exist", path)
+		return false, fmt.Errorf("path %s does not exist", path)
 	}
 	fileInfos, err := fs.ReadDir(path)
 	if err != nil {
@@ -122,7 +122,7 @@ func CopyFile(fs billy.Filesystem, srcPath string, dstPath string) error {
 		return err
 	}
 	if !srcExists {
-		return fmt.Errorf("Cannot copy nonexistent file from %s to %s", srcPath, dstPath)
+		return fmt.Errorf("cannot copy nonexistent file from %s to %s", srcPath, dstPath)
 	}
 	srcFile, err = fs.Open(srcPath)
 	if err != nil {
@@ -145,7 +145,7 @@ func CopyFile(fs billy.Filesystem, srcPath string, dstPath string) error {
 	defer dstFile.Close()
 	// Copy the file contents over
 	if _, err = io.Copy(dstFile, srcFile); err != nil {
-		return fmt.Errorf("Encountered error while trying to copy from %s to %s: %s", srcPath, dstPath, err)
+		return fmt.Errorf("encountered error while trying to copy from %s to %s: %s", srcPath, dstPath, err)
 	}
 	return nil
 }
@@ -155,18 +155,18 @@ func GetChartArchive(fs billy.Filesystem, url string, path string) error {
 	// Create file
 	tgz, err := CreateFileAndDirs(fs, path)
 	if err != nil {
-		return fmt.Errorf("Unable to create tgz file: %s", err)
+		return fmt.Errorf("unable to create tgz file: %s", err)
 	}
 	defer tgz.Close()
 	// Get tgz
 	resp, err := http.Get(url)
 	if err != nil {
-		return fmt.Errorf("Unable to get chart archive: %s", err)
+		return fmt.Errorf("unable to get chart archive: %s", err)
 	}
 	defer resp.Body.Close()
 	// Copy into the tgz
 	if _, err = io.Copy(tgz, resp.Body); err != nil {
-		return fmt.Errorf("Unable to create chart archive: %s", err)
+		return fmt.Errorf("unable to create chart archive: %s", err)
 	}
 	return nil
 }
@@ -180,7 +180,7 @@ func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string
 			return err
 		}
 		if exists {
-			return fmt.Errorf("Cannot unarchive %s into %s/ since the path already exists", tgzPath, destPath)
+			return fmt.Errorf("cannot unarchive %s into %s/ since the path already exists", tgzPath, destPath)
 		}
 	}
 	// Check if you can open the tgzPath as a tar file
@@ -191,7 +191,7 @@ func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string
 	defer tgz.Close()
 	gzipReader, err := gzip.NewReader(tgz)
 	if err != nil {
-		return fmt.Errorf("Unable to read gzip formatted file: %s", err)
+		return fmt.Errorf("unable to read gzip formatted file: %s", err)
 	}
 	defer gzipReader.Close()
 	tarReader := tar.NewReader(gzipReader)
@@ -241,10 +241,10 @@ func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string
 		if h.Name == "pax_global_header" {
 			continue
 		}
-		return fmt.Errorf("Encountered unknown type of file (name=%s) when unarchiving %s", h.Name, tgzPath)
+		return fmt.Errorf("encountered unknown type of file (name=%s) when unarchiving %s", h.Name, tgzPath)
 	}
 	if len(tgzSubdirectory) > 0 && !subdirectoryFound {
-		return fmt.Errorf("Subdirectory %s was not found within the folder outputted by the tgz file", tgzSubdirectory)
+		return fmt.Errorf("subdirectory %s was not found within the folder outputted by the tgz file", tgzSubdirectory)
 	}
 	return nil
 }
@@ -300,7 +300,7 @@ func MakeSubdirectoryRoot(fs billy.Filesystem, path, subdirectory string) error 
 		return err
 	}
 	if !exists {
-		return fmt.Errorf("Subdirectory %s does not exist in path %s in filesystem %s", subdirectory, path, fs.Root())
+		return fmt.Errorf("subdirectory %s does not exist in path %s in filesystem %s", subdirectory, path, fs.Root())
 	}
 	absTempDir, err := ioutil.TempDir(fs.Root(), "make-subdirectory-root")
 	if err != nil {
@@ -365,7 +365,7 @@ func CompareDirs(fs billy.Filesystem, leftDirpath, rightDirpath string, leftOnly
 func GetRootPath(path string) (string, error) {
 	rootPathList := strings.SplitN(path, "/", 2)
 	if len(rootPathList) == 0 {
-		return "", fmt.Errorf("Unable to get root path of %s", path)
+		return "", fmt.Errorf("unable to get root path of %s", path)
 	}
 	return filepath.Clean(rootPathList[0]), nil
 }
@@ -373,7 +373,7 @@ func GetRootPath(path string) (string, error) {
 // MovePath takes a path that is contained within fromDir and returns the same path contained within toDir
 func MovePath(path string, fromDir string, toDir string) (string, error) {
 	if !strings.HasPrefix(path, fromDir) {
-		return "", fmt.Errorf("Path %s does not contain directory %s", path, fromDir)
+		return "", fmt.Errorf("path %s does not contain directory %s", path, fromDir)
 	}
 	relativePath := strings.TrimPrefix(path, fromDir)
 	relativePath = strings.TrimPrefix(relativePath, "/")

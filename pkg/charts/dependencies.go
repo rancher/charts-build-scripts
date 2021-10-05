@@ -55,14 +55,14 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 			// Copy the local chart into dependencyDestPath
 			repositoryDependencyChartsSrcPath, err := filesystem.GetRelativePath(rootFs, absDependencyChartSrcPath)
 			if err != nil {
-				return fmt.Errorf("Encountered error while getting absolute path of %s in %s: %s", absDependencyChartSrcPath, rootFs.Root(), err)
+				return fmt.Errorf("encountered error while getting absolute path of %s in %s: %s", absDependencyChartSrcPath, rootFs.Root(), err)
 			}
 			repositoryDependencyChartsDestPath, err := filesystem.GetRelativePath(rootFs, absDependencyChartDestPath)
 			if err != nil {
-				return fmt.Errorf("Encountered error while getting absolute path of %s in %s: %s", absDependencyChartDestPath, rootFs.Root(), err)
+				return fmt.Errorf("encountered error while getting absolute path of %s in %s: %s", absDependencyChartDestPath, rootFs.Root(), err)
 			}
 			if err = filesystem.CopyDir(rootFs, repositoryDependencyChartsSrcPath, repositoryDependencyChartsDestPath); err != nil {
-				return fmt.Errorf("Encountered while copying local dependency: %s", err)
+				return fmt.Errorf("encountered while copying local dependency: %s", err)
 			}
 			if err = helm.UpdateHelmMetadataWithName(rootFs, repositoryDependencyChartsDestPath, dependencyName); err != nil {
 				return err
@@ -90,14 +90,14 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 func getMainChartUpstreamOptions(pkgFs billy.Filesystem, gcRootDir string) (*options.UpstreamOptions, error) {
 	packageOpts, err := options.LoadPackageOptionsFromFile(pkgFs, path.PackageOptionsFile)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to read %s for PackageOptions: %s", path.PackageOptionsFile, err)
+		return nil, fmt.Errorf("unable to read %s for PackageOptions: %s", path.PackageOptionsFile, err)
 	}
 	if gcRootDir == path.GeneratedChangesDir {
 		return &packageOpts.MainChartOptions.UpstreamOptions, nil
 	}
 	additionalChartPrefix := filepath.Join(path.GeneratedChangesDir, path.GeneratedChangesAdditionalChartDir)
 	if !strings.HasPrefix(gcRootDir, additionalChartPrefix) {
-		return nil, fmt.Errorf("Unable to figure out main chart options given generated changes root directory at %s", gcRootDir)
+		return nil, fmt.Errorf("unable to figure out main chart options given generated changes root directory at %s", gcRootDir)
 	}
 	// Get additional chart working dir by parsing chart name out of generated-changes/additional-charts/{chart-name}/generated-changes
 	additionalChartWorkingDir, err := filesystem.MovePath(filepath.Dir(gcRootDir), additionalChartPrefix, "")
@@ -109,7 +109,7 @@ func getMainChartUpstreamOptions(pkgFs billy.Filesystem, gcRootDir string) (*opt
 			return additionalChartOption.UpstreamOptions, nil
 		}
 	}
-	return nil, fmt.Errorf("Generated changes root directory %s does not point to a valid additional chart", gcRootDir)
+	return nil, fmt.Errorf("generated changes root directory %s does not point to a valid additional chart", gcRootDir)
 }
 
 // LoadDependencies takes all existing subcharts in the package and loads them into the gcRootDir as dependencies
@@ -136,7 +136,7 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 			return err
 		}
 		if dependencyExists {
-			logrus.Infof("Found chart options for %s in %s", dependencyName, dependencyOptionsPath)
+			logrus.Infof("found chart options for %s in %s", dependencyName, dependencyOptionsPath)
 			continue
 		}
 		subdirectory := filepath.Join(filepath.Dir(strings.TrimPrefix(dependency.Repository, "file://")), dependencyName)
@@ -180,7 +180,7 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 			helmGetter.All(&helmCli.EnvSettings{}),
 		)
 		if err != nil {
-			return fmt.Errorf("Encountered error while trying to find the repository for dependency %s: %s", dependency.Name, err)
+			return fmt.Errorf("encountered error while trying to find the repository for dependency %s: %s", dependency.Name, err)
 		}
 		dependencyPackageOptions := options.ChartOptions{
 			UpstreamOptions: options.UpstreamOptions{

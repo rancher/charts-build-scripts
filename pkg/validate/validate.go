@@ -23,7 +23,7 @@ func CompareGeneratedAssets(wt *git.Worktree, releasedChartsRepoBranchOpts optio
 	// Check whether Git is still clean, which means that it was a subset
 	status, err := wt.Status()
 	if err != nil {
-		return false, fmt.Errorf("Failed to get git status to check if released charts are subset: %s", err)
+		return false, fmt.Errorf("failed to get git status to check if released charts are subset: %s", err)
 	}
 	return !status.IsClean(), nil
 }
@@ -33,31 +33,31 @@ func pullReleasedAssetsIntoChartsAndAssets(repoFs billy.Filesystem, releasedChar
 	releasedCharts := filepath.Join(path.ChartsRepositoryUpstreamBranchDir, path.RepositoryChartsDir)
 	for _, d := range []string{releasedAssets, releasedCharts} {
 		if err := repoFs.MkdirAll(d, os.ModePerm); err != nil {
-			return fmt.Errorf("Failed to make directory %s: %s", d, err)
+			return fmt.Errorf("failed to make directory %s: %s", d, err)
 		}
 		defer filesystem.RemoveAll(repoFs, filepath.Dir(d))
 	}
 	// Copy upstream assets to original assets
 	releasedChartsRepoBranch, err := puller.GetGithubRepository(releasedChartsRepoBranchOpts.UpstreamOptions, &releasedChartsRepoBranchOpts.Branch)
 	if err != nil {
-		return fmt.Errorf("Failed to get Github repository pointing to new upstream: %s", err)
+		return fmt.Errorf("failed to get Github repository pointing to new upstream: %s", err)
 	}
 	if err := releasedChartsRepoBranch.Pull(repoFs, repoFs, path.ChartsRepositoryUpstreamBranchDir); err != nil {
-		return fmt.Errorf("Failed to pull assets from upstream: %s", err)
+		return fmt.Errorf("failed to pull assets from upstream: %s", err)
 	}
 	releasedAssetReadme := filepath.Join(releasedAssets, "README.md")
 	if err := filesystem.RemoveAll(repoFs, releasedAssetReadme); err != nil {
-		return fmt.Errorf("Failed to remove %s: %s", releasedAssetReadme, err)
+		return fmt.Errorf("failed to remove %s: %s", releasedAssetReadme, err)
 	}
 	releasedChartsReadme := filepath.Join(releasedCharts, "README.md")
 	if err := filesystem.RemoveAll(repoFs, releasedChartsReadme); err != nil {
-		return fmt.Errorf("Failed to remove %s: %s", releasedChartsReadme, err)
+		return fmt.Errorf("failed to remove %s: %s", releasedChartsReadme, err)
 	}
 	if err := filesystem.CopyDir(repoFs, releasedAssets, path.RepositoryAssetsDir); err != nil {
-		return fmt.Errorf("Encountered error while copying over released assets: %s", err)
+		return fmt.Errorf("encountered error while copying over released assets: %s", err)
 	}
 	if err := filesystem.CopyDir(repoFs, releasedCharts, path.RepositoryChartsDir); err != nil {
-		return fmt.Errorf("Encountered error while copying over released charts: %s", err)
+		return fmt.Errorf("encountered error while copying over released charts: %s", err)
 	}
 	if err := helm.CreateOrUpdateHelmIndex(repoFs); err != nil {
 		return err

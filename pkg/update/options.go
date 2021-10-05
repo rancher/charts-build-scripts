@@ -19,7 +19,7 @@ type Options map[string][]string
 func (u Options) CopyTemplate(rootFs billy.Filesystem, chartsScriptOptions options.ChartsScriptOptions, templateDir string) error {
 	templateFiles, ok := u[chartsScriptOptions.Template]
 	if !ok {
-		return fmt.Errorf("No templates defined for type %s. Only staging or live are supported", chartsScriptOptions.Template)
+		return fmt.Errorf("no templates defined for type %s. Only staging or live are supported", chartsScriptOptions.Template)
 	}
 	templateFileMap := make(map[string]bool, len(templateFiles))
 	for _, p := range templateFiles {
@@ -27,18 +27,18 @@ func (u Options) CopyTemplate(rootFs billy.Filesystem, chartsScriptOptions optio
 	}
 	absTempDir, err := ioutil.TempDir(filepath.Join(rootFs.Root(), templateDir), "generated")
 	if err != nil {
-		return fmt.Errorf("Encountered error while trying to create temporary directory: %s", err)
+		return fmt.Errorf("encountered error while trying to create temporary directory: %s", err)
 	}
 	defer os.RemoveAll(absTempDir)
 	tempDir, err := filesystem.GetRelativePath(rootFs, absTempDir)
 	if err != nil {
-		return fmt.Errorf("Encountered error while getting relative path for %s in %s: %s", absTempDir, rootFs.Root(), err)
+		return fmt.Errorf("encountered error while getting relative path for %s in %s: %s", absTempDir, rootFs.Root(), err)
 	}
 	tempFs := filesystem.GetFilesystem(absTempDir)
 	err = filesystem.WalkDir(rootFs, templateDir, func(fs billy.Filesystem, path string, isDir bool) error {
 		repoPath, err := filesystem.MovePath(path, templateDir, "")
 		if err != nil {
-			return fmt.Errorf("Unable to get path of %s within %s: %s", repoPath, templateDir, err)
+			return fmt.Errorf("unable to get path of %s within %s: %s", repoPath, templateDir, err)
 		}
 		if exists, ok := templateFileMap[repoPath]; !ok || !exists {
 			return nil
@@ -50,7 +50,7 @@ func (u Options) CopyTemplate(rootFs billy.Filesystem, chartsScriptOptions optio
 		defer f.Close()
 		t := template.Must(template.New(filepath.Base(path)).ParseFiles(filesystem.GetAbsPath(rootFs, path)))
 		if err := t.Execute(f, chartsScriptOptions); err != nil {
-			return fmt.Errorf("Error while executing Go template for %s: %s", path, err)
+			return fmt.Errorf("error while executing Go template for %s: %s", path, err)
 		}
 		return nil
 	})

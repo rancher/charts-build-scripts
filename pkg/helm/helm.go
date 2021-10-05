@@ -20,11 +20,11 @@ func CreateOrUpdateHelmIndex(rootFs billy.Filesystem) error {
 	// Load index file from disk if it exists
 	exists, err := filesystem.PathExists(rootFs, path.RepositoryHelmIndexFile)
 	if err != nil {
-		return fmt.Errorf("Encountered error while checking if Helm index file already exists in repository: %s", err)
+		return fmt.Errorf("encountered error while checking if Helm index file already exists in repository: %s", err)
 	} else if exists {
 		helmIndexFile, err = helmRepo.LoadIndexFile(absRepositoryHelmIndexFile)
 		if err != nil {
-			return fmt.Errorf("Encountered error while trying to load existing index file: %s", err)
+			return fmt.Errorf("encountered error while trying to load existing index file: %s", err)
 		}
 	} else {
 		helmIndexFile = helmRepo.NewIndexFile()
@@ -33,7 +33,7 @@ func CreateOrUpdateHelmIndex(rootFs billy.Filesystem) error {
 	// Generate the current index file from the assets/ directory
 	newHelmIndexFile, err := helmRepo.IndexDirectory(absRepositoryAssetsDir, path.RepositoryAssetsDir)
 	if err != nil {
-		return fmt.Errorf("Encountered error while trying to generate new Helm index: %s", err)
+		return fmt.Errorf("encountered error while trying to generate new Helm index: %s", err)
 	}
 
 	// Merge the indices and sort them
@@ -43,7 +43,7 @@ func CreateOrUpdateHelmIndex(rootFs billy.Filesystem) error {
 	// Write new index to disk
 	err = helmIndexFile.WriteFile(absRepositoryHelmIndexFile, os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("Encountered error while trying to write updated Helm index into index.yaml: %s", err)
+		return fmt.Errorf("encountered error while trying to write updated Helm index into index.yaml: %s", err)
 	}
 	return nil
 }

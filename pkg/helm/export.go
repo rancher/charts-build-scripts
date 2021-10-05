@@ -32,21 +32,21 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
 	chart, err := helmLoader.Load(absHelmChartPath)
 	if err != nil {
-		return fmt.Errorf("Could not load Helm chart: %s", err)
+		return fmt.Errorf("could not load Helm chart: %s", err)
 	}
 	if err := chart.Validate(); err != nil {
-		return fmt.Errorf("Failed while trying to validate Helm chart: %s", err)
+		return fmt.Errorf("failed while trying to validate Helm chart: %s", err)
 	}
 	chartVersionSemver, err := semver.Make(chart.Metadata.Version)
 	if err != nil {
-		return fmt.Errorf("Cannot parse original chart version %s as valid semver", chart.Metadata.Version)
+		return fmt.Errorf("cannot parse original chart version %s as valid semver", chart.Metadata.Version)
 	}
 	if version != nil {
 		chartVersionSemver = *version
 	} else if packageVersion != nil {
 		// Add packageVersion as string, preventing errors due to leading 0s
 		if uint64(*packageVersion) >= MaxPatchNum {
-			return fmt.Errorf("Maximum number of packageVersions is %d, found %d", MaxPatchNum, packageVersion)
+			return fmt.Errorf("maximum number of packageVersions is %d, found %d", MaxPatchNum, packageVersion)
 		}
 		chartVersionSemver.Patch = PatchNumMultiplier*chartVersionSemver.Patch + uint64(*packageVersion)
 	}
@@ -63,16 +63,16 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 	chartChartsDirpath := filepath.Join(packageChartsDirpath, chart.Metadata.Name, chartVersion)
 	// Create directories
 	if err := rootFs.MkdirAll(chartAssetsDirpath, os.ModePerm); err != nil {
-		return fmt.Errorf("Failed to create directory for assets at %s: %s", chartAssetsDirpath, err)
+		return fmt.Errorf("failed to create directory for assets at %s: %s", chartAssetsDirpath, err)
 	}
 	defer filesystem.PruneEmptyDirsInPath(rootFs, chartAssetsDirpath)
 	// If we remove an overlay file, the file will not be removed from the charts directory if it already exists,
 	// the easiest way to solve this problem is to clean the target directory before un-archiving the chart's package
 	if err := filesystem.RemoveAll(rootFs, chartChartsDirpath); err != nil {
-		return fmt.Errorf("Failed to clean directory for charts at %s: %s", chartChartsDirpath, err)
+		return fmt.Errorf("failed to clean directory for charts at %s: %s", chartChartsDirpath, err)
 	}
 	if err := rootFs.MkdirAll(chartChartsDirpath, os.ModePerm); err != nil {
-		return fmt.Errorf("Failed to create directory for charts at %s: %s", chartChartsDirpath, err)
+		return fmt.Errorf("failed to create directory for charts at %s: %s", chartChartsDirpath, err)
 	}
 	defer filesystem.PruneEmptyDirsInPath(rootFs, chartChartsDirpath)
 	// Run helm package

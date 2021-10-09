@@ -1,0 +1,7 @@
+validate:
+  url: https://github.com/rancher/charts.git
+  branch: release-v2.6
+
+helmRepo:
+  cname: charts.rancher.io
+

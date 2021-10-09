@@ -1,7 +1,0 @@
-template: staging
-
-validate:
-- url: https://github.com/rancher/charts.git
-  branch: main
-helmRepo:
-  cname: charts.rancher.io

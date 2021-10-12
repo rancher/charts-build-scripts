@@ -26,12 +26,15 @@ func (u LocalPackage) Pull(rootFs, fs billy.Filesystem, path string) error {
 	if err != nil {
 		return err
 	}
+	if pkg == nil {
+		return fmt.Errorf("could not find local package %s", u.Name)
+	}
 	// Check if the chart's working directory has already been prepared
-	packagePrepared, err := filesystem.PathExists(pkg.fs, pkg.Chart.WorkingDir)
+	packageAlreadyPrepared, err := filesystem.PathExists(pkg.fs, pkg.Chart.WorkingDir)
 	if err != nil {
 		return fmt.Errorf("encountered error while checking if package %s was already prepared: %s", u.Name, err)
 	}
-	if packagePrepared {
+	if packageAlreadyPrepared {
 		logrus.Infof("Package %s seems to be already prepared, skipping prepare", u.Name)
 	} else {
 		if err := pkg.Prepare(); err != nil {
@@ -51,8 +54,9 @@ func (u LocalPackage) Pull(rootFs, fs billy.Filesystem, path string) error {
 	if err := filesystem.CopyDir(rootFs, repositoryPackageWorkingDir, repositoryPath); err != nil {
 		return fmt.Errorf("encountered error while copying prepared package into path: %s", err)
 	}
-	if !pkg.Chart.Upstream.IsWithinPackage() && packagePrepared {
-		// Remove the non-local prepared package
+	if !pkg.Chart.Upstream.IsWithinPackage() && !packageAlreadyPrepared {
+		// Remove the non-local package that was not already prepared before we encountered it in the scripts
+		logrus.Debugf("Removing %s", pkg.Name)
 		if err = filesystem.RemoveAll(rootFs, repositoryPackageWorkingDir); err != nil {
 			return fmt.Errorf("encountered error while removing already copied package: %s", err)
 		}

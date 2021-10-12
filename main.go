@@ -26,6 +26,8 @@ const (
 	DefaultChartsScriptOptionsFile = "configuration.yaml"
 	// DefaultPackageEnvironmentVariable is the default environment variable for picking a specific package
 	DefaultPackageEnvironmentVariable = "PACKAGE"
+	// DefaultPorcelainModeVariable is the default environment variable that indicates whether we should run on porcelain mode
+	DefaultPorcelainEnvironmentVariable = "PORCELAIN"
 )
 
 var (
@@ -40,6 +42,8 @@ var (
 	GithubToken string
 	// CurrentPackage represents the specific chart within packages/ in the Staging branch which is being used
 	CurrentPackage string
+	// PorcelainMode indicates that the output of the scripts should be in an easy-to-parse format for scripts
+	PorcelainMode bool
 )
 
 func main() {
@@ -61,7 +65,20 @@ func main() {
 		Destination: &CurrentPackage,
 		EnvVar:      DefaultPackageEnvironmentVariable,
 	}
+	porcelainFlag := cli.BoolFlag{
+		Name:        "porcelain",
+		Usage:       "Print the output of the command in a easy-to-parse format for scripts",
+		Required:    false,
+		Destination: &PorcelainMode,
+		EnvVar:      DefaultPorcelainEnvironmentVariable,
+	}
 	app.Commands = []cli.Command{
+		{
+			Name:   "list",
+			Usage:  "Print a list of all packages tracked in the current repository",
+			Action: listPackages,
+			Flags:  []cli.Flag{packageFlag, porcelainFlag},
+		},
 		{
 			Name:   "prepare",
 			Usage:  "Pull in the chart specified from upstream to the charts directory and apply any patch files",
@@ -119,6 +136,23 @@ func main() {
 	}
 }
 
+func listPackages(c *cli.Context) {
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		logrus.Fatalf("Unable to get current working directory: %s", err)
+	}
+	packageList, err := charts.ListPackages(repoRoot, CurrentPackage)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	if PorcelainMode {
+		fmt.Println(strings.Join(packageList, " "))
+		return
+
+	}
+	logrus.Infof("Found the following packages: %v", packageList)
+}
+
 func prepareCharts(c *cli.Context) {
 	packages := getPackages()
 	for _, p := range packages {
@@ -131,7 +165,14 @@ func prepareCharts(c *cli.Context) {
 func generatePatch(c *cli.Context) {
 	packages := getPackages()
 	if len(packages) != 1 {
-		logrus.Fatalf("No PACKAGE is set. Run export PACKAGE=<package> before running this command.")
+		packageNames := make([]string, len(packages))
+		for i, pkg := range packages {
+			packageNames[i] = pkg.Name
+		}
+		logrus.Fatalf(
+			"PACKAGE=\"%s\" must be set to point to exactly one package. Currently found the following packages: %s",
+			CurrentPackage, packageNames,
+		)
 	}
 	if err := packages[0].GeneratePatch(); err != nil {
 		logrus.Fatal(err)

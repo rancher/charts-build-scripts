@@ -12,6 +12,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -21,43 +22,67 @@ var (
 
 // GetPackages returns all packages found within the repository. If there is a specific package provided, it will return just that Package in the list
 func GetPackages(repoRoot string, specificPackage string) ([]*Package, error) {
+	var packageList []string
+	var err error
+
+	// Parse option or get list of all packages in the repo
+	packageList, err = ListPackages(repoRoot, specificPackage)
+	if err != nil {
+		return nil, fmt.Errorf("encountered error while listing packages: %v", err)
+	}
+
+	// Instantiate each package that was requested and return the list
 	var packages []*Package
 	rootFs := filesystem.GetFilesystem(repoRoot)
-	if len(specificPackage) != 0 {
-		pkg, err := GetPackage(rootFs, specificPackage)
+	for _, packagePath := range packageList {
+		pkg, err := GetPackage(rootFs, packagePath)
 		if err != nil {
 			return nil, err
 		}
-		if pkg != nil {
-			packages = append(packages, pkg)
+		if pkg == nil {
+			return nil, fmt.Errorf("packages does not exist in path %s", packagePath)
 		}
-		return packages, nil
-	}
-	exists, err := filesystem.PathExists(rootFs, path.RepositoryPackagesDir)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return packages, nil
-	}
-	fileInfos, err := rootFs.ReadDir(path.RepositoryPackagesDir)
-	if err != nil {
-		return nil, err
-	}
-	for _, fileInfo := range fileInfos {
-		if !fileInfo.IsDir() {
-			continue
-		}
-		name := fileInfo.Name()
-		pkg, err := GetPackage(rootFs, name)
-		if err != nil {
-			return nil, err
-		}
-		if pkg != nil {
-			packages = append(packages, pkg)
-		}
+		packages = append(packages, pkg)
 	}
 	return packages, nil
+}
+
+func ListPackages(repoRoot string, specificPackage string) ([]string, error) {
+	var packageList []string
+	rootFs := filesystem.GetFilesystem(repoRoot)
+	exists, err := filesystem.PathExists(rootFs, path.RepositoryPackagesDir)
+	if err != nil || !exists {
+		return packageList, err
+	}
+
+	listPackages := func(fs billy.Filesystem, dirpath string, isDir bool) error {
+		if !isDir {
+			return nil
+		}
+		if len(specificPackage) > 0 {
+			packagePrefix := filepath.Join(path.RepositoryPackagesDir, specificPackage)
+			if dirpath != packagePrefix && !strings.HasPrefix(dirpath, packagePrefix+"/") {
+				logrus.Debugf("ignore %s based on packagePrefix %s", dirpath, packagePrefix)
+				// Ignore packages not selected by specificPackage
+				return nil
+			}
+		}
+		exists, err := filesystem.PathExists(rootFs, filepath.Join(dirpath, path.PackageOptionsFile))
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return nil
+		}
+		packageName, err := filesystem.MovePath(dirpath, path.RepositoryPackagesDir, "")
+		if err != nil {
+			return err
+		}
+		packageList = append(packageList, packageName)
+		return nil
+	}
+
+	return packageList, filesystem.WalkDir(rootFs, path.RepositoryPackagesDir, listPackages)
 }
 
 // GetPackage returns a Package based on the options provided

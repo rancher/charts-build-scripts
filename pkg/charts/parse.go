@@ -215,8 +215,12 @@ func GetUpstream(opt options.UpstreamOptions) (puller.Puller, error) {
 		return upstream, nil
 	}
 	if strings.HasPrefix(opt.URL, "packages/") {
+		packageName, err := filesystem.MovePath(opt.URL, "packages", "")
+		if err != nil {
+			return nil, err
+		}
 		upstream := LocalPackage{
-			Name: strings.Split(opt.URL, "/")[1],
+			Name: packageName,
 		}
 		if opt.Subdirectory != nil {
 			upstream.Subdirectory = opt.Subdirectory

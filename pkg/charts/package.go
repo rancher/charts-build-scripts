@@ -8,7 +8,6 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/sirupsen/logrus"
 )
 
@@ -94,16 +93,13 @@ func (p *Package) GenerateCharts(omitBuildMetadataOnExport bool) error {
 	if err := p.Prepare(); err != nil {
 		return fmt.Errorf("encountered error while trying to prepare package: %s", err)
 	}
-	// Export Helm charts
-	packageAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, p.Name)
-	packageChartsDirpath := filepath.Join(path.RepositoryChartsDir, p.Name)
 	// Add PackageVersion to format
-	err := p.Chart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, packageAssetsDirpath, packageChartsDirpath, omitBuildMetadataOnExport)
+	err := p.Chart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, omitBuildMetadataOnExport)
 	if err != nil {
 		return fmt.Errorf("encountered error while exporting main chart: %s", err)
 	}
 	for _, additionalChart := range p.AdditionalCharts {
-		err = additionalChart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, packageAssetsDirpath, packageChartsDirpath, omitBuildMetadataOnExport)
+		err = additionalChart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, omitBuildMetadataOnExport)
 		if err != nil {
 			return fmt.Errorf("encountered error while exporting %s: %s", additionalChart.WorkingDir, err)
 		}

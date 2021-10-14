@@ -9,6 +9,7 @@ import (
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/sirupsen/logrus"
 	helmAction "helm.sh/helm/v3/pkg/action"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
@@ -25,9 +26,7 @@ var (
 
 // ExportHelmChart creates a Helm chart archive and an unarchived Helm chart at RepositoryAssetDirpath and RepositoryChartDirPath
 // helmChartPath is a relative path (rooted at the package level) that contains the chart.
-// packageAssetsPath is a relative path (rooted at the repository level) where the generated chart archive will be placed
-// packageChartsPath is a relative path (rooted at the repository level) where the generated chart will be placed
-func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion *int, version *semver.Version, upstreamChartVersion, packageAssetsDirpath, packageChartsDirpath string, omitBuildMetadata bool) error {
+func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion *int, version *semver.Version, upstreamChartVersion string, omitBuildMetadata bool) error {
 	// Try to load the chart to see if it can be exported
 	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
 	chart, err := helmLoader.Load(absHelmChartPath)
@@ -57,10 +56,10 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 	}
 	chartVersion := chartVersionSemver.String()
 
-	// All assets of each chart in a package are placed in a flat directory containing all versions
-	chartAssetsDirpath := packageAssetsDirpath
-	// All generated charts are indexed by version and the working directory
-	chartChartsDirpath := filepath.Join(packageChartsDirpath, chart.Metadata.Name, chartVersion)
+	// Assets are indexed by chart name, independent of which package that chart is contained within
+	chartAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, chart.Metadata.Name)
+	// All generated charts are indexed by chart name and version
+	chartChartsDirpath := filepath.Join(path.RepositoryChartsDir, chart.Metadata.Name, chartVersion)
 	// Create directories
 	if err := rootFs.MkdirAll(chartAssetsDirpath, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create directory for assets at %s: %s", chartAssetsDirpath, err)

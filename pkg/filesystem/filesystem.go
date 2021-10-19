@@ -3,16 +3,19 @@ package filesystem
 import (
 	"archive/tar"
 	"compress/gzip"
+	"crypto/sha1"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/osfs"
+	"github.com/sirupsen/logrus"
 )
 
 // GetFilesystem returns a filesystem rooted at the provided path
@@ -247,6 +250,123 @@ func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string
 		return fmt.Errorf("subdirectory %s was not found within the folder outputted by the tgz file", tgzSubdirectory)
 	}
 	return nil
+}
+
+// CompareTgz
+func CompareTgzs(fs billy.Filesystem, leftTgzPath string, rightTgzPath string) (bool, error) {
+	// Read left
+	leftFile, err := fs.OpenFile(leftTgzPath, os.O_RDONLY, os.ModePerm)
+	if err != nil {
+		return false, err
+	}
+	defer leftFile.Close()
+	leftGzipReader, err := gzip.NewReader(leftFile)
+	if err != nil {
+		return false, fmt.Errorf("unable to read gzip formatted file: %s", err)
+	}
+	defer leftGzipReader.Close()
+	leftTarReader := tar.NewReader(leftGzipReader)
+
+	// Read right
+	rightFile, err := fs.OpenFile(rightTgzPath, os.O_RDONLY, os.ModePerm)
+	if err != nil {
+		return false, err
+	}
+	defer rightFile.Close()
+	rightGzipReader, err := gzip.NewReader(rightFile)
+	if err != nil {
+		return false, fmt.Errorf("unable to read gzip formatted file: %s", err)
+	}
+	defer rightGzipReader.Close()
+	rightTarReader := tar.NewReader(rightGzipReader)
+
+	// Get the hashes of all the files
+	hashMap := make(map[string][]string)
+	var isRightEOF, isLeftEOF bool
+	var left, right *tar.Header
+	var leftErr, rightErr error
+	for {
+		if !isLeftEOF {
+			left, leftErr = leftTarReader.Next()
+		}
+		if !isRightEOF {
+			right, rightErr = rightTarReader.Next()
+		}
+		if leftErr == io.EOF && rightErr == io.EOF {
+			// both tgz files have finished reading
+			break
+		}
+		switch {
+		case leftErr == io.EOF:
+			isLeftEOF = true
+		case rightErr == io.EOF:
+			isRightEOF = true
+		case leftErr != nil:
+			// ran into unknown error
+			return false, fmt.Errorf("ran into error while trying to read files in %s: %v", leftTgzPath, leftErr)
+		case rightErr != nil:
+			// ran into unknown error
+			return false, fmt.Errorf("ran into error while trying to read files in %s: %v", rightTgzPath, rightErr)
+		}
+		if !isLeftEOF && left.Typeflag == tar.TypeReg {
+			// compute left hash
+			leftHash := sha1.New()
+			if _, err := io.Copy(leftHash, leftTarReader); err != nil {
+				return false, fmt.Errorf("could not compute hash of %s: %v", left.Name, err)
+			}
+			// update left hash
+			h, ok := hashMap[left.Name]
+			if !ok {
+				h = make([]string, 2)
+			}
+			h[0] = string(leftHash.Sum(nil))
+			hashMap[left.Name] = h
+		}
+		if !isRightEOF && right.Typeflag == tar.TypeReg {
+			// compute right hash
+			rightHash := sha1.New()
+			if _, err := io.Copy(rightHash, rightTarReader); err != nil {
+				return false, fmt.Errorf("could not compute hash of %s: %v", right.Name, err)
+			}
+			// Update right hash
+			h, ok := hashMap[right.Name]
+			if !ok {
+				h = make([]string, 2)
+			}
+			h[1] = string(rightHash.Sum(nil))
+			hashMap[right.Name] = h
+		}
+	}
+
+	identical := true
+	// Sort the files to make it easier to view in debug
+	files := make([]string, 0, len(hashMap))
+	for filename := range hashMap {
+		files = append(files, filename)
+	}
+	sort.Strings(files)
+	// Go through hashes to see if there are any mismatches
+	for _, filename := range files {
+		hashes, ok := hashMap[filename]
+		if !ok {
+			return false, fmt.Errorf("could not find %s in hashMap", filename)
+		}
+		// Check if both archives contain the files
+		switch {
+		case len(hashes[0]) == 0:
+			logrus.Debugf("%s only exists in %s", filename, rightTgzPath)
+			identical = false
+		case len(hashes[1]) == 0:
+			logrus.Debugf("%s only exists in %s", filename, leftTgzPath)
+			identical = false
+		case hashes[0] != hashes[1]:
+			// Hashes do not match
+			logrus.Debugf("hash does not match for file %v: %s != %s", filename, hashes[0], hashes[1])
+			identical = false
+		}
+	}
+	return identical, nil
+
 }
 
 // RelativePathFunc is a function that is applied on a relative path within the given filesystem

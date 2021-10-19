@@ -4,18 +4,16 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/rancher/charts-build-scripts/pkg/update"
 	"github.com/rancher/charts-build-scripts/pkg/validate"
+	"github.com/rancher/charts-build-scripts/pkg/zip"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"gopkg.in/yaml.v2"
@@ -26,6 +24,10 @@ const (
 	DefaultChartsScriptOptionsFile = "configuration.yaml"
 	// DefaultPackageEnvironmentVariable is the default environment variable for picking a specific package
 	DefaultPackageEnvironmentVariable = "PACKAGE"
+	// DefaultChartEnvironmentVariable is the default environment variable for picking a specific chart
+	DefaultChartEnvironmentVariable = "CHART"
+	// DefaultAssetEnvironmentVariable is the default environment variable for picking a specific asset
+	DefaultAssetEnvironmentVariable = "ASSET"
 	// DefaultPorcelainModeVariable is the default environment variable that indicates whether we should run on porcelain mode
 	DefaultPorcelainEnvironmentVariable = "PORCELAIN"
 )
@@ -40,19 +42,26 @@ var (
 	ChartsScriptOptionsFile string
 	// GithubToken represents the Github Auth token; currently not used
 	GithubToken string
-	// CurrentPackage represents the specific chart within packages/ in the Staging branch which is being used
+	// CurrentPackage represents the specific package to apply the scripts to
 	CurrentPackage string
+	// CurrentChart represents a specific chart to apply the scripts to. Also accepts a specific version.
+	CurrentChart string
+	// CurrentChart represents a specific asset to apply the scripts to. Also accepts a specific archive.
+	CurrentAsset string
 	// PorcelainMode indicates that the output of the scripts should be in an easy-to-parse format for scripts
 	PorcelainMode bool
 )
 
 func main() {
+	if len(os.Getenv("DEBUG")) > 0 {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
 	app := cli.NewApp()
 	app.Name = "charts-build-scripts"
 	app.Version = fmt.Sprintf("%s (%s)", Version, GitCommit)
 	app.Usage = "Build scripts used to maintain patches on Helm charts forked from other repositories"
 	configFlag := cli.StringFlag{
-		Name:        "config,c",
+		Name:        "config",
 		Usage:       "A configuration file with additional options for allowing this branch to interact with other branches",
 		TakesFile:   true,
 		Destination: &ChartsScriptOptionsFile,
@@ -60,10 +69,24 @@ func main() {
 	}
 	packageFlag := cli.StringFlag{
 		Name:        "package,p",
-		Usage:       "A package you would like to run prepare on",
+		Usage:       "A package you would like to run the scripts on",
 		Required:    false,
 		Destination: &CurrentPackage,
 		EnvVar:      DefaultPackageEnvironmentVariable,
+	}
+	chartFlag := cli.StringFlag{
+		Name:        "chart,c",
+		Usage:       "A chart you would like to run the scripts on. Can include version.",
+		Required:    false,
+		Destination: &CurrentChart,
+		EnvVar:      DefaultChartEnvironmentVariable,
+	}
+	assetFlag := cli.StringFlag{
+		Name:        "asset,a",
+		Usage:       "An asset you would like to run the scripts on. Can directly point to archive.",
+		Required:    false,
+		Destination: &CurrentAsset,
+		EnvVar:      DefaultAssetEnvironmentVariable,
 	}
 	porcelainFlag := cli.BoolFlag{
 		Name:        "porcelain",
@@ -98,9 +121,21 @@ func main() {
 			Flags:  []cli.Flag{packageFlag, configFlag},
 		},
 		{
+			Name:   "zip",
+			Usage:  "Takes the contents of a chart under charts/ and rezips the asset if it has changed",
+			Action: zipCharts,
+			Flags:  []cli.Flag{chartFlag},
+		},
+		{
+			Name:   "unzip",
+			Usage:  "Takes the contents of an asset under assets/ and unzips the chart.",
+			Action: unzipAssets,
+			Flags:  []cli.Flag{assetFlag},
+		},
+		{
 			Name:   "clean",
 			Usage:  "Clean up your current repository to get it ready for a PR",
-			Action: cleanRepository,
+			Action: cleanRepo,
 			Flags:  []cli.Flag{packageFlag},
 		},
 		{
@@ -180,17 +215,6 @@ func generatePatch(c *cli.Context) {
 }
 
 func generateCharts(c *cli.Context) {
-	repo, _, status := getGitInfo()
-	if !status.IsClean() {
-		logrus.Warnf("Git is not clean:\n%s", status)
-		logrus.Fatal("Repository must be clean to generate charts")
-	}
-	currentBranchRefName, err := repository.GetCurrentBranchRefName(repo)
-	if err != nil {
-		logrus.Warn("Due to limitations in the Git library used for the scripts, we cannot generate charts in a detached HEAD state.")
-		logrus.Fatalf("Could not get reference to current branch: %s", err)
-	}
-	// Generate charts
 	packages := getPackages()
 	chartsScriptOptions := parseScriptOptions()
 	for _, p := range packages {
@@ -198,55 +222,29 @@ func generateCharts(c *cli.Context) {
 			logrus.Fatal(err)
 		}
 	}
-	// Copy in only assets from charts that have changed
-	_, wt, status := getGitInfo()
-	modifiedAssets := make(map[string]bool)
-	for p := range status {
-		if p == path.RepositoryHelmIndexFile {
-			wt.Excludes = append(wt.Excludes, gitignore.ParsePattern(p, []string{}))
-			logrus.Infof("Outputted %s", p)
-			continue
-		}
-		if !strings.HasPrefix(p, path.RepositoryChartsDir) {
-			continue
-		}
-		var modifiedAssetPath string
-		splitPath := strings.Split(p, "/")
-		switch len(splitPath) {
-		case 1:
-			// charts were generated for the first time
-			modifiedAssetPath = fmt.Sprintf("%s/*", path.RepositoryAssetsDir)
-		case 2:
-			// New package was introduced
-			modifiedAssetPath = fmt.Sprintf("%s/*", filepath.Join(path.RepositoryAssetsDir, splitPath[1]))
-		case 3:
-			// New chart was introduced
-			modifiedAssetPath = fmt.Sprintf("%s/*", filepath.Join(path.RepositoryAssetsDir, splitPath[1], splitPath[2]))
-		default:
-			// Existing chart was modified
-			modifiedAssetPath = fmt.Sprintf("%s-%s.tgz", filepath.Join(path.RepositoryAssetsDir, splitPath[1], splitPath[2]), splitPath[3])
-		}
-		// Add chart
-		wt.Excludes = append(wt.Excludes, gitignore.ParsePattern(p, []string{}))
-		logrus.Infof("Outputted %s", p)
-		// Add asset, but only once
-		if added, ok := modifiedAssets[modifiedAssetPath]; ok && added {
-			continue
-		}
-		modifiedAssets[modifiedAssetPath] = true
-		wt.Excludes = append(wt.Excludes, gitignore.ParsePattern(modifiedAssetPath, []string{}))
-		logrus.Infof("Outputted %s", modifiedAssetPath)
-	}
-	err = wt.Checkout(&git.CheckoutOptions{
-		Branch: currentBranchRefName,
-		Force:  true,
-	})
+}
+
+func zipCharts(c *cli.Context) {
+	repoRoot, err := os.Getwd()
 	if err != nil {
-		logrus.Fatalf("Failed to clean up unchanged assets: %s", err)
+		logrus.Fatalf("unable to get current working directory: %s", err)
+	}
+	if err := zip.ZipCharts(repoRoot, CurrentChart); err != nil {
+		logrus.Fatal(err)
 	}
 }
 
-func cleanRepository(c *cli.Context) {
+func unzipAssets(c *cli.Context) {
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		logrus.Fatalf("unable to get current working directory: %s", err)
+	}
+	if err := zip.UnzipAssets(repoRoot, CurrentAsset); err != nil {
+		logrus.Fatal(err)
+	}
+}
+
+func cleanRepo(c *cli.Context) {
 	packages := getPackages()
 	for _, p := range packages {
 		if err := p.Clean(); err != nil {

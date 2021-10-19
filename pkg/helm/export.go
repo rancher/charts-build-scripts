@@ -74,24 +74,60 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 		return fmt.Errorf("failed to create directory for charts at %s: %s", chartChartsDirpath, err)
 	}
 	defer filesystem.PruneEmptyDirsInPath(rootFs, chartChartsDirpath)
-	// Run helm package
-	pkg := helmAction.NewPackage()
-	pkg.Version = chartVersion
-	pkg.Destination = filesystem.GetAbsPath(rootFs, chartAssetsDirpath)
-	pkg.DependencyUpdate = false
-	absTgzPath, err := pkg.Run(absHelmChartPath, nil)
+	tgzPath, err := GenerateArchive(rootFs, fs, helmChartPath, chartAssetsDirpath, &chartVersion)
 	if err != nil {
 		return err
 	}
-	tgzPath, err := filesystem.GetRelativePath(rootFs, absTgzPath)
-	if err != nil {
-		return err
-	}
-	logrus.Infof("Generated archive: %s", tgzPath)
 	// Unarchive the generated package
 	if err := filesystem.UnarchiveTgz(rootFs, tgzPath, "", chartChartsDirpath, true); err != nil {
 		return err
 	}
 	logrus.Infof("Generated chart: %s", chartChartsDirpath)
 	return nil
+}
+
+func GenerateArchive(rootFs, fs billy.Filesystem, helmChartPath, chartAssetsDirpath string, chartVersion *string) (string, error) {
+	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
+	// Run helm package
+	pkg := helmAction.NewPackage()
+	if chartVersion != nil {
+		pkg.Version = *chartVersion
+	}
+	// Creates temporary asset at assets/{chart}.temp/{chart}-{version}.tgz
+	pkg.Destination = filesystem.GetAbsPath(rootFs, chartAssetsDirpath) + ".temp"
+	pkg.DependencyUpdate = false
+	absTgzPath, err := pkg.Run(absHelmChartPath, nil)
+	if err != nil {
+		return "", err
+	}
+	tempTgzPath, err := filesystem.GetRelativePath(rootFs, absTgzPath)
+	if err != nil {
+		return "", err
+	}
+	defer filesystem.RemoveAll(rootFs, filepath.Dir(tempTgzPath))
+	// Path where we expect the tgz file to be deposited
+	tgzPath := filepath.Join(chartAssetsDirpath, filepath.Base(tempTgzPath))
+	// Check if original tgz existed
+	exists, err := filesystem.PathExists(rootFs, tgzPath)
+	if err != nil {
+		return "", err
+	}
+	// If the archive does not exist, it needs to be updated
+	shouldUpdateArchive := !exists
+	if exists {
+		// Check if the tgz has been modified
+		identical, err := filesystem.CompareTgzs(rootFs, tgzPath, tempTgzPath)
+		if err != nil {
+			return "", fmt.Errorf("encountered error while trying to compare contents of %s against %s: %v", tgzPath, tempTgzPath, err)
+		}
+		// If the archives are not identical, it needs to be update
+		shouldUpdateArchive = !identical
+	}
+	if shouldUpdateArchive {
+		filesystem.CopyFile(rootFs, tempTgzPath, tgzPath)
+		logrus.Infof("Generated archive: %s", tgzPath)
+	} else {
+		logrus.Infof("Archive is up-to-date: %s", tgzPath)
+	}
+	return tgzPath, nil
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/rancher/charts-build-scripts/pkg/update"
@@ -121,6 +122,11 @@ func main() {
 			Flags:  []cli.Flag{packageFlag, configFlag},
 		},
 		{
+			Name:   "index",
+			Usage:  "Creates or updates existing Helm index.yaml at repository root",
+			Action: createOrUpdateIndex,
+		},
+		{
 			Name:   "zip",
 			Usage:  "Takes the contents of a chart under charts/ and rezips the asset if it has changed",
 			Action: zipCharts,
@@ -224,6 +230,16 @@ func generateCharts(c *cli.Context) {
 	}
 }
 
+func createOrUpdateIndex(c *cli.Context) {
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		logrus.Fatalf("unable to get current working directory: %s", err)
+	}
+	if err := helm.CreateOrUpdateHelmIndex(filesystem.GetFilesystem(repoRoot)); err != nil {
+		logrus.Fatal(err)
+	}
+}
+
 func zipCharts(c *cli.Context) {
 	repoRoot, err := os.Getwd()
 	if err != nil {
@@ -232,6 +248,7 @@ func zipCharts(c *cli.Context) {
 	if err := zip.ZipCharts(repoRoot, CurrentChart); err != nil {
 		logrus.Fatal(err)
 	}
+	createOrUpdateIndex(c)
 }
 
 func unzipAssets(c *cli.Context) {
@@ -242,6 +259,7 @@ func unzipAssets(c *cli.Context) {
 	if err := zip.UnzipAssets(repoRoot, CurrentAsset); err != nil {
 		logrus.Fatal(err)
 	}
+	createOrUpdateIndex(c)
 }
 
 func cleanRepo(c *cli.Context) {

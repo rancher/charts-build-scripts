@@ -12,6 +12,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
+	"github.com/rancher/charts-build-scripts/pkg/standardize"
 	"github.com/rancher/charts-build-scripts/pkg/update"
 	"github.com/rancher/charts-build-scripts/pkg/validate"
 	"github.com/rancher/charts-build-scripts/pkg/zip"
@@ -148,6 +149,12 @@ func main() {
 			Name:   "validate",
 			Usage:  "Run validation to ensure that contents of assets and charts won't overwrite released charts",
 			Action: validateRepo,
+			Flags:  []cli.Flag{packageFlag, configFlag},
+		},
+		{
+			Name:   "standardize",
+			Usage:  "Standardizes a Helm repository to the expected assets, charts, and index.yaml structure of these scripts",
+			Action: standardizeRepo,
 			Flags:  []cli.Flag{packageFlag, configFlag},
 		},
 		{
@@ -301,6 +308,17 @@ func validateRepo(c *cli.Context) {
 			logrus.Fatalf("Please commit these changes and run validation again.")
 		}
 		logrus.Infof("Successfully validated against %s!", compareGeneratedAssetsOptions.Branch)
+	}
+}
+
+func standardizeRepo(c *cli.Context) {
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		logrus.Fatalf("Unable to get current working directory: %s", err)
+	}
+	repoFs := filesystem.GetFilesystem(repoRoot)
+	if err := standardize.StandardizeRepository(repoFs); err != nil {
+		logrus.Fatal(err)
 	}
 }
 

@@ -30,8 +30,8 @@ func GetAbsPath(fs billy.Filesystem, path string) string {
 
 // GetRelativePath returns the relative path given the absolute path within a filesystem
 func GetRelativePath(fs billy.Filesystem, abspath string) (string, error) {
-	if abspath == "" {
-		return fs.Root(), nil
+	if abspath == fs.Root() {
+		return "", nil
 	}
 	fsRoot := fmt.Sprintf("%s/", filepath.Clean(fs.Root()))
 	relativePath := strings.TrimPrefix(abspath, fsRoot)

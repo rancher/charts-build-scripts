@@ -279,36 +279,70 @@ func cleanRepo(c *cli.Context) {
 }
 
 func validateRepo(c *cli.Context) {
+	CurrentPackage = "" // Validate always runs on all packages
+	chartsScriptOptions := parseScriptOptions()
+
+	logrus.Infof("Checking if Git is clean")
 	_, _, status := getGitInfo()
 	if !status.IsClean() {
 		logrus.Warnf("Git is not clean:\n%s", status)
 		logrus.Fatal("Repository must be clean to run validation")
 	}
 
-	logrus.Infof("Generating charts and checking if Git is clean")
-	CurrentPackage = "" // Validate always runs on all packages
+	logrus.Infof("Generating charts")
 	generateCharts(c)
-	_, wt, status := getGitInfo()
+
+	logrus.Infof("Checking if Git is clean after generating charts")
+	_, _, status = getGitInfo()
 	if !status.IsClean() {
 		logrus.Warnf("Generated charts produced the following changes in Git.\n%s", status)
 		logrus.Fatalf("Please commit these changes and run validation again.")
 	}
 	logrus.Infof("Successfully validated that current charts and assets are up to date.")
 
-	chartsScriptOptions := parseScriptOptions()
-	for _, compareGeneratedAssetsOptions := range chartsScriptOptions.ValidateOptions {
-		logrus.Infof("Validating against released charts in %s", compareGeneratedAssetsOptions.Branch)
-		notSubset, err := validate.CompareGeneratedAssets(wt, compareGeneratedAssetsOptions)
+	if chartsScriptOptions.ValidateOptions != nil {
+		repoRoot, err := os.Getwd()
 		if err != nil {
-			logrus.Fatalf("Failed to validate against %s: %s", compareGeneratedAssetsOptions.Branch, err)
+			logrus.Fatalf("Unable to get current working directory: %s", err)
 		}
-		_, _, status := getGitInfo()
-		if notSubset {
-			logrus.Warnf("The following charts and assets exist in %s but do not exist in your current branch.\n%s", compareGeneratedAssetsOptions.Branch, status)
-			logrus.Fatalf("Please commit these changes and run validation again.")
+		repoFs := filesystem.GetFilesystem(repoRoot)
+		releaseOptions, err := options.LoadReleaseOptionsFromFile(repoFs, "release.yaml")
+		if err != nil {
+			logrus.Fatalf("Unable to unmarshall release.yaml: %s", err)
 		}
-		logrus.Infof("Successfully validated against %s!", compareGeneratedAssetsOptions.Branch)
+		u := chartsScriptOptions.ValidateOptions.UpstreamOptions
+		branch := chartsScriptOptions.ValidateOptions.Branch
+		logrus.Infof("Performing upstream validation against repository %s at branch %s", u.URL, branch)
+		compareGeneratedAssetsResponse, err := validate.CompareGeneratedAssets(repoFs, u, branch, releaseOptions)
+		if err != nil {
+			logrus.Fatal(err)
+		}
+		if !compareGeneratedAssetsResponse.PassedValidation() {
+			// Output charts that have been modified
+			compareGeneratedAssetsResponse.LogDiscrepancies()
+			logrus.Infof("Dumping release.yaml tracking changes that have been introduced")
+			if err := compareGeneratedAssetsResponse.DumpReleaseYaml(repoFs); err != nil {
+				logrus.Errorf("Unable to dump newly generated release.yaml: %s", err)
+			}
+			logrus.Infof("Updating index.yaml")
+			if err := helm.CreateOrUpdateHelmIndex(repoFs); err != nil {
+				logrus.Fatal(err)
+			}
+			logrus.Fatalf("Validation against upstream repository %s at branch %s failed.", u.URL, branch)
+		}
 	}
+
+	logrus.Info("Zipping charts to ensure that contents of assets, charts, and index.yaml are in sync.")
+	zipCharts(c)
+
+	logrus.Info("Doing a final check to ensure Git is clean")
+	_, _, status = getGitInfo()
+	if !status.IsClean() {
+		logrus.Warnf("Git is not clean:\n%s", status)
+		logrus.Fatal("Repository must be clean to run validation")
+	}
+
+	logrus.Info("Successfully validated current repository!")
 }
 
 func standardizeRepo(c *cli.Context) {

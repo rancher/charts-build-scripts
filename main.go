@@ -203,6 +203,9 @@ func listPackages(c *cli.Context) {
 
 func prepareCharts(c *cli.Context) {
 	packages := getPackages()
+	if len(packages) == 0 {
+		logrus.Fatal("Could not find any packages in packages/")
+	}
 	for _, p := range packages {
 		if err := p.Prepare(); err != nil {
 			logrus.Fatal(err)
@@ -229,6 +232,10 @@ func generatePatch(c *cli.Context) {
 
 func generateCharts(c *cli.Context) {
 	packages := getPackages()
+	if len(packages) == 0 {
+		logrus.Infof("No packages found.")
+		return
+	}
 	chartsScriptOptions := parseScriptOptions()
 	for _, p := range packages {
 		if err := p.GenerateCharts(chartsScriptOptions.OmitBuildMetadataOnExport); err != nil {
@@ -271,6 +278,10 @@ func unzipAssets(c *cli.Context) {
 
 func cleanRepo(c *cli.Context) {
 	packages := getPackages()
+	if len(packages) == 0 {
+		logrus.Infof("No packages found.")
+		return
+	}
 	for _, p := range packages {
 		if err := p.Clean(); err != nil {
 			logrus.Fatal(err)
@@ -389,9 +400,6 @@ func getPackages() []*charts.Package {
 	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
 	if err != nil {
 		logrus.Fatal(err)
-	}
-	if len(packages) == 0 {
-		logrus.Fatal("Could not find any packages in packages/")
 	}
 	return packages
 }

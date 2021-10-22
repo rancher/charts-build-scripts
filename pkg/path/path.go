@@ -39,4 +39,7 @@ const (
 	ChartCRDDir = "crds"
 	// ChartValidateInstallCRDFile is the path to the file pushed to upstream that validates the existence of CRDs in the chart
 	ChartValidateInstallCRDFile = "templates/validate-install-crd.yaml"
+
+	// DefaultCachePath represents the default place to put a cache on pulled values
+	DefaultCachePath = ".charts-build-scripts/.cache"
 )

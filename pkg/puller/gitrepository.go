@@ -53,6 +53,17 @@ type GithubRepository struct {
 	branch *string `yaml:"branch"`
 }
 
+func (r GithubRepository) CacheKey() string {
+	if !r.IsCacheable() {
+		return ""
+	}
+	return filepath.Join(".gitrepos", r.String())
+}
+
+func (r GithubRepository) IsCacheable() bool {
+	return r.Commit != nil
+}
+
 // GetHTTPSURL returns the HTTPS URL of the repository
 func (r GithubRepository) GetHTTPSURL() string {
 	return fmt.Sprintf(httpsURLFmt, r.owner, r.name)
@@ -65,6 +76,16 @@ func (r GithubRepository) GetSSHURL() string {
 
 // Pull grabs the repository
 func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
+	if r.IsCacheable() {
+		pulledFromCache, err := RootCache.Get(r.CacheKey(), fs, path)
+		if err != nil {
+			return err
+		}
+		if pulledFromCache {
+			logrus.Infof("Pulled %s from cache into %s", r, path)
+			return nil
+		}
+	}
 	logrus.Infof("Pulling %s from upstream into %s", r, path)
 	if r.Commit == nil && r.branch == nil {
 		return fmt.Errorf("if you are pulling from a Git repository, a commit is required in the package.yaml")
@@ -100,6 +121,15 @@ func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
 			return err
 		}
 	}
+	if r.IsCacheable() {
+		addedToCache, err := RootCache.Add(r.CacheKey(), fs, path)
+		if err != nil {
+			return err
+		}
+		if addedToCache {
+			logrus.Infof("Cached %s", r)
+		}
+	}
 	return nil
 }
 
@@ -123,7 +153,7 @@ func (r GithubRepository) String() string {
 		repoStr = fmt.Sprintf("%s@%s", repoStr, *r.Commit)
 	}
 	if r.Subdirectory != nil {
-		repoStr = fmt.Sprintf("%s[path=%s]", repoStr, *r.Subdirectory)
+		repoStr = fmt.Sprintf("%s/%s", repoStr, *r.Subdirectory)
 	}
 	return repoStr
 }

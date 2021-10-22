@@ -11,6 +11,8 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/options"
+	"github.com/rancher/charts-build-scripts/pkg/path"
+	"github.com/rancher/charts-build-scripts/pkg/puller"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/rancher/charts-build-scripts/pkg/standardize"
 	"github.com/rancher/charts-build-scripts/pkg/update"
@@ -32,6 +34,8 @@ const (
 	DefaultAssetEnvironmentVariable = "ASSET"
 	// DefaultPorcelainModeVariable is the default environment variable that indicates whether we should run on porcelain mode
 	DefaultPorcelainEnvironmentVariable = "PORCELAIN"
+	// DefaultCacheEnvironmentVariable is the default environment variable that indicates that a cache should be used on pulls to remotes
+	DefaultCacheEnvironmentVariable = "USE_CACHE"
 )
 
 var (
@@ -52,6 +56,8 @@ var (
 	CurrentAsset string
 	// PorcelainMode indicates that the output of the scripts should be in an easy-to-parse format for scripts
 	PorcelainMode bool
+	// CacheMode indicates that caching should be used on all remotely pulled resources
+	CacheMode = false
 )
 
 func main() {
@@ -97,6 +103,13 @@ func main() {
 		Destination: &PorcelainMode,
 		EnvVar:      DefaultPorcelainEnvironmentVariable,
 	}
+	cacheFlag := cli.BoolFlag{
+		Name:        "useCache",
+		Usage:       "Experimental: use a cache to speed up scripts",
+		Required:    false,
+		Destination: &CacheMode,
+		EnvVar:      DefaultCacheEnvironmentVariable,
+	}
 	app.Commands = []cli.Command{
 		{
 			Name:   "list",
@@ -108,19 +121,22 @@ func main() {
 			Name:   "prepare",
 			Usage:  "Pull in the chart specified from upstream to the charts directory and apply any patch files",
 			Action: prepareCharts,
-			Flags:  []cli.Flag{packageFlag},
+			Before: setupCache,
+			Flags:  []cli.Flag{packageFlag, cacheFlag},
 		},
 		{
 			Name:   "patch",
 			Usage:  "Apply a patch between the upstream chart and the current state of the chart in the charts directory",
 			Action: generatePatch,
-			Flags:  []cli.Flag{packageFlag},
+			Before: setupCache,
+			Flags:  []cli.Flag{packageFlag, cacheFlag},
 		},
 		{
 			Name:   "charts",
 			Usage:  "Create a local chart archive of your finalized chart for testing",
 			Action: generateCharts,
-			Flags:  []cli.Flag{packageFlag, configFlag},
+			Before: setupCache,
+			Flags:  []cli.Flag{packageFlag, configFlag, cacheFlag},
 		},
 		{
 			Name:   "index",
@@ -144,6 +160,11 @@ func main() {
 			Usage:  "Clean up your current repository to get it ready for a PR",
 			Action: cleanRepo,
 			Flags:  []cli.Flag{packageFlag},
+		},
+		{
+			Name:   "clean-cache",
+			Usage:  "Experimental: Clean cache",
+			Action: cleanCache,
 		},
 		{
 			Name:   "validate",
@@ -378,6 +399,16 @@ func createOrUpdateTemplate(c *cli.Context) {
 		logrus.Fatalf("Failed to update repository based on upstream template: %s", err)
 	}
 	logrus.Infof("Successfully updated repository based on upstream template.")
+}
+
+func setupCache(c *cli.Context) error {
+	return puller.InitRootCache(CacheMode, path.DefaultCachePath)
+}
+
+func cleanCache(c *cli.Context) {
+	if err := puller.CleanRootCache(); err != nil {
+		logrus.Fatal(err)
+	}
 }
 
 func parseScriptOptions() *options.ChartsScriptOptions {

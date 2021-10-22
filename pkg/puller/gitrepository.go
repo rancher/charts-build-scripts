@@ -112,6 +112,13 @@ func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
 		if err != nil {
 			return err
 		}
+		head, err := repo.Head()
+		if err != nil {
+			return fmt.Errorf("unable to confirm if checkout was successful: %s", err)
+		}
+		if head.Hash().String() != *r.Commit {
+			return fmt.Errorf("unable to checkout commit %s, may not be a valid commit hash from upstream", *r.Commit)
+		}
 	}
 	if err := filesystem.RemoveAll(fs, filepath.Join(path, ".git")); err != nil {
 		return err

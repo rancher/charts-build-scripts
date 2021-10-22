@@ -56,6 +56,10 @@ var (
 	CurrentAsset string
 	// PorcelainMode indicates that the output of the scripts should be in an easy-to-parse format for scripts
 	PorcelainMode bool
+	// LocalMode indicates that only local validation should be run
+	LocalMode bool
+	// RemoteMode indicates that only remote validation should be run
+	RemoteMode bool
 	// CacheMode indicates that caching should be used on all remotely pulled resources
 	CacheMode = false
 )
@@ -170,7 +174,18 @@ func main() {
 			Name:   "validate",
 			Usage:  "Run validation to ensure that contents of assets and charts won't overwrite released charts",
 			Action: validateRepo,
-			Flags:  []cli.Flag{packageFlag, configFlag},
+			Flags: []cli.Flag{packageFlag, configFlag, cli.BoolFlag{
+				Name:        "local,l",
+				Usage:       "Only perform local validation of the contents of assets and charts",
+				Required:    false,
+				Destination: &LocalMode,
+			}, cli.BoolFlag{
+				Name:        "remote,r",
+				Usage:       "Only perform upstream validation of the contents of assets and charts",
+				Required:    false,
+				Destination: &RemoteMode,
+			},
+			},
 		},
 		{
 			Name:   "standardize",
@@ -311,6 +326,10 @@ func cleanRepo(c *cli.Context) {
 }
 
 func validateRepo(c *cli.Context) {
+	if LocalMode && RemoteMode {
+		logrus.Fatalf("cannot specify both local and remote validation")
+	}
+
 	CurrentPackage = "" // Validate always runs on all packages
 	chartsScriptOptions := parseScriptOptions()
 
@@ -321,46 +340,54 @@ func validateRepo(c *cli.Context) {
 		logrus.Fatal("Repository must be clean to run validation")
 	}
 
-	logrus.Infof("Generating charts")
-	generateCharts(c)
+	if RemoteMode {
+		logrus.Infof("Running remote validation only, skipping pulling upstream")
+	} else {
+		logrus.Infof("Generating charts")
+		generateCharts(c)
 
-	logrus.Infof("Checking if Git is clean after generating charts")
-	_, _, status = getGitInfo()
-	if !status.IsClean() {
-		logrus.Warnf("Generated charts produced the following changes in Git.\n%s", status)
-		logrus.Fatalf("Please commit these changes and run validation again.")
+		logrus.Infof("Checking if Git is clean after generating charts")
+		_, _, status = getGitInfo()
+		if !status.IsClean() {
+			logrus.Warnf("Generated charts produced the following changes in Git.\n%s", status)
+			logrus.Fatalf("Please commit these changes and run validation again.")
+		}
+		logrus.Infof("Successfully validated that current charts and assets are up to date.")
 	}
-	logrus.Infof("Successfully validated that current charts and assets are up to date.")
 
 	if chartsScriptOptions.ValidateOptions != nil {
-		repoRoot, err := os.Getwd()
-		if err != nil {
-			logrus.Fatalf("Unable to get current working directory: %s", err)
-		}
-		repoFs := filesystem.GetFilesystem(repoRoot)
-		releaseOptions, err := options.LoadReleaseOptionsFromFile(repoFs, "release.yaml")
-		if err != nil {
-			logrus.Fatalf("Unable to unmarshall release.yaml: %s", err)
-		}
-		u := chartsScriptOptions.ValidateOptions.UpstreamOptions
-		branch := chartsScriptOptions.ValidateOptions.Branch
-		logrus.Infof("Performing upstream validation against repository %s at branch %s", u.URL, branch)
-		compareGeneratedAssetsResponse, err := validate.CompareGeneratedAssets(repoFs, u, branch, releaseOptions)
-		if err != nil {
-			logrus.Fatal(err)
-		}
-		if !compareGeneratedAssetsResponse.PassedValidation() {
-			// Output charts that have been modified
-			compareGeneratedAssetsResponse.LogDiscrepancies()
-			logrus.Infof("Dumping release.yaml tracking changes that have been introduced")
-			if err := compareGeneratedAssetsResponse.DumpReleaseYaml(repoFs); err != nil {
-				logrus.Errorf("Unable to dump newly generated release.yaml: %s", err)
+		if LocalMode {
+			logrus.Infof("Running local validation only, skipping pulling upstream")
+		} else {
+			repoRoot, err := os.Getwd()
+			if err != nil {
+				logrus.Fatalf("Unable to get current working directory: %s", err)
 			}
-			logrus.Infof("Updating index.yaml")
-			if err := helm.CreateOrUpdateHelmIndex(repoFs); err != nil {
+			repoFs := filesystem.GetFilesystem(repoRoot)
+			releaseOptions, err := options.LoadReleaseOptionsFromFile(repoFs, "release.yaml")
+			if err != nil {
+				logrus.Fatalf("Unable to unmarshall release.yaml: %s", err)
+			}
+			u := chartsScriptOptions.ValidateOptions.UpstreamOptions
+			branch := chartsScriptOptions.ValidateOptions.Branch
+			logrus.Infof("Performing upstream validation against repository %s at branch %s", u.URL, branch)
+			compareGeneratedAssetsResponse, err := validate.CompareGeneratedAssets(repoFs, u, branch, releaseOptions)
+			if err != nil {
 				logrus.Fatal(err)
 			}
-			logrus.Fatalf("Validation against upstream repository %s at branch %s failed.", u.URL, branch)
+			if !compareGeneratedAssetsResponse.PassedValidation() {
+				// Output charts that have been modified
+				compareGeneratedAssetsResponse.LogDiscrepancies()
+				logrus.Infof("Dumping release.yaml tracking changes that have been introduced")
+				if err := compareGeneratedAssetsResponse.DumpReleaseYaml(repoFs); err != nil {
+					logrus.Errorf("Unable to dump newly generated release.yaml: %s", err)
+				}
+				logrus.Infof("Updating index.yaml")
+				if err := helm.CreateOrUpdateHelmIndex(repoFs); err != nil {
+					logrus.Fatal(err)
+				}
+				logrus.Fatalf("Validation against upstream repository %s at branch %s failed.", u.URL, branch)
+			}
 		}
 	}
 

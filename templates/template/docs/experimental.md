@@ -7,3 +7,22 @@ This cache will be used to store references to anything that is pulled into the 
 However, caching is only implemented for UpstreamOptions that point to a GitHub Repository at a particular commit, since that is an immutable reference (e.g. any amends to that commit would result in a brand-new commit hash).
 
 If you would like to clean up your cache, either delete the `.charts-build-scripts/.cache` directory or run `make clean-cache`.
+
+## Experimental: Using Manifest Upstreams (Instead of Helm Charts)
+
+If your package.yaml points to an upstream that does not declare a Chart.yaml, the default behavior of the scripts is as follows:
+1) Move all YAML files to `templates`
+2) Create a dummy, hard-coded `Chart.yaml`:
+
+```yaml
+apiVersion: v2
+appVersion: 0.1.0
+description: A Helm chart for Kubernetes
+name: my-helm-chart
+type: application
+version: 0.1.0
+```
+
+This will be applied on the upstream chart before applying `make patch`, which means that the `generated-changes/patch/Chart.yaml.patch` represents changes you introduce on top of this dummy, hard-coded `Chart.yaml`. As a result, you can proceed to make changes such as adding dependencies, adding annotations, etc.
+
+Note: This feature is marked as experimental since it's unclear if there are any additional requirements necessary to support edge cases around pulling upstream manifests. Please open up an issue on [https://github.com/rancher/charts-build-scripts](https://github.com/rancher/charts-build-scripts) if you have any suggestions!

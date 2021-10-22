@@ -32,6 +32,10 @@ func (c *Chart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 	defer func() { c.upstreamChartVersion = &upstreamChartVersion }()
 	if c.Upstream.IsWithinPackage() {
 		logrus.Infof("Local chart does not need to be prepared")
+		// Ensure local charts standardize the Chart.yaml on prepare
+		if err := helm.StandardizeChartYaml(pkgFs, c.WorkingDir); err != nil {
+			return err
+		}
 		if err := PrepareDependencies(rootFs, pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
 			return fmt.Errorf("encountered error while trying to prepare dependencies in %s: %s", c.WorkingDir, err)
 		}
@@ -42,6 +46,11 @@ func (c *Chart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 	}
 	if err := c.Upstream.Pull(rootFs, pkgFs, c.WorkingDir); err != nil {
 		return fmt.Errorf("encountered error while trying to pull upstream into %s: %s", c.WorkingDir, err)
+	}
+	// If the upstream is not already a Helm chart, convert it into a dummy Helm chart by moving YAML files to templates and creating a dummy Chart.yaml
+	// If the upstream is already a Helm chart, this will standardize the Chart.yaml
+	if err := helm.ConvertToHelmChart(pkgFs, c.WorkingDir); err != nil {
+		return fmt.Errorf("encountered error while trying to convert upstream at %s into a Helm chart: %s", c.WorkingDir, err)
 	}
 	var err error
 	upstreamChartVersion, err = helm.GetHelmMetadataVersion(pkgFs, c.WorkingDir)
@@ -68,8 +77,16 @@ func (c *Chart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 	} else if !exists {
 		return fmt.Errorf("working directory %s has not been prepared yet", c.WorkingDir)
 	}
+	// Standardize the local copy of the Chart.yaml before trying to compare the patch
+	if err := helm.StandardizeChartYaml(pkgFs, c.WorkingDir); err != nil {
+		return err
+	}
 	if err := c.Upstream.Pull(rootFs, pkgFs, c.OriginalDir()); err != nil {
 		return fmt.Errorf("encountered error while trying to pull upstream into %s: %s", c.OriginalDir(), err)
+	}
+	// If the upstream is not already a Helm chart, convert it into a dummy Helm chart by moving YAML files to templates and creating a dummy Chart.yaml
+	if err := helm.ConvertToHelmChart(pkgFs, c.OriginalDir()); err != nil {
+		return fmt.Errorf("encountered error while trying to convert upstream at %s into a Helm chart: %s", c.OriginalDir(), err)
 	}
 	if err := PrepareDependencies(rootFs, pkgFs, c.OriginalDir(), c.GeneratedChangesRootDir()); err != nil {
 		return fmt.Errorf("encountered error while trying to prepare dependencies in %s: %s", c.OriginalDir(), err)

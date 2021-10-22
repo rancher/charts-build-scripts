@@ -90,6 +90,10 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem, mainChartUpstr
 	}
 	if c.Upstream != nil && (*c.Upstream).IsWithinPackage() {
 		logrus.Infof("Local chart does not need to be patched")
+		// Ensure local charts standardize the Chart.yaml on prepare
+		if err := helm.StandardizeChartYaml(pkgFs, c.WorkingDir); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -116,6 +120,10 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem, mainChartUpstr
 		u := *c.Upstream
 		if err := u.Pull(rootFs, pkgFs, c.WorkingDir); err != nil {
 			return fmt.Errorf("encountered error while trying to pull upstream into %s: %s", c.WorkingDir, err)
+		}
+		// If the upstream is not already a Helm chart, convert it into a dummy Helm chart by moving YAML files to templates and creating a dummy Chart.yaml
+		if err := helm.ConvertToHelmChart(pkgFs, c.WorkingDir); err != nil {
+			return fmt.Errorf("encountered error while trying to convert upstream at %s into a Helm chart: %s", c.WorkingDir, err)
 		}
 		var err error
 		upstreamChartVersion, err := helm.GetHelmMetadataVersion(pkgFs, c.WorkingDir)
@@ -171,9 +179,18 @@ func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 		return nil
 	}
 
+	// Standardize the local copy of the Chart.yaml before trying to compare the patch
+	if err := helm.StandardizeChartYaml(pkgFs, c.WorkingDir); err != nil {
+		return err
+	}
+
 	u := *c.Upstream
 	if err := u.Pull(rootFs, pkgFs, c.OriginalDir()); err != nil {
 		return fmt.Errorf("encountered error while trying to pull upstream into %s: %s", c.OriginalDir(), err)
+	}
+	// If the upstream is not already a Helm chart, convert it into a dummy Helm chart by moving YAML files to templates and creating a dummy Chart.yaml
+	if err := helm.ConvertToHelmChart(pkgFs, c.OriginalDir()); err != nil {
+		return fmt.Errorf("encountered error while trying to convert upstream at %s into a Helm chart: %s", c.OriginalDir(), err)
 	}
 	if err := PrepareDependencies(rootFs, pkgFs, c.OriginalDir(), c.GeneratedChangesRootDir()); err != nil {
 		return fmt.Errorf("encountered error while trying to prepare dependencies in %s: %s", c.OriginalDir(), err)

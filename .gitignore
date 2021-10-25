@@ -5,3 +5,6 @@
 *.swp
 .idea
 charts-build-scripts
+.DS_Store
+pkg/.DS_Store
+templates/.DS_Store

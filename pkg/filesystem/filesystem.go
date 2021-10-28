@@ -278,6 +278,8 @@ func ArchiveDir(fs billy.Filesystem, srcPath, destTgzPath string) error {
 		if err != nil {
 			return err
 		}
+		// overwrite the name to be the full path to the file
+		header.Name = path
 		if err := tarWriter.WriteHeader(header); err != nil {
 			return err
 		}

@@ -150,7 +150,7 @@ func CopyFile(fs billy.Filesystem, srcPath string, dstPath string) error {
 	return nil
 }
 
-// GetChartArchive gets a chart tgz file from a url and drops it into the path specified on the filesystem
+// GetChartArchive gets a chart tgz file from an url and drops it into the path specified on the filesystem
 func GetChartArchive(fs billy.Filesystem, url string, path string) error {
 	// Create file
 	tgz, err := CreateFileAndDirs(fs, path)
@@ -247,6 +247,49 @@ func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string
 		return fmt.Errorf("Subdirectory %s was not found within the folder outputted by the tgz file", tgzSubdirectory)
 	}
 	return nil
+}
+
+// ArchiveDir archives a directory or a file into a tgz file and put it at destTgzPath which should end with .tgz
+func ArchiveDir(fs billy.Filesystem, srcPath, destTgzPath string) error {
+	if !strings.HasSuffix(destTgzPath, ".tgz") {
+		return fmt.Errorf("the destTgzPath %s does not end with .tgz", destTgzPath)
+	}
+	tgzFile, err := fs.Create(destTgzPath)
+	if err != nil {
+		return err
+	}
+	defer tgzFile.Close()
+
+	gz := gzip.NewWriter(tgzFile)
+	defer gz.Close()
+
+	tarWriter := tar.NewWriter(gz)
+	defer tarWriter.Close()
+
+	return WalkDir(fs, srcPath, func(fs billy.Filesystem, path string, isDir bool) error {
+		if isDir {
+			return nil
+		}
+		info, err := fs.Stat(path)
+		if err != nil {
+			return err
+		}
+		header, err := tar.FileInfoHeader(info, info.Name())
+		if err != nil {
+			return err
+		}
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return err
+		}
+		file, err := fs.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		_, err = io.Copy(tarWriter, file)
+		return err
+	})
 }
 
 // RelativePathFunc is a function that is applied on a relative path within the given filesystem

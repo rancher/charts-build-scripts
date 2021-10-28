@@ -44,16 +44,22 @@ func (c *AdditionalChart) ApplyMainChanges(pkgFs billy.Filesystem) error {
 	if err != nil {
 		return fmt.Errorf("Encountered error while trying to get the main chart's working directory: %s", err)
 	}
-	if err := helm.CopyCRDsFromChart(pkgFs, mainChartWorkingDir, path.ChartCRDDir, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
-		return fmt.Errorf("Encountered error while trying to copy CRDs from %s to %s: %s", mainChartWorkingDir, c.WorkingDir, err)
+	if c.CRDChartOptions.UseTarArchive {
+		if err := helm.ArchiveCRDs(pkgFs, mainChartWorkingDir, path.ChartCRDDir, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
+			return fmt.Errorf("encountered error while trying to bundle and compress CRD files from the main chart: %s", err)
+		}
+	} else {
+		if err := helm.CopyCRDsFromChart(pkgFs, mainChartWorkingDir, path.ChartCRDDir, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
+			return fmt.Errorf("Encountered error while trying to copy CRDs from %s to %s: %s", mainChartWorkingDir, c.WorkingDir, err)
+		}
+	}
+	if c.CRDChartOptions.AddCRDValidationToMainChart {
+		if err := AddCRDValidationToChart(pkgFs, mainChartWorkingDir, mainChartWorkingDir, path.ChartCRDDir); err != nil {
+			return fmt.Errorf("Encountered error while trying to add CRD validation to %s based on CRDs in %s: %s", mainChartWorkingDir, c.WorkingDir, err)
+		}
 	}
 	if err := helm.DeleteCRDsFromChart(pkgFs, mainChartWorkingDir); err != nil {
 		return fmt.Errorf("Encountered error while trying to delete CRDs from main chart: %s", err)
-	}
-	if c.CRDChartOptions.AddCRDValidationToMainChart {
-		if err := AddCRDValidationToChart(pkgFs, mainChartWorkingDir, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
-			return fmt.Errorf("Encountered error while trying to add CRD validation to %s based on CRDs in %s: %s", mainChartWorkingDir, c.WorkingDir, err)
-		}
 	}
 	return nil
 }
@@ -66,14 +72,26 @@ func (c *AdditionalChart) RevertMainChanges(pkgFs billy.Filesystem) error {
 		return fmt.Errorf("Working directory %s has not been prepared yet", c.WorkingDir)
 	}
 	if c.CRDChartOptions == nil {
+		// return if the additional chart is not a CRD chart
 		return nil
 	}
 	mainChartWorkingDir, err := c.getMainChartWorkingDir(pkgFs)
 	if err != nil {
 		return fmt.Errorf("Encountered error while trying to get the main chart's working directory: %s", err)
 	}
-	if err := helm.CopyCRDsFromChart(pkgFs, c.WorkingDir, c.CRDChartOptions.CRDDirectory, mainChartWorkingDir, path.ChartCRDDir); err != nil {
-		return fmt.Errorf("Encountered error while trying to copy CRDs from %s to %s: %s", c.WorkingDir, mainChartWorkingDir, err)
+	if c.CRDChartOptions.UseTarArchive {
+		// e.g. tgzPath = "charts-crd/crd-manifest/crd-manifest.tgz"
+		// e.g. destPath = "charts/crds"
+		tgzPath := filepath.Join(c.WorkingDir, c.CRDChartOptions.CRDDirectory, fmt.Sprintf("%s.tgz", c.CRDChartOptions.CRDDirectory))
+		destPath := filepath.Join(mainChartWorkingDir, path.ChartCRDDir)
+		if err := filesystem.UnarchiveTgz(pkgFs, tgzPath, "", destPath, true); err != nil {
+			return fmt.Errorf("encountered error while trying to decompress and unarchve the CRD files: %s", err)
+		}
+	} else {
+		// copy CRD files from packages/<package>/charts-crd/crd-manifest/ to packages/<package>/charts/crds/
+		if err := helm.CopyCRDsFromChart(pkgFs, c.WorkingDir, c.CRDChartOptions.CRDDirectory, mainChartWorkingDir, path.ChartCRDDir); err != nil {
+			return fmt.Errorf("Encountered error while trying to copy CRDs from %s to %s: %s", c.WorkingDir, mainChartWorkingDir, err)
+		}
 	}
 	if c.CRDChartOptions.AddCRDValidationToMainChart {
 		if err := RemoveCRDValidationFromChart(pkgFs, mainChartWorkingDir); err != nil {

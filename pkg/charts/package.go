@@ -39,6 +39,7 @@ func (p *Package) Prepare() error {
 		return fmt.Errorf("Encountered error while preparing main chart: %s", err)
 	}
 	if p.Chart.Upstream.IsWithinPackage() {
+		// in the case of local chart
 		for _, additionalChart := range p.AdditionalCharts {
 			exists, err := filesystem.PathExists(p.fs, additionalChart.WorkingDir)
 			if err != nil {

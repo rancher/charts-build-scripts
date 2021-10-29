@@ -84,7 +84,7 @@ func (c *AdditionalChart) RevertMainChanges(pkgFs billy.Filesystem) error {
 		// e.g. destPath = "charts/crds"
 		tgzPath := filepath.Join(c.WorkingDir, c.CRDChartOptions.CRDDirectory, fmt.Sprintf("%s.tgz", c.CRDChartOptions.CRDDirectory))
 		destPath := filepath.Join(mainChartWorkingDir, path.ChartCRDDir)
-		if err := filesystem.UnarchiveTgz(pkgFs, tgzPath, "", destPath, true); err != nil {
+		if err := filesystem.UnarchiveTgz(pkgFs, tgzPath, path.ChartCRDDir, destPath, true); err != nil {
 			return fmt.Errorf("encountered error while trying to decompress and unarchve the CRD files: %s", err)
 		}
 	} else {

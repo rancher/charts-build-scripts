@@ -267,9 +267,6 @@ func ArchiveDir(fs billy.Filesystem, srcPath, destTgzPath string) error {
 	defer tarWriter.Close()
 
 	return WalkDir(fs, srcPath, func(fs billy.Filesystem, path string, isDir bool) error {
-		if isDir {
-			return nil
-		}
 		info, err := fs.Stat(path)
 		if err != nil {
 			return err
@@ -282,6 +279,10 @@ func ArchiveDir(fs billy.Filesystem, srcPath, destTgzPath string) error {
 		header.Name = path
 		if err := tarWriter.WriteHeader(header); err != nil {
 			return err
+		}
+		// The directory structure is preserved, but there is no data to read from a Dir
+		if isDir {
+			return nil
 		}
 		file, err := fs.Open(path)
 		if err != nil {

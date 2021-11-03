@@ -59,7 +59,7 @@ func ArchiveCRDs(fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHelmChart
 		return err
 	}
 	srcCRDsDirPath := filepath.Join(srcHelmChartPath, srcCRDsDir)
-	dstFilePath := filepath.Join(dstHelmChartPath, destCRDsDir, fmt.Sprintf("%s.tgz", destCRDsDir))
+	dstFilePath := filepath.Join(dstHelmChartPath, destCRDsDir, fmt.Sprintf("%s.tgz", "crd-manifest"))
 	logrus.Infof("Compressing CRDs from %s to %s", srcCRDsDirPath, dstFilePath)
 	return filesystem.ArchiveDir(fs, srcCRDsDirPath, dstFilePath)
 }

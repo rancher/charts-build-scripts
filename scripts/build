@@ -5,6 +5,10 @@ source $(dirname $0)/version
 
 cd $(dirname $0)/..
 
+if [[ -n ${VERSION_OVERRIDE} ]]; then
+    VERSION=${VERSION_OVERRIDE}
+fi
+
 mkdir -p bin
 if [ "$(uname)" = "Linux" ]; then
     OTHER_LINKFLAGS="-extldflags -static -s"

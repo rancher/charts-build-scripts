@@ -34,7 +34,7 @@ if ! [[ -f bin/charts-build-scripts ]] || [[ $(cat bin/charts-build-scripts) == 
     git clone --depth 1 --branch $CHARTS_BUILD_SCRIPT_VERSION $CHARTS_BUILD_SCRIPTS_REPO 2>/dev/null
 
     cd charts-build-scripts
-    ./scripts/build
+    VERSION_OVERRIDE=${CHARTS_BUILD_SCRIPT_VERSION} ./scripts/build
     mv bin ..
     cd ..
     rm -rf charts-build-scripts

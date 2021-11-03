@@ -89,6 +89,8 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 	return nil
 }
 
+// GenerateArchive produces a Helm chart archive. If an archive exists at that path already, it does a deep check of the internal
+// contents of the archive and only updates the archive if something within it has changed.
 func GenerateArchive(rootFs, fs billy.Filesystem, helmChartPath, chartAssetsDirpath string, chartVersion *string) (string, error) {
 	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
 	// Run helm package

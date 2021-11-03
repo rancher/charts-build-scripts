@@ -17,6 +17,7 @@ import (
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
+// CompareGeneratedAssetsResponse tracks resources that are added, deleted, and modified when comparing two charts repositories
 type CompareGeneratedAssetsResponse struct {
 	// UntrackedInRelease represents charts that need to be added to the release.yaml
 	UntrackedInRelease options.ReleaseOptions `yaml:"untrackedInRelease,omitempty"`
@@ -26,10 +27,12 @@ type CompareGeneratedAssetsResponse struct {
 	ModifiedPostRelease options.ReleaseOptions `yaml:"modifiedPostRelease,omitempty"`
 }
 
+// PassedValidation returns whether the response seems to indicate that the chart repositories are in sync
 func (r CompareGeneratedAssetsResponse) PassedValidation() bool {
 	return len(r.ModifiedPostRelease) == 0 && len(r.UntrackedInRelease) == 0
 }
 
+// LogDiscrepancies produces logs that can be used to pretty-print why a validation might have failed
 func (r CompareGeneratedAssetsResponse) LogDiscrepancies() {
 	logrus.Errorf("The following new assets have been introduced: %s", r.UntrackedInRelease)
 	logrus.Errorf("The following released assets have been removed: %s", r.RemovedPostRelease)
@@ -37,6 +40,8 @@ func (r CompareGeneratedAssetsResponse) LogDiscrepancies() {
 	logrus.Errorf("If this was intentional, to allow validation to pass, these charts must be added to the release.yaml.")
 }
 
+// DumpReleaseYaml takes the response collected by this CompareGeneratedAssetsResponse and automatically creates the appropriate release.yaml,
+// assuming that the user does indeed intend to add, delete, or modify all assets that were marked in this comparison
 func (r CompareGeneratedAssetsResponse) DumpReleaseYaml(repoFs billy.Filesystem) error {
 	releaseYaml := options.ReleaseOptions{}
 	releaseYaml.Merge(r.UntrackedInRelease)
@@ -46,7 +51,7 @@ func (r CompareGeneratedAssetsResponse) DumpReleaseYaml(repoFs billy.Filesystem)
 }
 
 // CompareGeneratedAssets checks to see if current assets and charts match upstream, aside from those indicated in the release.yaml
-// It returns a boolean indicating if the comparision has passed or an error
+// It returns a boolean indicating if the comparison has passed or an error
 func CompareGeneratedAssets(repoFs billy.Filesystem, u options.UpstreamOptions, branch string, releaseOptions options.ReleaseOptions) (CompareGeneratedAssetsResponse, error) {
 	response := CompareGeneratedAssetsResponse{
 		UntrackedInRelease:  options.ReleaseOptions{},
@@ -69,7 +74,7 @@ func CompareGeneratedAssets(repoFs billy.Filesystem, u options.UpstreamOptions, 
 	if err != nil {
 		return response, fmt.Errorf("failed to get filesystem for %s: %s", path.ChartsRepositoryUpstreamBranchDir, err)
 	}
-	if err := standardize.StandardizeRepository(releaseFs); err != nil {
+	if err := standardize.RestructureChartsAndAssets(releaseFs); err != nil {
 		return response, fmt.Errorf("failed to standardize upstream: %s", err)
 	}
 	// Walk through directories and execute release logic
@@ -179,7 +184,7 @@ func copyAndUnzip(repoFs billy.Filesystem, upstreamPath, localPath string) error
 	if err := filesystem.CopyFile(repoFs, upstreamPath, localPath); err != nil {
 		return err
 	}
-	if err := zip.UnzipAssets(repoFs.Root(), specificAsset); err != nil {
+	if err := zip.DumpAssets(repoFs.Root(), specificAsset); err != nil {
 		return fmt.Errorf("encountered error while copying over contents of modified upstream asset to charts: %s", err)
 	}
 	return nil

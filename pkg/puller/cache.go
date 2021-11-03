@@ -12,6 +12,7 @@ import (
 
 var RootCache cacher = &noopCache{}
 
+// InitRootCache initializes a cache at the repository's root to be used, if it does not currently exist
 func InitRootCache(cacheMode bool, path string) error {
 	if !cacheMode {
 		return nil

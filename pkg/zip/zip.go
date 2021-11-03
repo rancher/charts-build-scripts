@@ -14,10 +14,10 @@ import (
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
-// ZipCharts unzips charts from charts/ into assets/. If the asset was re-ordered, it will also update charts/.
+// ArchiveCharts unzips charts from charts/ into assets/. If the asset was re-ordered, it will also update charts/.
 // If specificChart is provided, it will filter the set of charts that will be targeted for zipping.
 // It will also not update an asset if its internal contents have not changed.
-func ZipCharts(repoRoot string, specificChart string) error {
+func ArchiveCharts(repoRoot string, specificChart string) error {
 	repoFs := filesystem.GetFilesystem(repoRoot)
 	foundChart := false
 	zipChart := func(fs billy.Filesystem, helmChartPath string, isDir bool) error {
@@ -49,7 +49,7 @@ func ZipCharts(repoRoot string, specificChart string) error {
 		if err != nil {
 			return err
 		}
-		if err := UnzipAssets(repoRoot, currentAsset); err != nil {
+		if err := DumpAssets(repoRoot, currentAsset); err != nil {
 			return fmt.Errorf("encountered error while trying to update chart %s based on %s: %s", chartVersionPath, tgzPath, err)
 		}
 		return nil
@@ -65,9 +65,9 @@ func ZipCharts(repoRoot string, specificChart string) error {
 	return nil
 }
 
-// UnzipAsset unzips assets from assets/ into charts/.
+// DumpAssets unzips assets from assets/ into charts/.
 // If specificAsset is provided, it will filter the set of assets that will be targeted for unzipping.
-func UnzipAssets(repoRoot string, specificAsset string) error {
+func DumpAssets(repoRoot string, specificAsset string) error {
 	repoFs := filesystem.GetFilesystem(repoRoot)
 	foundAsset := false
 	unzipAsset := func(fs billy.Filesystem, tgzPath string, isDir bool) error {

@@ -52,7 +52,7 @@ var (
 	CurrentPackage string
 	// CurrentChart represents a specific chart to apply the scripts to. Also accepts a specific version.
 	CurrentChart string
-	// CurrentChart represents a specific asset to apply the scripts to. Also accepts a specific archive.
+	// CurrentAsset represents a specific asset to apply the scripts to. Also accepts a specific archive.
 	CurrentAsset string
 	// PorcelainMode indicates that the output of the scripts should be in an easy-to-parse format for scripts
 	PorcelainMode bool
@@ -295,7 +295,7 @@ func zipCharts(c *cli.Context) {
 	if err != nil {
 		logrus.Fatalf("unable to get current working directory: %s", err)
 	}
-	if err := zip.ZipCharts(repoRoot, CurrentChart); err != nil {
+	if err := zip.ArchiveCharts(repoRoot, CurrentChart); err != nil {
 		logrus.Fatal(err)
 	}
 	createOrUpdateIndex(c)
@@ -306,7 +306,7 @@ func unzipAssets(c *cli.Context) {
 	if err != nil {
 		logrus.Fatalf("unable to get current working directory: %s", err)
 	}
-	if err := zip.UnzipAssets(repoRoot, CurrentAsset); err != nil {
+	if err := zip.DumpAssets(repoRoot, CurrentAsset); err != nil {
 		logrus.Fatal(err)
 	}
 	createOrUpdateIndex(c)
@@ -410,7 +410,7 @@ func standardizeRepo(c *cli.Context) {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
 	}
 	repoFs := filesystem.GetFilesystem(repoRoot)
-	if err := standardize.StandardizeRepository(repoFs); err != nil {
+	if err := standardize.RestructureChartsAndAssets(repoFs); err != nil {
 		logrus.Fatal(err)
 	}
 }

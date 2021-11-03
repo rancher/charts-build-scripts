@@ -15,7 +15,10 @@ import (
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
-func StandardizeRepository(repoFs billy.Filesystem) error {
+// RestructureChartsAndAssets takes in a Helm repository and restructures the contents of assets/ based on the contents of charts/
+// It then dumps the created assets/ back into charts/ and regenerates the Helm index.
+// As a result, the final outputted Helm repository can now be used by the charts-build-scripts as it has been standardized.
+func RestructureChartsAndAssets(repoFs billy.Filesystem) error {
 	exists, err := filesystem.PathExists(repoFs, path.RepositoryChartsDir)
 	if err != nil {
 		return fmt.Errorf("encountered error while checking if %s exists: %s", path.RepositoryChartsDir, err)
@@ -23,10 +26,10 @@ func StandardizeRepository(repoFs billy.Filesystem) error {
 	if !exists {
 		return fmt.Errorf("could not find charts in repository rooted at %s", repoFs.Root())
 	}
-	return standardizeRepositoryFromCharts(repoFs)
+	return standardizeAssetsFromCharts(repoFs)
 }
 
-func standardizeRepositoryFromCharts(repoFs billy.Filesystem) error {
+func standardizeAssetsFromCharts(repoFs billy.Filesystem) error {
 	// Collect all valid charts from charts directory
 	targetChartPaths := make(map[string]*helmChart.Chart)
 	collectAllValidCharts := func(fs billy.Filesystem, path string, isDir bool) error {
@@ -94,7 +97,7 @@ func standardizeRepositoryFromCharts(repoFs billy.Filesystem) error {
 		return fmt.Errorf("unable to remove all assets to reconstruct directory: %s", err)
 	}
 	// Reconstruct charts
-	if err := zip.UnzipAssets(repoFs.Root(), ""); err != nil {
+	if err := zip.DumpAssets(repoFs.Root(), ""); err != nil {
 		return fmt.Errorf("encountered error while trying zip Helm charts in repository: %s", err)
 	}
 	// Reconstruct index.yaml

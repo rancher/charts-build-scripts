@@ -15,6 +15,7 @@ import (
 	helmChartutil "helm.sh/helm/v3/pkg/chartutil"
 )
 
+// GetHelmMetadataVersion gets the version of a Helm chart as defined in its Chart.yaml
 func GetHelmMetadataVersion(fs billy.Filesystem, mainHelmChartPath string) (string, error) {
 	chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, mainHelmChartPath))
 	if err != nil {
@@ -108,6 +109,7 @@ func ConvertToHelmChart(fs billy.Filesystem, dirpath string) error {
 	return helmChartutil.SaveChartfile(filesystem.GetAbsPath(fs, chartYamlPath), chartMetadata)
 }
 
+// StandardizeChartYaml marshalls and unmarshalls the Chart.yaml to ensure that it is ordered as expected
 func StandardizeChartYaml(fs billy.Filesystem, dirpath string) error {
 	chartYamlPath := filepath.Join(dirpath, "Chart.yaml")
 	logrus.Debugf("Standardizing order of %s", chartYamlPath)

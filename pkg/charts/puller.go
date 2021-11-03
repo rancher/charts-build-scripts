@@ -43,7 +43,7 @@ func (u LocalPackage) Pull(rootFs, fs billy.Filesystem, path string) error {
 		defer pkg.Clean()
 	}
 	// Copy
-	repositoryPackageWorkingDir, err := filesystem.GetRelativePath(rootFs, filesystem.GetAbsPath(pkg.fs, pkg.WorkingDir))
+	repositoryPackageWorkingDir, err := filesystem.GetRelativePath(rootFs, filesystem.GetAbsPath(pkg.fs, pkg.Chart.WorkingDir))
 	if err != nil {
 		return err
 	}
@@ -53,13 +53,6 @@ func (u LocalPackage) Pull(rootFs, fs billy.Filesystem, path string) error {
 	}
 	if err := filesystem.CopyDir(rootFs, repositoryPackageWorkingDir, repositoryPath); err != nil {
 		return fmt.Errorf("encountered error while copying prepared package into path: %s", err)
-	}
-	if !pkg.Chart.Upstream.IsWithinPackage() && !packageAlreadyPrepared {
-		// Remove the non-local package that was not already prepared before we encountered it in the scripts
-		logrus.Debugf("Removing %s", pkg.Name)
-		if err = filesystem.RemoveAll(rootFs, repositoryPackageWorkingDir); err != nil {
-			return fmt.Errorf("encountered error while removing already copied package: %s", err)
-		}
 	}
 	if u.Subdirectory != nil && len(*u.Subdirectory) > 0 {
 		if err := filesystem.MakeSubdirectoryRoot(fs, path, *u.Subdirectory); err != nil {

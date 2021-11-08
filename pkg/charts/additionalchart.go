@@ -78,7 +78,7 @@ func (c *AdditionalChart) RevertMainChanges(pkgFs billy.Filesystem) error {
 	if err != nil {
 		return fmt.Errorf("Encountered error while trying to get the main chart's working directory: %s", err)
 	}
-	// copy CRD files from packages/<package>/charts-crd/crd-manifest/ to packages/<package>/charts/crds/
+	// copy CRD files from packages/<package>/charts-crd/crd-manifest/ back to packages/<package>/charts/crds/
 	if err := helm.CopyCRDsFromChart(pkgFs, c.WorkingDir, c.CRDChartOptions.CRDDirectory, mainChartWorkingDir, path.ChartCRDDir); err != nil {
 		return fmt.Errorf("Encountered error while trying to copy CRDs from %s to %s: %s", c.WorkingDir, mainChartWorkingDir, err)
 	}

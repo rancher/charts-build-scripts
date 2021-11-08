@@ -150,7 +150,7 @@ func CopyFile(fs billy.Filesystem, srcPath string, dstPath string) error {
 	return nil
 }
 
-// GetChartArchive gets a chart tgz file from an url and drops it into the path specified on the filesystem
+// GetChartArchive gets a chart tgz file from a url and drops it into the path specified on the filesystem
 func GetChartArchive(fs billy.Filesystem, url string, path string) error {
 	// Create file
 	tgz, err := CreateFileAndDirs(fs, path)
@@ -252,7 +252,7 @@ func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string
 // ArchiveDir archives a directory or a file into a tgz file and put it at destTgzPath which should end with .tgz
 func ArchiveDir(fs billy.Filesystem, srcPath, destTgzPath string) error {
 	if !strings.HasSuffix(destTgzPath, ".tgz") {
-		return fmt.Errorf("the destTgzPath %s does not end with .tgz", destTgzPath)
+		return fmt.Errorf("cannot archive %s to %s since the archive path does not end with '.tgz'", srcPath, destTgzPath)
 	}
 	tgzFile, err := fs.Create(destTgzPath)
 	if err != nil {
@@ -280,7 +280,7 @@ func ArchiveDir(fs billy.Filesystem, srcPath, destTgzPath string) error {
 		if err := tarWriter.WriteHeader(header); err != nil {
 			return err
 		}
-		// The directory structure is preserved, but there is no data to read from a Dir
+		// The directory structure is preserved, but there is no data to read from a directory
 		if isDir {
 			return nil
 		}

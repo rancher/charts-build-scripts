@@ -50,7 +50,7 @@ func DeleteCRDsFromChart(fs billy.Filesystem, helmChartPath string) error {
 	return nil
 }
 
-// ArchiveCRDs bundles, compress and save the CRD files from the source to the destination
+// ArchiveCRDs bundles, compresses and saves the CRD files from the source to the destination
 func ArchiveCRDs(fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHelmChartPath, destCRDsDir string) error {
 	if err := filesystem.RemoveAll(fs, filepath.Join(dstHelmChartPath, destCRDsDir)); err != nil {
 		return err

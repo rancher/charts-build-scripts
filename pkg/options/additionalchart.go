@@ -18,6 +18,6 @@ type CRDChartOptions struct {
 	CRDDirectory string `yaml:"crdDirectory" default:"templates"`
 	// Whether to add a validation file to your main chart to check that CRDs exist
 	AddCRDValidationToMainChart bool `yaml:"addCRDValidationToMainChart"`
-	// Whether to bundle and compress CRD files into a tgz file
+	// UseTarArchive indicates whether to bundle and compress CRD files into a tgz file
 	UseTarArchive bool `yaml:"useTarArchive"`
 }

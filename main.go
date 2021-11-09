@@ -248,6 +248,10 @@ func prepareCharts(c *cli.Context) {
 
 func generatePatch(c *cli.Context) {
 	packages := getPackages()
+	if len(packages) == 0 {
+		logrus.Infof("No packages found.")
+		return
+	}
 	if len(packages) != 1 {
 		packageNames := make([]string, len(packages))
 		for i, pkg := range packages {

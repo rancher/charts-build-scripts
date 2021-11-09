@@ -14,7 +14,7 @@ import (
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
-// ArchiveCharts unzips charts from charts/ into assets/. If the asset was re-ordered, it will also update charts/.
+// ArchiveCharts zips charts from charts/ into assets/. If the asset was re-ordered, it will also update charts/.
 // If specificChart is provided, it will filter the set of charts that will be targeted for zipping.
 // It will also not update an asset if its internal contents have not changed.
 func ArchiveCharts(repoRoot string, specificChart string) error {

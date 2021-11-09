@@ -19,7 +19,7 @@ const (
 	sshURLFmt   = "git@github.com:%s/%s.git"
 )
 
-// GetGithubRepository gets a Github repository from options
+// GetGithubRepository gets a GitHub repository from options
 func GetGithubRepository(upstreamOptions options.UpstreamOptions, branch *string) (GithubRepository, error) {
 	var githubRepo GithubRepository
 	if !strings.HasSuffix(upstreamOptions.URL, ".git") {

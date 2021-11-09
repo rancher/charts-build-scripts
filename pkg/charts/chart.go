@@ -73,7 +73,7 @@ func (c *Chart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 		return nil
 	}
 	if exists, err := filesystem.PathExists(pkgFs, c.WorkingDir); err != nil {
-		return fmt.Errorf("encountered error while trying to clean up %s before preparing: %s", c.WorkingDir, err)
+		return fmt.Errorf("encountered error while checking if %s exist: %s", c.WorkingDir, err)
 	} else if !exists {
 		return fmt.Errorf("working directory %s has not been prepared yet", c.WorkingDir)
 	}

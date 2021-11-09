@@ -32,7 +32,7 @@ const (
 	DefaultChartEnvironmentVariable = "CHART"
 	// DefaultAssetEnvironmentVariable is the default environment variable for picking a specific asset
 	DefaultAssetEnvironmentVariable = "ASSET"
-	// DefaultPorcelainModeVariable is the default environment variable that indicates whether we should run on porcelain mode
+	// DefaultPorcelainEnvironmentVariable is the default environment variable that indicates whether we should run on porcelain mode
 	DefaultPorcelainEnvironmentVariable = "PORCELAIN"
 	// DefaultCacheEnvironmentVariable is the default environment variable that indicates that a cache should be used on pulls to remotes
 	DefaultCacheEnvironmentVariable = "USE_CACHE"
@@ -144,18 +144,18 @@ func main() {
 		},
 		{
 			Name:   "index",
-			Usage:  "Creates or updates existing Helm index.yaml at repository root",
+			Usage:  "Create or update the existing Helm index.yaml at the repository root",
 			Action: createOrUpdateIndex,
 		},
 		{
 			Name:   "zip",
-			Usage:  "Takes the contents of a chart under charts/ and rezips the asset if it has changed",
+			Usage:  "Take the contents of a chart under charts/ and rezip the asset if it has been changed",
 			Action: zipCharts,
 			Flags:  []cli.Flag{chartFlag},
 		},
 		{
 			Name:   "unzip",
-			Usage:  "Takes the contents of an asset under assets/ and unzips the chart.",
+			Usage:  "Take the contents of an asset under assets/ and unzip the chart",
 			Action: unzipAssets,
 			Flags:  []cli.Flag{assetFlag},
 		},
@@ -189,7 +189,7 @@ func main() {
 		},
 		{
 			Name:   "standardize",
-			Usage:  "Standardizes a Helm repository to the expected assets, charts, and index.yaml structure of these scripts",
+			Usage:  "Standardize a Helm repository to the expected assets, charts, and index.yaml structure of these scripts",
 			Action: standardizeRepo,
 			Flags:  []cli.Flag{packageFlag, configFlag},
 		},
@@ -221,10 +221,7 @@ func main() {
 }
 
 func listPackages(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
+	repoRoot := getRepoRoot()
 	packageList, err := charts.ListPackages(repoRoot, CurrentPackage)
 	if err != nil {
 		logrus.Fatal(err)
@@ -281,20 +278,14 @@ func generateCharts(c *cli.Context) {
 }
 
 func createOrUpdateIndex(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("unable to get current working directory: %s", err)
-	}
+	repoRoot := getRepoRoot()
 	if err := helm.CreateOrUpdateHelmIndex(filesystem.GetFilesystem(repoRoot)); err != nil {
 		logrus.Fatal(err)
 	}
 }
 
 func zipCharts(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("unable to get current working directory: %s", err)
-	}
+	repoRoot := getRepoRoot()
 	if err := zip.ArchiveCharts(repoRoot, CurrentChart); err != nil {
 		logrus.Fatal(err)
 	}
@@ -302,10 +293,7 @@ func zipCharts(c *cli.Context) {
 }
 
 func unzipAssets(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("unable to get current working directory: %s", err)
-	}
+	repoRoot := getRepoRoot()
 	if err := zip.DumpAssets(repoRoot, CurrentAsset); err != nil {
 		logrus.Fatal(err)
 	}
@@ -341,7 +329,7 @@ func validateRepo(c *cli.Context) {
 	}
 
 	if RemoteMode {
-		logrus.Infof("Running remote validation only, skipping pulling upstream")
+		logrus.Infof("Running remote validation only, skipping generating charts locally")
 	} else {
 		logrus.Infof("Generating charts")
 		generateCharts(c)
@@ -359,10 +347,7 @@ func validateRepo(c *cli.Context) {
 		if LocalMode {
 			logrus.Infof("Running local validation only, skipping pulling upstream")
 		} else {
-			repoRoot, err := os.Getwd()
-			if err != nil {
-				logrus.Fatalf("Unable to get current working directory: %s", err)
-			}
+			repoRoot := getRepoRoot()
 			repoFs := filesystem.GetFilesystem(repoRoot)
 			releaseOptions, err := options.LoadReleaseOptionsFromFile(repoFs, "release.yaml")
 			if err != nil {
@@ -398,17 +383,14 @@ func validateRepo(c *cli.Context) {
 	_, _, status = getGitInfo()
 	if !status.IsClean() {
 		logrus.Warnf("Git is not clean:\n%s", status)
-		logrus.Fatal("Repository must be clean to run validation")
+		logrus.Fatal("Repository must be clean to pass validation")
 	}
 
 	logrus.Info("Successfully validated current repository!")
 }
 
 func standardizeRepo(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
+	repoRoot := getRepoRoot()
 	repoFs := filesystem.GetFilesystem(repoRoot)
 	if err := standardize.RestructureChartsAndAssets(repoFs); err != nil {
 		logrus.Fatal(err)
@@ -416,10 +398,7 @@ func standardizeRepo(c *cli.Context) {
 }
 
 func createOrUpdateTemplate(c *cli.Context) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
+	repoRoot := getRepoRoot()
 	repoFs := filesystem.GetFilesystem(repoRoot)
 	chartsScriptOptions := parseScriptOptions()
 	if err := update.ApplyUpstreamTemplate(repoFs, *chartsScriptOptions); err != nil {
@@ -433,7 +412,7 @@ func setupCache(c *cli.Context) error {
 }
 
 func cleanCache(c *cli.Context) {
-	if err := puller.CleanRootCache(); err != nil {
+	if err := puller.CleanRootCache(path.DefaultCachePath); err != nil {
 		logrus.Fatal(err)
 	}
 }
@@ -450,11 +429,16 @@ func parseScriptOptions() *options.ChartsScriptOptions {
 	return &chartsScriptOptions
 }
 
-func getPackages() []*charts.Package {
+func getRepoRoot() string {
 	repoRoot, err := os.Getwd()
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
 	}
+	return repoRoot
+}
+
+func getPackages() []*charts.Package {
+	repoRoot := getRepoRoot()
 	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
 	if err != nil {
 		logrus.Fatal(err)
@@ -463,10 +447,7 @@ func getPackages() []*charts.Package {
 }
 
 func getGitInfo() (*git.Repository, *git.Worktree, git.Status) {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
+	repoRoot := getRepoRoot()
 	repo, err := repository.GetRepo(repoRoot)
 	if err != nil {
 		logrus.Fatal(err)

@@ -52,26 +52,26 @@ func UpdateHelmMetadataWithName(fs billy.Filesystem, mainHelmChartPath string, n
 
 // ConvertToHelmChart converts a given path to a Helm chart.
 // It does so by moving all YAML files to templates and creating a dummy Chart.yaml and values.yaml
-func ConvertToHelmChart(fs billy.Filesystem, dirpath string) error {
+func ConvertToHelmChart(fs billy.Filesystem, dirPath string) error {
 	// Check if the Chart.yaml already exists, indicating this is a Helm chart already
-	chartYamlPath := filepath.Join(dirpath, "Chart.yaml")
+	chartYamlPath := filepath.Join(dirPath, "Chart.yaml")
 	exists, err := filesystem.PathExists(fs, chartYamlPath)
 	if err != nil {
 		return fmt.Errorf("encountered error while trying to verify if %s already exists", chartYamlPath)
 	}
 	if exists {
 		// Standardize Chart.yaml
-		return StandardizeChartYaml(fs, dirpath)
+		return StandardizeChartYaml(fs, dirPath)
 	}
-	// Ensure dirpath exists and is a directory
-	fileInfo, err := fs.Lstat(dirpath)
+	// Ensure dirPath exists and is a directory
+	fileInfo, err := fs.Lstat(dirPath)
 	if err != nil {
-		return fmt.Errorf("cannot convert %s to Helm chart: %s", dirpath, err)
+		return fmt.Errorf("cannot convert %s to Helm chart: %s", dirPath, err)
 	}
 	if !fileInfo.IsDir() {
-		return fmt.Errorf("provided dirpath %s is not a directory: cannot convert to Helm chart", dirpath)
+		return fmt.Errorf("provided dirPath %s is not a directory: cannot convert to Helm chart", dirPath)
 	}
-	logrus.Infof("Converting %s into a Helm chart", dirpath)
+	logrus.Infof("Converting %s into a Helm chart", dirPath)
 	// Move all .yaml files to templates directory
 	moveYamlToTemplates := func(fs billy.Filesystem, path string, isDir bool) error {
 		if isDir {
@@ -82,19 +82,19 @@ func ConvertToHelmChart(fs billy.Filesystem, dirpath string) error {
 			return nil
 		}
 		// destPath should be the path to chart + templates + whatever path the original path of the file was within the chart
-		dirpathWithinChart, err := filesystem.MovePath(filepath.Dir(path), dirpath, "")
+		dirPathWithinChart, err := filesystem.MovePath(filepath.Dir(path), dirPath, "")
 		if err != nil {
 			return err
 		}
-		destPath, err := filesystem.MovePath(path, dirpath, filepath.Join(dirpath, "templates", dirpathWithinChart))
+		destPath, err := filesystem.MovePath(path, dirPath, filepath.Join(dirPath, "templates", dirPathWithinChart))
 		if err != nil {
 			return err
 		}
 		logrus.Debugf("moving %s to %s", path, destPath)
 		return fs.Rename(path, destPath)
 	}
-	if err := filesystem.WalkDir(fs, dirpath, moveYamlToTemplates); err != nil {
-		return fmt.Errorf("unable to move YAML files in %s to templates: %s", dirpath, err)
+	if err := filesystem.WalkDir(fs, dirPath, moveYamlToTemplates); err != nil {
+		return fmt.Errorf("unable to move YAML files in %s to templates: %s", dirPath, err)
 	}
 	// Initialize dummy Chart.yaml
 	chartMetadata := &helmChart.Metadata{
@@ -110,8 +110,8 @@ func ConvertToHelmChart(fs billy.Filesystem, dirpath string) error {
 }
 
 // StandardizeChartYaml marshalls and unmarshalls the Chart.yaml to ensure that it is ordered as expected
-func StandardizeChartYaml(fs billy.Filesystem, dirpath string) error {
-	chartYamlPath := filepath.Join(dirpath, "Chart.yaml")
+func StandardizeChartYaml(fs billy.Filesystem, dirPath string) error {
+	chartYamlPath := filepath.Join(dirPath, "Chart.yaml")
 	logrus.Debugf("Standardizing order of %s", chartYamlPath)
 	chartMetadata, err := helmChartutil.LoadChartfile(filesystem.GetAbsPath(fs, chartYamlPath))
 	if err != nil {

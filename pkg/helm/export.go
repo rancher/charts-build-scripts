@@ -90,7 +90,7 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 }
 
 // GenerateArchive produces a Helm chart archive. If an archive exists at that path already, it does a deep check of the internal
-// contents of the archive and only updates the archive if something within it has changed.
+// contents of the archive and only updates the archive if something within it has been changed.
 func GenerateArchive(rootFs, fs billy.Filesystem, helmChartPath, chartAssetsDirpath string, chartVersion *string) (string, error) {
 	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
 	// Run helm package
@@ -98,7 +98,7 @@ func GenerateArchive(rootFs, fs billy.Filesystem, helmChartPath, chartAssetsDirp
 	if chartVersion != nil {
 		pkg.Version = *chartVersion
 	}
-	// Creates temporary asset at assets/{chart}.temp/{chart}-{version}.tgz
+	// Create a temporary asset at assets/{chart}.temp/{chart}-{version}.tgz
 	pkg.Destination = filesystem.GetAbsPath(rootFs, chartAssetsDirpath) + ".temp"
 	pkg.DependencyUpdate = false
 	absTgzPath, err := pkg.Run(absHelmChartPath, nil)
@@ -117,7 +117,7 @@ func GenerateArchive(rootFs, fs billy.Filesystem, helmChartPath, chartAssetsDirp
 	if err != nil {
 		return "", err
 	}
-	// If the archive does not exist, it needs to be updated
+	// If the archive does not exist, it needs to be created
 	shouldUpdateArchive := !exists
 	if exists {
 		// Check if the tgz has been modified
@@ -125,7 +125,7 @@ func GenerateArchive(rootFs, fs billy.Filesystem, helmChartPath, chartAssetsDirp
 		if err != nil {
 			return "", fmt.Errorf("encountered error while trying to compare contents of %s against %s: %v", tgzPath, tempTgzPath, err)
 		}
-		// If the archives are not identical, it needs to be update
+		// If the archives are not identical, it needs to be updated
 		shouldUpdateArchive = !identical
 	}
 	if shouldUpdateArchive {

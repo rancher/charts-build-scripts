@@ -80,7 +80,7 @@ func applyTemplate(pkgFs billy.Filesystem, chartsScriptOptions options.ChartsScr
 		}
 		f, err := filesystem.CreateFileAndDirs(tempFs, repoPath)
 		if err != nil {
-			return fmt.Errorf("unable to create files and directories in %s: %v", repoPath, err)
+			return fmt.Errorf("unable to create files and directories in %s: %s", repoPath, err)
 		}
 		defer f.Close()
 		t, err := template.New(filepath.Base(path)).ParseFiles(filesystem.GetAbsPath(pkgFs, path))

@@ -40,7 +40,7 @@ Please see [`docs/validation.md`](docs/validation.md) for more information on ho
 
 `make list`: Prints the list of all packages tracked in the current repository and recognized by the scripts. `export PORCELAIN=1` allows you to specify that the output of this command should be script-friendly.
 
-`make unzip`: Reconstructs all charts in the `charts` directory based on the current contents in `assets`. Can be scoped to specific charts via specifying `ASSET={asset}` or `ASSET={asset}/{chart}-{version}.tgz`. Runs `make index` after reconstruction.
+`make unzip`: Reconstructs all charts in the `charts` directory based on the current contents in `assets`. Can be scoped to specific charts via specifying `ASSET=<asset>` or `ASSET=<asset}>/<chart>-<version>.tgz`. Runs `make index` after reconstruction.
 
 `make standardize`: Takes an arbitrary Helm repository (defined as any repository with a set of Helm charts under `charts/`) and standardizes it to the expected repository structure of these scripts.
 

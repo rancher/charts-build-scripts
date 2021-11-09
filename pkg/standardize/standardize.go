@@ -92,13 +92,13 @@ func standardizeAssetsFromCharts(repoFs billy.Filesystem) error {
 			return fmt.Errorf("encountered error while trying to update archive based on chart in %s: %s", chartPath, err)
 		}
 	}
-	// Remove charts to be reconstructed
+	// Remove charts because all of them will be reconstructed
 	if err := filesystem.RemoveAll(repoFs, path.RepositoryChartsDir); err != nil {
 		return fmt.Errorf("unable to remove all assets to reconstruct directory: %s", err)
 	}
 	// Reconstruct charts
 	if err := zip.DumpAssets(repoFs.Root(), ""); err != nil {
-		return fmt.Errorf("encountered error while trying zip Helm charts in repository: %s", err)
+		return fmt.Errorf("encountered error while trying to dump Helm charts in repository: %s", err)
 	}
 	// Reconstruct index.yaml
 	if err := helm.CreateOrUpdateHelmIndex(repoFs); err != nil {

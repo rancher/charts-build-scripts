@@ -19,7 +19,7 @@
 #
 # To avoid losing Git history around packages, this script assists users as a part of the migration process by
 # running through all the commits in the packages/ directory of a provided remote / branch (e.g. upstream/dev-v2.5)
-# and partially cherry-picking changes that occured to the packages directory to the current local branch.
+# and partially cherry-picking changes that occurred to the packages directory to the current local branch.
 # 
 # This allows user to preserve the commit history from the dev branch, which include links to the original PRs 
 # and metadata information such as the author / date of the commit.
@@ -34,7 +34,7 @@ cd $(git rev-parse --show-toplevel)
 directories="packages"
 
 if [[ -z ${REMOTE} ]] || [[ -z ${BRANCH} ]]; then
-    echo "Usage: REMOTE=<chart> BRANCH=<version> ./scripts/cherry-pick-packages"
+    echo "Usage: REMOTE=<remote-name> BRANCH=<branch> ./scripts/cherry-pick-packages"
     exit 1
 fi
 

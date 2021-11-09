@@ -252,7 +252,8 @@ func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string
 	return nil
 }
 
-// CompareTgz
+// CompareTgzs checks to see if the file contents of the archive found at leftTgzPath matches that of the archive found at rightTgzPath
+// It does this by comparing the sha256sum of the file contents, ignoring any other information (e.g. file modes, timestamps, etc.)
 func CompareTgzs(fs billy.Filesystem, leftTgzPath string, rightTgzPath string) (bool, error) {
 	// Read left
 	leftFile, err := fs.OpenFile(leftTgzPath, os.O_RDONLY, os.ModePerm)
@@ -375,11 +376,11 @@ type RelativePathFunc func(fs billy.Filesystem, path string, isDir bool) error
 // RelativePathPairFunc is a function that is applied on a pair of relative paths in a filesystem
 type RelativePathPairFunc func(fs billy.Filesystem, leftPath, rightPath string, isDir bool) error
 
-// WalkDir walks through a directory given by dirpath rooted in the filesystem and performs doFunc at the path
+// WalkDir walks through a directory given by dirPath rooted in the filesystem and performs doFunc at the path
 // The path on each call will be relative to the filesystem provided.
-func WalkDir(fs billy.Filesystem, dirpath string, doFunc RelativePathFunc) error {
+func WalkDir(fs billy.Filesystem, dirPath string, doFunc RelativePathFunc) error {
 	// Create all necessary directories
-	return filepath.Walk(GetAbsPath(fs, dirpath), func(abspath string, info os.FileInfo, err error) error {
+	return filepath.Walk(GetAbsPath(fs, dirPath), func(abspath string, info os.FileInfo, err error) error {
 		if err != nil {
 			if _, ok := err.(*os.PathError); ok {
 				// Path does not exist anymore, so do not walk it

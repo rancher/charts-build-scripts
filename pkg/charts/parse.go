@@ -1,7 +1,6 @@
 package charts
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -13,11 +12,6 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
 	"github.com/sirupsen/logrus"
-)
-
-var (
-	// ErrRemoteDoesNotExist indicates that the remote does not exist in the current repository
-	ErrRemoteDoesNotExist = errors.New("repository does not have any matching remotes")
 )
 
 // GetPackages returns all packages found within the repository. If there is a specific package provided, it will return just that Package in the list
@@ -55,26 +49,26 @@ func ListPackages(repoRoot string, specificPackage string) ([]string, error) {
 		return packageList, err
 	}
 
-	listPackages := func(fs billy.Filesystem, dirpath string, isDir bool) error {
+	listPackages := func(fs billy.Filesystem, dirPath string, isDir bool) error {
 		if !isDir {
 			return nil
 		}
 		if len(specificPackage) > 0 {
 			packagePrefix := filepath.Join(path.RepositoryPackagesDir, specificPackage)
-			if dirpath != packagePrefix && !strings.HasPrefix(dirpath, packagePrefix+"/") {
-				logrus.Debugf("ignore %s based on packagePrefix %s", dirpath, packagePrefix)
+			if dirPath != packagePrefix && !strings.HasPrefix(dirPath, packagePrefix+"/") {
+				logrus.Debugf("ignore %s based on packagePrefix %s", dirPath, packagePrefix)
 				// Ignore packages not selected by specificPackage
 				return nil
 			}
 		}
-		exists, err := filesystem.PathExists(rootFs, filepath.Join(dirpath, path.PackageOptionsFile))
+		exists, err := filesystem.PathExists(rootFs, filepath.Join(dirPath, path.PackageOptionsFile))
 		if err != nil {
 			return err
 		}
 		if !exists {
 			return nil
 		}
-		packageName, err := filesystem.MovePath(dirpath, path.RepositoryPackagesDir, "")
+		packageName, err := filesystem.MovePath(dirPath, path.RepositoryPackagesDir, "")
 		if err != nil {
 			return err
 		}

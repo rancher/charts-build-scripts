@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/sirupsen/logrus"
 )
 
@@ -41,17 +40,17 @@ func InitRootCache(cacheMode bool, path string) error {
 }
 
 // CleanRootCache removes any existing entries in the cache
-func CleanRootCache() error {
+func CleanRootCache(path string) error {
 	// Get repository filesystem
 	repoRoot, err := os.Getwd()
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
 	}
 	rootFs := filesystem.GetFilesystem(repoRoot)
-	if err := filesystem.RemoveAll(rootFs, path.DefaultCachePath); err != nil {
+	if err := filesystem.RemoveAll(rootFs, path); err != nil {
 		return err
 	}
-	return filesystem.PruneEmptyDirsInPath(rootFs, path.DefaultCachePath)
+	return filesystem.PruneEmptyDirsInPath(rootFs, path)
 }
 
 type cacher interface {

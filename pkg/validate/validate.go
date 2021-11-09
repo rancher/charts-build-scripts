@@ -127,7 +127,7 @@ func CompareGeneratedAssets(repoFs billy.Filesystem, u options.UpstreamOptions, 
 		// Chart was removed from local and is not tracked by release.yaml
 		logrus.Infof("%s/%s was removed", chart.Metadata.Name, chart.Metadata.Version)
 		response.RemovedPostRelease = response.RemovedPostRelease.Append(chart.Metadata.Name, chart.Metadata.Version)
-		// Found asset that only exists in upstream and is not trakced by release.yaml
+		// Found asset that only exists in upstream and is not tracked by release.yaml
 		localPath, err := filesystem.MovePath(upstreamPath, path.ChartsRepositoryUpstreamBranchDir, "")
 		if err != nil {
 			return err

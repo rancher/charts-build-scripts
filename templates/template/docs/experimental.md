@@ -26,3 +26,13 @@ version: 0.1.0
 This will be applied on the upstream chart before applying `make patch`, which means that the `generated-changes/patch/Chart.yaml.patch` represents changes you introduce on top of this dummy, hard-coded `Chart.yaml`. As a result, you can proceed to make changes such as adding dependencies, adding annotations, etc.
 
 Note: This feature is marked as experimental since it's unclear if there are any additional requirements necessary to support edge cases around pulling upstream manifests. Please open up an issue on [https://github.com/rancher/charts-build-scripts](https://github.com/rancher/charts-build-scripts) if you have any suggestions!
+
+## Experimental: Performing only local or upstream validation
+
+In order to make it easier to debug issues related to a failure in `make validate`, two command-line flags were introduced.
+
+If you would like to perform local validation only (e.g. checking if `make charts` produces no changes), you can run `./bin/charts-build-scripts validate --local`.
+
+If you would like to perform remote validation only (e.g. checking if all differences between your current repository and an upstream repository are tracked in the `release.yaml`), you can run `./bin/charts-build-scripts validate --upstream`.
+
+Note: These options have **not** been exposed as environment variables since an average consumer of the scripts should rarely, if at all, have any reason for using these options.

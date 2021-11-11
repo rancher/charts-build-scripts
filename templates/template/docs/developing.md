@@ -120,7 +120,7 @@ If a two-digit `packageVersion` is provided, the final version of the chart that
 
 Examples:
 - If the main chart version is `1.2.3` and the packageVersion is `1`, the final chart version will be `1.2.301`.
-- If the main chart version is `1.2.3` and the packageVersion is `56`, the final chart version will be `1.2.345`.
+- If the main chart version is `1.2.3` and the packageVersion is `56`, the final chart version will be `1.2.356`.
 - If the main chart version is `2.1.0` and the packageVersion is `12`, the final chart version will be `2.1.12`.
   - *Note: It is not `2.1.012` since a leading zero in the patch version is invalid semver.*
 
@@ -167,7 +167,7 @@ Once declared, `make prepare` will automatically pull in your dependency under `
 
 In any Helm chart managed by these scripts, we consider the `Chart.yaml` / `requirements.yaml` to be `Managed Files` since they are the only files that end up going through a three-way merge. 
 
-Specifically, the three-way merge occurs because of the following there are three parties involved in applying changes on a `make prepare`:
+Specifically, the three-way merge occurs because there are three parties involved in applying changes on a `make prepare`:
 1. The upstream chart source, which provides the base `Chart.yaml` / `requirements.yaml`
 2. The scripts themselves, which make changes to support adding in dependencies based on those specified under `generated-changes/dependencies`.
 3. The user, who commits patches to those files after running `make patch`

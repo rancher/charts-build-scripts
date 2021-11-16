@@ -44,6 +44,11 @@ func (c *AdditionalChart) ApplyMainChanges(pkgFs billy.Filesystem) error {
 	if err != nil {
 		return fmt.Errorf("Encountered error while trying to get the main chart's working directory: %s", err)
 	}
+	if c.CRDChartOptions.UseTarArchive {
+		if err := helm.ArchiveCRDs(pkgFs, mainChartWorkingDir, path.ChartCRDDir, c.WorkingDir, path.ChartExtraFileDir); err != nil {
+			return fmt.Errorf("encountered error while trying to bundle and compress CRD files from the main chart: %s", err)
+		}
+	}
 	if err := helm.CopyCRDsFromChart(pkgFs, mainChartWorkingDir, path.ChartCRDDir, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
 		return fmt.Errorf("Encountered error while trying to copy CRDs from %s to %s: %s", mainChartWorkingDir, c.WorkingDir, err)
 	}
@@ -66,12 +71,14 @@ func (c *AdditionalChart) RevertMainChanges(pkgFs billy.Filesystem) error {
 		return fmt.Errorf("Working directory %s has not been prepared yet", c.WorkingDir)
 	}
 	if c.CRDChartOptions == nil {
+		// return if the additional chart is not a CRD chart
 		return nil
 	}
 	mainChartWorkingDir, err := c.getMainChartWorkingDir(pkgFs)
 	if err != nil {
 		return fmt.Errorf("Encountered error while trying to get the main chart's working directory: %s", err)
 	}
+	// copy CRD files from packages/<package>/charts-crd/crd-manifest/ back to packages/<package>/charts/crds/
 	if err := helm.CopyCRDsFromChart(pkgFs, c.WorkingDir, c.CRDChartOptions.CRDDirectory, mainChartWorkingDir, path.ChartCRDDir); err != nil {
 		return fmt.Errorf("Encountered error while trying to copy CRDs from %s to %s: %s", c.WorkingDir, mainChartWorkingDir, err)
 	}

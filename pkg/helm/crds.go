@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/sirupsen/logrus"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
@@ -59,7 +60,7 @@ func ArchiveCRDs(fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHelmChart
 		return err
 	}
 	srcCRDsDirPath := filepath.Join(srcHelmChartPath, srcCRDsDir)
-	dstFilePath := filepath.Join(dstHelmChartPath, destCRDsDir, fmt.Sprintf("%s.tgz", "crd-manifest"))
+	dstFilePath := filepath.Join(dstHelmChartPath, destCRDsDir, path.ChartCRDTgzFilename)
 	logrus.Infof("Compressing CRDs from %s to %s", srcCRDsDirPath, dstFilePath)
 	return filesystem.ArchiveDir(fs, srcCRDsDirPath, dstFilePath)
 }

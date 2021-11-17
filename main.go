@@ -160,6 +160,7 @@ func generateCharts(c *cli.Context) {
 	// Copy in only assets from charts that have changed
 	_, wt, status := getGitInfo()
 	modifiedAssets := make(map[string]bool)
+	modifiedCRDArchives := make(map[string]bool)
 	for p := range status {
 		if p == path.RepositoryHelmIndexFile {
 			wt.Excludes = append(wt.Excludes, gitignore.ParsePattern(p, []string{}))
@@ -182,7 +183,15 @@ func generateCharts(c *cli.Context) {
 			// New chart was introduced
 			modifiedAssetPath = fmt.Sprintf("%s/*", filepath.Join(path.RepositoryAssetsDir, splitPath[1], splitPath[2]))
 		default:
-			// Existing chart was modified
+			// e.g. p = charts/rancher-monitoring/rancher-monitoring-crd/100.1.0+up19.0.3/files/crd-manifest.tgz
+			if strings.HasSuffix(splitPath[2], "-crd") {
+				if strings.HasSuffix(p, ".tgz") {
+					continue
+				}
+				chartKey := filepath.Join(splitPath[0], splitPath[1], splitPath[2], splitPath[3], path.ChartExtraFileDir, path.ChartCRDTgzFilename)
+				modifiedCRDArchives[chartKey] = true
+			}
+			// Existing chart (excluding the crd tgz file) was modified
 			modifiedAssetPath = fmt.Sprintf("%s-%s.tgz", filepath.Join(path.RepositoryAssetsDir, splitPath[1], splitPath[2]), splitPath[3])
 		}
 		// Add chart
@@ -196,6 +205,12 @@ func generateCharts(c *cli.Context) {
 		wt.Excludes = append(wt.Excludes, gitignore.ParsePattern(modifiedAssetPath, []string{}))
 		logrus.Infof("Outputted %s", modifiedAssetPath)
 	}
+	for chartKey := range modifiedCRDArchives {
+		// add the crd tgz file within the crd chart
+		wt.Excludes = append(wt.Excludes, gitignore.ParsePattern(chartKey, []string{}))
+		logrus.Infof("Outputted %s", chartKey)
+	}
+
 	err = wt.Checkout(&git.CheckoutOptions{
 		Branch: currentBranchRefName,
 		Force:  true,

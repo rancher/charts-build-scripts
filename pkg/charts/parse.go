@@ -194,6 +194,7 @@ func GetAdditionalChartFromOptions(opt options.AdditionalChartOptions) (Addition
 			TemplateDirectory:           templateDirectory,
 			CRDDirectory:                crdDirectory,
 			AddCRDValidationToMainChart: opt.CRDChartOptions.AddCRDValidationToMainChart,
+			UseTarArchive:               opt.CRDChartOptions.UseTarArchive,
 		}
 	}
 	return a, nil

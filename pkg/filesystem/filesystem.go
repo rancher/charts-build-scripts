@@ -367,7 +367,52 @@ func CompareTgzs(fs billy.Filesystem, leftTgzPath string, rightTgzPath string) (
 		}
 	}
 	return identical, nil
+}
 
+// ArchiveDir archives a directory or a file into a tgz file and put it at destTgzPath which should end with .tgz
+func ArchiveDir(fs billy.Filesystem, srcPath, destTgzPath string) error {
+	if !strings.HasSuffix(destTgzPath, ".tgz") {
+		return fmt.Errorf("cannot archive %s to %s since the archive path does not end with '.tgz'", srcPath, destTgzPath)
+	}
+	tgzFile, err := fs.Create(destTgzPath)
+	if err != nil {
+		return err
+	}
+	defer tgzFile.Close()
+
+	gz := gzip.NewWriter(tgzFile)
+	defer gz.Close()
+
+	tarWriter := tar.NewWriter(gz)
+	defer tarWriter.Close()
+
+	return WalkDir(fs, srcPath, func(fs billy.Filesystem, path string, isDir bool) error {
+		info, err := fs.Stat(path)
+		if err != nil {
+			return err
+		}
+		header, err := tar.FileInfoHeader(info, info.Name())
+		if err != nil {
+			return err
+		}
+		// overwrite the name to be the full path to the file
+		header.Name = path
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return err
+		}
+		// The directory structure is preserved, but there is no data to read from a directory
+		if isDir {
+			return nil
+		}
+		file, err := fs.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		_, err = io.Copy(tarWriter, file)
+		return err
+	})
 }
 
 // RelativePathFunc is a function that is applied on a relative path within the given filesystem

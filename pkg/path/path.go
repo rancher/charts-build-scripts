@@ -37,6 +37,10 @@ const (
 
 	// ChartCRDDir represents the directory that we expect to contain CRDs within the chart
 	ChartCRDDir = "crds"
+	// ChartExtraFileDir represents the directory that contains non-YAML files
+	ChartExtraFileDir = "files"
+	// ChartCRDTgzFilename represents the filename of the crd's tgz file
+	ChartCRDTgzFilename = "crd-manifest.tgz"
 	// ChartValidateInstallCRDFile is the path to the file pushed to upstream that validates the existence of CRDs in the chart
 	ChartValidateInstallCRDFile = "templates/validate-install-crd.yaml"
 

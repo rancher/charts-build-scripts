@@ -21,7 +21,7 @@ func GetRepo(repoPath string) (*git.Repository, error) {
 // CreateRepo returns a newly generated GitRepository at the path provided
 func CreateRepo(repoPath string) (*git.Repository, error) {
 	if err := os.MkdirAll(repoPath, os.ModePerm); err != nil {
-		return nil, fmt.Errorf("Encountered error while trying to create directory for new repo: %s", err)
+		return nil, fmt.Errorf("encountered error while trying to create directory for new repo: %s", err)
 	}
 	return git.PlainInit(repoPath, false)
 }
@@ -79,7 +79,7 @@ func CommitAll(repo *git.Repository, commitMessage string) error {
 		return err
 	}
 	if status.IsClean() {
-		return fmt.Errorf("Cannot create commit since there are no files to be committed")
+		return fmt.Errorf("cannot create commit since there are no files to be committed")
 	}
 	logrus.Infof("Committing the following modified files:\n%s", status)
 	if _, err = wt.Add("."); err != nil {

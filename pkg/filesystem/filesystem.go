@@ -3,16 +3,19 @@ package filesystem
 import (
 	"archive/tar"
 	"compress/gzip"
+	"crypto/sha1"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/osfs"
+	"github.com/sirupsen/logrus"
 )
 
 // GetFilesystem returns a filesystem rooted at the provided path
@@ -27,13 +30,13 @@ func GetAbsPath(fs billy.Filesystem, path string) string {
 
 // GetRelativePath returns the relative path given the absolute path within a filesystem
 func GetRelativePath(fs billy.Filesystem, abspath string) (string, error) {
-	if abspath == "" {
-		return fs.Root(), nil
+	if abspath == fs.Root() {
+		return "", nil
 	}
 	fsRoot := fmt.Sprintf("%s/", filepath.Clean(fs.Root()))
 	relativePath := strings.TrimPrefix(abspath, fsRoot)
 	if relativePath == abspath {
-		return "", fmt.Errorf("Cannot get relative path; path %s does not exist within %s", abspath, fsRoot)
+		return "", fmt.Errorf("cannot get relative path; path %s does not exist within %s", abspath, fsRoot)
 	}
 	return relativePath, nil
 }
@@ -104,7 +107,7 @@ func IsEmptyDir(fs billy.Filesystem, path string) (bool, error) {
 		return false, err
 	}
 	if !exists {
-		return false, fmt.Errorf("Path %s does not exist", path)
+		return false, fmt.Errorf("path %s does not exist", path)
 	}
 	fileInfos, err := fs.ReadDir(path)
 	if err != nil {
@@ -122,7 +125,7 @@ func CopyFile(fs billy.Filesystem, srcPath string, dstPath string) error {
 		return err
 	}
 	if !srcExists {
-		return fmt.Errorf("Cannot copy nonexistent file from %s to %s", srcPath, dstPath)
+		return fmt.Errorf("cannot copy nonexistent file from %s to %s", srcPath, dstPath)
 	}
 	srcFile, err = fs.Open(srcPath)
 	if err != nil {
@@ -145,7 +148,7 @@ func CopyFile(fs billy.Filesystem, srcPath string, dstPath string) error {
 	defer dstFile.Close()
 	// Copy the file contents over
 	if _, err = io.Copy(dstFile, srcFile); err != nil {
-		return fmt.Errorf("Encountered error while trying to copy from %s to %s: %s", srcPath, dstPath, err)
+		return fmt.Errorf("encountered error while trying to copy from %s to %s: %s", srcPath, dstPath, err)
 	}
 	return nil
 }
@@ -155,18 +158,18 @@ func GetChartArchive(fs billy.Filesystem, url string, path string) error {
 	// Create file
 	tgz, err := CreateFileAndDirs(fs, path)
 	if err != nil {
-		return fmt.Errorf("Unable to create tgz file: %s", err)
+		return fmt.Errorf("unable to create tgz file: %s", err)
 	}
 	defer tgz.Close()
 	// Get tgz
 	resp, err := http.Get(url)
 	if err != nil {
-		return fmt.Errorf("Unable to get chart archive: %s", err)
+		return fmt.Errorf("unable to get chart archive: %s", err)
 	}
 	defer resp.Body.Close()
 	// Copy into the tgz
 	if _, err = io.Copy(tgz, resp.Body); err != nil {
-		return fmt.Errorf("Unable to create chart archive: %s", err)
+		return fmt.Errorf("unable to create chart archive: %s", err)
 	}
 	return nil
 }
@@ -180,7 +183,7 @@ func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string
 			return err
 		}
 		if exists {
-			return fmt.Errorf("Cannot unarchive %s into %s/ since the path already exists", tgzPath, destPath)
+			return fmt.Errorf("cannot unarchive %s into %s/ since the path already exists", tgzPath, destPath)
 		}
 	}
 	// Check if you can open the tgzPath as a tar file
@@ -191,7 +194,7 @@ func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string
 	defer tgz.Close()
 	gzipReader, err := gzip.NewReader(tgz)
 	if err != nil {
-		return fmt.Errorf("Unable to read gzip formatted file: %s", err)
+		return fmt.Errorf("unable to read gzip formatted file: %s", err)
 	}
 	defer gzipReader.Close()
 	tarReader := tar.NewReader(gzipReader)
@@ -241,12 +244,129 @@ func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string
 		if h.Name == "pax_global_header" {
 			continue
 		}
-		return fmt.Errorf("Encountered unknown type of file (name=%s) when unarchiving %s", h.Name, tgzPath)
+		return fmt.Errorf("encountered unknown type of file (name=%s) when unarchiving %s", h.Name, tgzPath)
 	}
 	if len(tgzSubdirectory) > 0 && !subdirectoryFound {
-		return fmt.Errorf("Subdirectory %s was not found within the folder outputted by the tgz file", tgzSubdirectory)
+		return fmt.Errorf("subdirectory %s was not found within the folder outputted by the tgz file", tgzSubdirectory)
 	}
 	return nil
+}
+
+// CompareTgzs checks to see if the file contents of the archive found at leftTgzPath matches that of the archive found at rightTgzPath
+// It does this by comparing the sha256sum of the file contents, ignoring any other information (e.g. file modes, timestamps, etc.)
+func CompareTgzs(fs billy.Filesystem, leftTgzPath string, rightTgzPath string) (bool, error) {
+	// Read left
+	leftFile, err := fs.OpenFile(leftTgzPath, os.O_RDONLY, os.ModePerm)
+	if err != nil {
+		return false, err
+	}
+	defer leftFile.Close()
+	leftGzipReader, err := gzip.NewReader(leftFile)
+	if err != nil {
+		return false, fmt.Errorf("unable to read gzip formatted file: %s", err)
+	}
+	defer leftGzipReader.Close()
+	leftTarReader := tar.NewReader(leftGzipReader)
+
+	// Read right
+	rightFile, err := fs.OpenFile(rightTgzPath, os.O_RDONLY, os.ModePerm)
+	if err != nil {
+		return false, err
+	}
+	defer rightFile.Close()
+	rightGzipReader, err := gzip.NewReader(rightFile)
+	if err != nil {
+		return false, fmt.Errorf("unable to read gzip formatted file: %s", err)
+	}
+	defer rightGzipReader.Close()
+	rightTarReader := tar.NewReader(rightGzipReader)
+
+	// Get the hashes of all the files
+	hashMap := make(map[string][]string)
+	var isRightEOF, isLeftEOF bool
+	var left, right *tar.Header
+	var leftErr, rightErr error
+	for {
+		if !isLeftEOF {
+			left, leftErr = leftTarReader.Next()
+		}
+		if !isRightEOF {
+			right, rightErr = rightTarReader.Next()
+		}
+		if leftErr == io.EOF && rightErr == io.EOF {
+			// both tgz files have finished reading
+			break
+		}
+		switch {
+		case leftErr == io.EOF:
+			isLeftEOF = true
+		case rightErr == io.EOF:
+			isRightEOF = true
+		case leftErr != nil:
+			// ran into unknown error
+			return false, fmt.Errorf("ran into error while trying to read files in %s: %v", leftTgzPath, leftErr)
+		case rightErr != nil:
+			// ran into unknown error
+			return false, fmt.Errorf("ran into error while trying to read files in %s: %v", rightTgzPath, rightErr)
+		}
+		if !isLeftEOF && left.Typeflag == tar.TypeReg {
+			// compute left hash
+			leftHash := sha1.New()
+			if _, err := io.Copy(leftHash, leftTarReader); err != nil {
+				return false, fmt.Errorf("could not compute hash of %s: %v", left.Name, err)
+			}
+			// update left hash
+			h, ok := hashMap[left.Name]
+			if !ok {
+				h = make([]string, 2)
+			}
+			h[0] = string(leftHash.Sum(nil))
+			hashMap[left.Name] = h
+		}
+		if !isRightEOF && right.Typeflag == tar.TypeReg {
+			// compute right hash
+			rightHash := sha1.New()
+			if _, err := io.Copy(rightHash, rightTarReader); err != nil {
+				return false, fmt.Errorf("could not compute hash of %s: %v", right.Name, err)
+			}
+			// Update right hash
+			h, ok := hashMap[right.Name]
+			if !ok {
+				h = make([]string, 2)
+			}
+			h[1] = string(rightHash.Sum(nil))
+			hashMap[right.Name] = h
+		}
+	}
+
+	identical := true
+	// Sort the files to make it easier to view in debug
+	files := make([]string, 0, len(hashMap))
+	for filename := range hashMap {
+		files = append(files, filename)
+	}
+	sort.Strings(files)
+	// Go through hashes to see if there are any mismatches
+	for _, filename := range files {
+		hashes, ok := hashMap[filename]
+		if !ok {
+			return false, fmt.Errorf("could not find %s in hashMap", filename)
+		}
+		// Check if both archives contain the files
+		switch {
+		case len(hashes[0]) == 0:
+			logrus.Debugf("%s only exists in %s", filename, rightTgzPath)
+			identical = false
+		case len(hashes[1]) == 0:
+			logrus.Debugf("%s only exists in %s", filename, leftTgzPath)
+			identical = false
+		case hashes[0] != hashes[1]:
+			// Hashes do not match
+			logrus.Debugf("hash does not match for file %v: %s != %s", filename, hashes[0], hashes[1])
+			identical = false
+		}
+	}
+	return identical, nil
 }
 
 // ArchiveDir archives a directory or a file into a tgz file and put it at destTgzPath which should end with .tgz
@@ -301,11 +421,11 @@ type RelativePathFunc func(fs billy.Filesystem, path string, isDir bool) error
 // RelativePathPairFunc is a function that is applied on a pair of relative paths in a filesystem
 type RelativePathPairFunc func(fs billy.Filesystem, leftPath, rightPath string, isDir bool) error
 
-// WalkDir walks through a directory given by dirpath rooted in the filesystem and performs doFunc at the path
+// WalkDir walks through a directory given by dirPath rooted in the filesystem and performs doFunc at the path
 // The path on each call will be relative to the filesystem provided.
-func WalkDir(fs billy.Filesystem, dirpath string, doFunc RelativePathFunc) error {
+func WalkDir(fs billy.Filesystem, dirPath string, doFunc RelativePathFunc) error {
 	// Create all necessary directories
-	return filepath.Walk(GetAbsPath(fs, dirpath), func(abspath string, info os.FileInfo, err error) error {
+	return filepath.Walk(GetAbsPath(fs, dirPath), func(abspath string, info os.FileInfo, err error) error {
 		if err != nil {
 			if _, ok := err.(*os.PathError); ok {
 				// Path does not exist anymore, so do not walk it
@@ -346,7 +466,7 @@ func MakeSubdirectoryRoot(fs billy.Filesystem, path, subdirectory string) error 
 		return err
 	}
 	if !exists {
-		return fmt.Errorf("Subdirectory %s does not exist in path %s in filesystem %s", subdirectory, path, fs.Root())
+		return fmt.Errorf("subdirectory %s does not exist in path %s in filesystem %s", subdirectory, path, fs.Root())
 	}
 	absTempDir, err := ioutil.TempDir(fs.Root(), "make-subdirectory-root")
 	if err != nil {
@@ -411,7 +531,7 @@ func CompareDirs(fs billy.Filesystem, leftDirpath, rightDirpath string, leftOnly
 func GetRootPath(path string) (string, error) {
 	rootPathList := strings.SplitN(path, "/", 2)
 	if len(rootPathList) == 0 {
-		return "", fmt.Errorf("Unable to get root path of %s", path)
+		return "", fmt.Errorf("unable to get root path of %s", path)
 	}
 	return filepath.Clean(rootPathList[0]), nil
 }
@@ -419,7 +539,7 @@ func GetRootPath(path string) (string, error) {
 // MovePath takes a path that is contained within fromDir and returns the same path contained within toDir
 func MovePath(path string, fromDir string, toDir string) (string, error) {
 	if !strings.HasPrefix(path, fromDir) {
-		return "", fmt.Errorf("Path %s does not contain directory %s", path, fromDir)
+		return "", fmt.Errorf("path %s does not contain directory %s", path, fromDir)
 	}
 	relativePath := strings.TrimPrefix(path, fromDir)
 	relativePath = strings.TrimPrefix(relativePath, "/")

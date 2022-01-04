@@ -18,7 +18,7 @@ func GeneratePatch(fs billy.Filesystem, patchPath, srcPath, dstPath string) (boo
 	// There doesn't seem to be any existing library at the moment that can work with unified patches
 	pathToDiffCmd, err := exec.LookPath("diff")
 	if err != nil {
-		return false, fmt.Errorf("Cannot generate patch file if GNU diff is not available")
+		return false, fmt.Errorf("cannot generate patch file if GNU diff is not available")
 	}
 
 	var buf bytes.Buffer
@@ -31,7 +31,7 @@ func GeneratePatch(fs billy.Filesystem, patchPath, srcPath, dstPath string) (boo
 		// Exit code of 1 indicates that a difference was observed, so it is expected
 		if !ok || exitErr.ExitCode() != 1 {
 			logrus.Errorf("\n%s", &buf)
-			return false, fmt.Errorf("Unable to generate patch with error: %s", err)
+			return false, fmt.Errorf("unable to generate patch with error: %s", err)
 		}
 	}
 
@@ -45,7 +45,7 @@ func GeneratePatch(fs billy.Filesystem, patchPath, srcPath, dstPath string) (boo
 	}
 	defer patchFile.Close()
 	if _, err = removeTimestamps(&buf).WriteTo(patchFile); err != nil {
-		return false, fmt.Errorf("Unable to write diff to file: %s", err)
+		return false, fmt.Errorf("unable to write diff to file: %s", err)
 	}
 	return true, nil
 }
@@ -56,7 +56,7 @@ func ApplyPatch(fs billy.Filesystem, patchPath, destDir string) error {
 	// There doesn't seem to be any existing library at the moment that can work with unified patches
 	pathToPatchCmd, err := exec.LookPath("patch")
 	if err != nil {
-		return fmt.Errorf("Cannot generate patch file if GNU patch is not available")
+		return fmt.Errorf("cannot generate patch file if GNU patch is not available")
 	}
 
 	var buf bytes.Buffer
@@ -73,7 +73,7 @@ func ApplyPatch(fs billy.Filesystem, patchPath, destDir string) error {
 
 	if err = cmd.Run(); err != nil {
 		logrus.Errorf("\n%s", &buf)
-		err = fmt.Errorf("Unable to generate patch with error: %s", err)
+		err = fmt.Errorf("unable to generate patch with error: %s", err)
 	}
 	return err
 }

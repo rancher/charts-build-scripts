@@ -1,4 +1,0 @@
-template: live
-
-helmRepo:
-  cname: charts.rancher.io

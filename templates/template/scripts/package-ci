@@ -1,5 +1,8 @@
 #!/bin/bash
 
+cd $(dirname $0)
+cd ..
+
 if [ -n "$(git status --porcelain)" ]; then
     echo "Git needs to be clean to run this script"
     exit 1
@@ -8,7 +11,7 @@ fi
 ORIG_PACKAGE=${PACKAGE}
 
 FAILED_PACKAGES=()
-for package in $(find packages -type d -mindepth 1 -maxdepth 1 | sort); do
+for package in $(PORCELAIN=1 make list); do
     export PACKAGE="${package#packages\/}"
 
     # Do developer workflow

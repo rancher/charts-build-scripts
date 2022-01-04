@@ -36,7 +36,7 @@ func LoadChartOptionsFromFile(fs billy.Filesystem, path string) (ChartOptions, e
 		return chartOptions, err
 	}
 	if !exists {
-		return chartOptions, fmt.Errorf("Unable to load chart options from file %s since it does not exist", filesystem.GetAbsPath(fs, path))
+		return chartOptions, fmt.Errorf("unable to load chart options from file %s since it does not exist", filesystem.GetAbsPath(fs, path))
 	}
 	chartOptionsBytes, err := ioutil.ReadFile(filesystem.GetAbsPath(fs, path))
 	if err != nil {

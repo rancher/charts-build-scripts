@@ -17,7 +17,7 @@ func ApplyChanges(fs billy.Filesystem, toDir, gcRootDir string) error {
 	logrus.Infof("Applying changes from %s", path.GeneratedChangesDir)
 	// gcRootDir should always end with path.GeneratedChangesDir
 	if !strings.HasSuffix(gcRootDir, path.GeneratedChangesDir) {
-		return fmt.Errorf("Root directory for generated changes should end with %s, received: %s", path.GeneratedChangesDir, gcRootDir)
+		return fmt.Errorf("root directory for generated changes should end with %s, received: %s", path.GeneratedChangesDir, gcRootDir)
 	}
 	chartsOverlayDirpath := filepath.Join(gcRootDir, path.GeneratedChangesOverlayDir)
 	chartsExcludeDirpath := filepath.Join(gcRootDir, path.GeneratedChangesExcludeDir)

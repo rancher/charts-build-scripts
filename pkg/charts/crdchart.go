@@ -42,7 +42,7 @@ func GenerateCRDChartFromTemplate(fs billy.Filesystem, dstHelmChartPath, templat
 		return err
 	}
 	if !exists {
-		return fmt.Errorf("Could not find directory for templates: %s", templateDir)
+		return fmt.Errorf("could not find directory for templates: %s", templateDir)
 	}
 	if err := fs.MkdirAll(filepath.Join(dstHelmChartPath, crdsDir), os.ModePerm); err != nil {
 		return err
@@ -79,7 +79,7 @@ func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helm
 		absPath := filesystem.GetAbsPath(fs, path)
 		yamlFile, err := ioutil.ReadFile(absPath)
 		if err != nil {
-			return fmt.Errorf("Unable to read file %s: %s", absPath, err)
+			return fmt.Errorf("unable to read file %s: %s", absPath, err)
 		}
 		yamlDecoder := yaml.NewDecoder(bytes.NewReader(yamlFile))
 		var resource k8sCRDResource
@@ -120,10 +120,10 @@ func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helm
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("Encountered error while trying to read CRDs from %s: %s", crdsDirpath, err)
+		return fmt.Errorf("encountered error while trying to read CRDs from %s: %s", crdsDirpath, err)
 	}
 	if len(crdGVKs) == 0 {
-		return fmt.Errorf("Unable to pull any GroupVersionKinds for CRDs from %s to construct %s", crdsDirpath, path.ChartValidateInstallCRDFile)
+		return fmt.Errorf("unable to pull any GroupVersionKinds for CRDs from %s to construct %s", crdsDirpath, path.ChartValidateInstallCRDFile)
 	}
 	// Format them
 	formattedCRDs := make([]string, len(crdGVKs))
@@ -135,7 +135,7 @@ func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helm
 	// Write to file
 	err = ioutil.WriteFile(filesystem.GetAbsPath(fs, validateInstallCRDsDestpath), []byte(validateInstallCRDsContents), os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("Encountered error while writing into %s: %s", validateInstallCRDsDestpath, err)
+		return fmt.Errorf("encountered error while writing into %s: %s", validateInstallCRDsDestpath, err)
 	}
 	return nil
 }

@@ -21,10 +21,10 @@ func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string) erro
 	logrus.Infof("Generating changes to %s", path.GeneratedChangesDir)
 	// gcRootDir should always end with path.GeneratedChangesDir
 	if !strings.HasSuffix(gcRootDir, path.GeneratedChangesDir) {
-		return fmt.Errorf("Root directory for generated changes should end with %s, received: %s", path.GeneratedChangesDir, gcRootDir)
+		return fmt.Errorf("root directory for generated changes should end with %s, received: %s", path.GeneratedChangesDir, gcRootDir)
 	}
 	if err := removeAllGeneratedChanges(fs, gcRootDir); err != nil {
-		return fmt.Errorf("Encountered error while trying to remove all existing generated changes before generating new changes: %s", err)
+		return fmt.Errorf("encountered error while trying to remove all existing generated changes before generating new changes: %s", err)
 	}
 	generatePatchFile := func(fs billy.Filesystem, fromPath, toPath string, isDir bool) error {
 		if isDir {
@@ -78,7 +78,7 @@ func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string) erro
 func removeAllGeneratedChanges(fs billy.Filesystem, gcRootDir string) error {
 	// gcRootDir should always end with path.GeneratedChangesDir
 	if !strings.HasSuffix(gcRootDir, path.GeneratedChangesDir) {
-		return fmt.Errorf("Root directory for generated changes should end with %s, received: %s", path.GeneratedChangesDir, gcRootDir)
+		return fmt.Errorf("root directory for generated changes should end with %s, received: %s", path.GeneratedChangesDir, gcRootDir)
 	}
 	// Remove all overlays
 	if err := filesystem.RemoveAll(fs, filepath.Join(gcRootDir, path.GeneratedChangesOverlayDir)); err != nil {

@@ -30,7 +30,7 @@ func CopyCRDsFromChart(fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHel
 func DeleteCRDsFromChart(fs billy.Filesystem, helmChartPath string) error {
 	chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, helmChartPath))
 	if err != nil {
-		return fmt.Errorf("Could not load Helm chart: %s", err)
+		return fmt.Errorf("could not load Helm chart: %s", err)
 	}
 	for _, crd := range chart.CRDObjects() {
 		crdFilepath := filepath.Join(helmChartPath, crd.File.Name)

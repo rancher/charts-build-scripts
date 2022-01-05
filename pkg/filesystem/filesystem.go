@@ -431,10 +431,10 @@ func compareTars(leftFile, rightFile io.Reader) (bool, error) {
 		// Check if both archives contain the files
 		switch {
 		case len(hashes[0]) == 0:
-			logrus.Debugf("%s only exists in left tar", filename)
+			logrus.Debugf("%s does not exist in left tar", filename)
 			identical = false
 		case len(hashes[1]) == 0:
-			logrus.Debugf("%s only exists in right tar", filename)
+			logrus.Debugf("%s does not exist in right tar", filename)
 			identical = false
 		case hashes[0] != hashes[1]:
 			// Hashes do not match
@@ -451,10 +451,10 @@ func compareTars(leftFile, rightFile io.Reader) (bool, error) {
 		// Check if both archives contain the files
 		switch {
 		case tars[0] == nil:
-			logrus.Debugf("%s only exists in left tar", filename)
+			logrus.Debugf("%s does not exist in left tar", filename)
 			identical = false
 		case tars[1] == nil:
-			logrus.Debugf("%s only exists in right tar", filename)
+			logrus.Debugf("%s does not exist in right tar", filename)
 			identical = false
 		default:
 			// Deep compare tars
@@ -478,10 +478,10 @@ func compareTars(leftFile, rightFile io.Reader) (bool, error) {
 		// Check if both archives contain the files
 		switch {
 		case tgzs[0] == nil:
-			logrus.Debugf("%s only exists in left tgz", filename)
+			logrus.Debugf("%s does not exist in left tgz", filename)
 			identical = false
 		case tgzs[1] == nil:
-			logrus.Debugf("%s only exists in right tgz", filename)
+			logrus.Debugf("%s does not exist in right tgz", filename)
 			identical = false
 		default:
 			// Deep compare tars

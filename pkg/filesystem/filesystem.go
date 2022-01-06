@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"crypto/sha1"
 	"fmt"
@@ -261,28 +262,37 @@ func CompareTgzs(fs billy.Filesystem, leftTgzPath string, rightTgzPath string) (
 		return false, err
 	}
 	defer leftFile.Close()
-	leftGzipReader, err := gzip.NewReader(leftFile)
-	if err != nil {
-		return false, fmt.Errorf("unable to read gzip formatted file: %s", err)
-	}
-	defer leftGzipReader.Close()
-	leftTarReader := tar.NewReader(leftGzipReader)
-
 	// Read right
 	rightFile, err := fs.OpenFile(rightTgzPath, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		return false, err
 	}
 	defer rightFile.Close()
+	return compareTgzs(leftFile, rightFile)
+}
+
+func compareTgzs(leftFile, rightFile io.Reader) (bool, error) {
+	leftGzipReader, err := gzip.NewReader(leftFile)
+	if err != nil {
+		return false, fmt.Errorf("unable to read gzip formatted file: %s", err)
+	}
+	defer leftGzipReader.Close()
 	rightGzipReader, err := gzip.NewReader(rightFile)
 	if err != nil {
 		return false, fmt.Errorf("unable to read gzip formatted file: %s", err)
 	}
 	defer rightGzipReader.Close()
-	rightTarReader := tar.NewReader(rightGzipReader)
+	return compareTars(leftGzipReader, rightGzipReader)
+}
 
+func compareTars(leftFile, rightFile io.Reader) (bool, error) {
+	leftTarReader := tar.NewReader(leftFile)
+	rightTarReader := tar.NewReader(rightFile)
 	// Get the hashes of all the files
 	hashMap := make(map[string][]string)
+	// Get the contents of all the tars and tgzs
+	tarMap := make(map[string][]io.Reader)
+	tgzMap := make(map[string][]io.Reader)
 	var isRightEOF, isLeftEOF bool
 	var left, right *tar.Header
 	var leftErr, rightErr error
@@ -304,48 +314,114 @@ func CompareTgzs(fs billy.Filesystem, leftTgzPath string, rightTgzPath string) (
 			isRightEOF = true
 		case leftErr != nil:
 			// ran into unknown error
-			return false, fmt.Errorf("ran into error while trying to read files in %s: %v", leftTgzPath, leftErr)
+			return false, fmt.Errorf("ran into error while trying to read files in left tgz: %v", leftErr)
 		case rightErr != nil:
 			// ran into unknown error
-			return false, fmt.Errorf("ran into error while trying to read files in %s: %v", rightTgzPath, rightErr)
+			return false, fmt.Errorf("ran into error while trying to read files in right tgz: %v", rightErr)
 		}
 		if !isLeftEOF && left.Typeflag == tar.TypeReg {
-			// compute left hash
-			leftHash := sha1.New()
-			if _, err := io.Copy(leftHash, leftTarReader); err != nil {
-				return false, fmt.Errorf("could not compute hash of %s: %v", left.Name, err)
+			switch filepath.Ext(left.Name) {
+			case ".tgz":
+				// collect contents of file into reader
+				var b bytes.Buffer
+				if _, err := b.ReadFrom(leftTarReader); err != nil {
+					return false, fmt.Errorf("could not read contents of %s: %v", left.Name, err)
+				}
+				r, ok := tgzMap[left.Name]
+				if !ok {
+					r = make([]io.Reader, 2)
+				}
+				r[0] = &b
+				tgzMap[left.Name] = r
+			case ".tar":
+				// collect contents of file into reader
+				var b bytes.Buffer
+				if _, err := b.ReadFrom(leftTarReader); err != nil {
+					return false, fmt.Errorf("could not read contents of %s: %v", left.Name, err)
+				}
+				r, ok := tarMap[left.Name]
+				if !ok {
+					r = make([]io.Reader, 2)
+				}
+				r[0] = &b
+				tarMap[left.Name] = r
+			default:
+				// compute left hash
+				leftHash := sha1.New()
+				if _, err := io.Copy(leftHash, leftTarReader); err != nil {
+					return false, fmt.Errorf("could not compute hash of %s: %v", left.Name, err)
+				}
+				// update left hash
+				h, ok := hashMap[left.Name]
+				if !ok {
+					h = make([]string, 2)
+				}
+				h[0] = string(leftHash.Sum(nil))
+				hashMap[left.Name] = h
 			}
-			// update left hash
-			h, ok := hashMap[left.Name]
-			if !ok {
-				h = make([]string, 2)
-			}
-			h[0] = string(leftHash.Sum(nil))
-			hashMap[left.Name] = h
 		}
 		if !isRightEOF && right.Typeflag == tar.TypeReg {
-			// compute right hash
-			rightHash := sha1.New()
-			if _, err := io.Copy(rightHash, rightTarReader); err != nil {
-				return false, fmt.Errorf("could not compute hash of %s: %v", right.Name, err)
+			switch filepath.Ext(right.Name) {
+			case ".tgz":
+				// collect contents of file into reader
+				var b bytes.Buffer
+				if _, err := b.ReadFrom(rightTarReader); err != nil {
+					return false, fmt.Errorf("could not read contents of %s: %v", right.Name, err)
+				}
+				r, ok := tgzMap[right.Name]
+				if !ok {
+					r = make([]io.Reader, 2)
+				}
+				r[1] = &b
+				tgzMap[right.Name] = r
+			case ".tar":
+				// collect contents of file into reader
+				var b bytes.Buffer
+				if _, err := b.ReadFrom(rightTarReader); err != nil {
+					return false, fmt.Errorf("could not read contents of %s: %v", right.Name, err)
+				}
+				r, ok := tarMap[right.Name]
+				if !ok {
+					r = make([]io.Reader, 2)
+				}
+				r[1] = &b
+				tarMap[right.Name] = r
+			default:
+				// compute right hash
+				rightHash := sha1.New()
+				if _, err := io.Copy(rightHash, rightTarReader); err != nil {
+					return false, fmt.Errorf("could not compute hash of %s: %v", right.Name, err)
+				}
+				// Update right hash
+				h, ok := hashMap[right.Name]
+				if !ok {
+					h = make([]string, 2)
+				}
+				h[1] = string(rightHash.Sum(nil))
+				hashMap[right.Name] = h
 			}
-			// Update right hash
-			h, ok := hashMap[right.Name]
-			if !ok {
-				h = make([]string, 2)
-			}
-			h[1] = string(rightHash.Sum(nil))
-			hashMap[right.Name] = h
 		}
 	}
 
 	identical := true
+
 	// Sort the files to make it easier to view in debug
 	files := make([]string, 0, len(hashMap))
 	for filename := range hashMap {
 		files = append(files, filename)
 	}
 	sort.Strings(files)
+	tarFiles := make([]string, 0, len(tarMap))
+	for filename := range tarMap {
+		tarFiles = append(tarFiles, filename)
+	}
+	sort.Strings(tarFiles)
+	tgzFiles := make([]string, 0, len(tgzMap))
+	for filename := range tgzMap {
+		tgzFiles = append(tgzFiles, filename)
+	}
+	sort.Strings(tgzFiles)
+
 	// Go through hashes to see if there are any mismatches
 	for _, filename := range files {
 		hashes, ok := hashMap[filename]
@@ -355,15 +431,69 @@ func CompareTgzs(fs billy.Filesystem, leftTgzPath string, rightTgzPath string) (
 		// Check if both archives contain the files
 		switch {
 		case len(hashes[0]) == 0:
-			logrus.Debugf("%s only exists in %s", filename, rightTgzPath)
+			logrus.Debugf("%s does not exist in left tar", filename)
 			identical = false
 		case len(hashes[1]) == 0:
-			logrus.Debugf("%s only exists in %s", filename, leftTgzPath)
+			logrus.Debugf("%s does not exist in right tar", filename)
 			identical = false
 		case hashes[0] != hashes[1]:
 			// Hashes do not match
 			logrus.Debugf("hash does not match for file %v: %s != %s", filename, hashes[0], hashes[1])
 			identical = false
+		}
+	}
+	// Go through tar files to see if there are any mismatches
+	for _, filename := range tarFiles {
+		tars, ok := tarMap[filename]
+		if !ok {
+			return false, fmt.Errorf("could not find %s in tarMap", filename)
+		}
+		// Check if both archives contain the files
+		switch {
+		case tars[0] == nil:
+			logrus.Debugf("%s does not exist in left tar", filename)
+			identical = false
+		case tars[1] == nil:
+			logrus.Debugf("%s does not exist in right tar", filename)
+			identical = false
+		default:
+			// Deep compare tars
+			logrus.Debugf("comparing contents of %s", filename)
+			matches, err := compareTars(tars[0], tars[1])
+			if err != nil {
+				return false, fmt.Errorf("could not compare contents of %s: %s", filename, err)
+			}
+			if !matches {
+				logrus.Debugf("contents do not match for tar file %v", filename)
+				identical = false
+			}
+		}
+	}
+	// Go through tgz files to see if there are any mismatches
+	for _, filename := range tgzFiles {
+		tgzs, ok := tgzMap[filename]
+		if !ok {
+			return false, fmt.Errorf("could not find %s in tgzMap", filename)
+		}
+		// Check if both archives contain the files
+		switch {
+		case tgzs[0] == nil:
+			logrus.Debugf("%s does not exist in left tgz", filename)
+			identical = false
+		case tgzs[1] == nil:
+			logrus.Debugf("%s does not exist in right tgz", filename)
+			identical = false
+		default:
+			// Deep compare tars
+			logrus.Debugf("comparing contents of %s", filename)
+			matches, err := compareTgzs(tgzs[0], tgzs[1])
+			if err != nil {
+				return false, fmt.Errorf("could not compare contents of %s: %s", filename, err)
+			}
+			if !matches {
+				logrus.Debugf("contents do not match for tgz file %v", filename)
+				identical = false
+			}
 		}
 	}
 	return identical, nil

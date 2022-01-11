@@ -29,7 +29,7 @@ type CompareGeneratedAssetsResponse struct {
 
 // PassedValidation returns whether the response seems to indicate that the chart repositories are in sync
 func (r CompareGeneratedAssetsResponse) PassedValidation() bool {
-	return len(r.ModifiedPostRelease) == 0 && len(r.UntrackedInRelease) == 0
+	return len(r.UntrackedInRelease) == 0 && len(r.RemovedPostRelease) == 0 && len(r.ModifiedPostRelease) == 0
 }
 
 // LogDiscrepancies produces logs that can be used to pretty-print why a validation might have failed
@@ -121,7 +121,7 @@ func CompareGeneratedAssets(repoFs billy.Filesystem, u options.UpstreamOptions, 
 			return err
 		}
 		if releaseOptions.Contains(chart.Metadata.Name, chart.Metadata.Version) {
-			// Chart is tracked in release.yaml
+			// Chart is tracked in release.yaml; this chart was removed intentionally
 			return nil
 		}
 		// Chart was removed from local and is not tracked by release.yaml

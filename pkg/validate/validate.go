@@ -135,7 +135,7 @@ func CompareGeneratedAssets(repoFs billy.Filesystem, u options.UpstreamOptions, 
 		return copyAndUnzip(repoFs, upstreamPath, localPath)
 	}
 
-	localAndUpstream := func(fs billy.Filesystem, upstreamPath, localPath string, isDir bool) error {
+	localAndUpstream := func(fs billy.Filesystem, localPath, upstreamPath string, isDir bool) error {
 		if isDir {
 			// We only care about modified files
 			return nil

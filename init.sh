@@ -9,7 +9,7 @@ chmod +x scripts/version
 curl -s ${CBS_RAW_LINK}/templates/template/scripts/pull-scripts --output scripts/pull-scripts > /dev/null
 chmod +x scripts/pull-scripts
 
-curl -s ${CBS_RAW_LINK}/templates/configuration.yaml --output configuration.yaml > /dev/null
+curl -s ${CBS_RAW_LINK}/templates/configuration.example.yaml --output configuration.yaml > /dev/null
 ./scripts/pull-scripts
 ./bin/charts-build-scripts template
 echo "Pulled in basic template into configuration.yaml and constructed charts directory"

@@ -8,6 +8,8 @@ type AdditionalChartOptions struct {
 	UpstreamOptions *UpstreamOptions `yaml:"upstreamOptions,omitempty"`
 	// CRDChartOptions is any options provided on how to generate a CRD chart. It is mutually exclusive with UpstreamOptions
 	CRDChartOptions *CRDChartOptions `yaml:"crdOptions,omitempty"`
+	// IgnoreDependencies drops certain dependencies from the list that is parsed from upstream
+	IgnoreDependencies []string `yaml:"ignoreDependencies"`
 }
 
 // CRDChartOptions represent any options that are configurable for CRD charts

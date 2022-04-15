@@ -23,6 +23,8 @@ type AdditionalChart struct {
 	Upstream *puller.Puller `yaml:"upstream"`
 	// CRDChartOptions represents any options that are configurable for CRD charts
 	CRDChartOptions *options.CRDChartOptions `yaml:"crdChart"`
+	// IgnoreDependencies drops certain dependencies from the list that is parsed from upstream
+	IgnoreDependencies []string `yaml:"ignoreDependencies"`
 
 	// The version of this chart in Upstream. This value is set to a non-nil value on Prepare.
 	// GenerateChart will fail if this value is not set (e.g. chart must be prepared first)
@@ -139,7 +141,7 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem, mainChartUpstr
 		}
 		c.upstreamChartVersion = &upstreamChartVersion
 	}
-	if err := PrepareDependencies(rootFs, pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
+	if err := PrepareDependencies(rootFs, pkgFs, c.WorkingDir, c.GeneratedChangesRootDir(), c.IgnoreDependencies); err != nil {
 		return fmt.Errorf("encountered error while trying to prepare dependencies in %s: %s", c.WorkingDir, err)
 	}
 	if c.Upstream != nil {
@@ -199,7 +201,7 @@ func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 	if err := helm.ConvertToHelmChart(pkgFs, c.OriginalDir()); err != nil {
 		return fmt.Errorf("encountered error while trying to convert upstream at %s into a Helm chart: %s", c.OriginalDir(), err)
 	}
-	if err := PrepareDependencies(rootFs, pkgFs, c.OriginalDir(), c.GeneratedChangesRootDir()); err != nil {
+	if err := PrepareDependencies(rootFs, pkgFs, c.OriginalDir(), c.GeneratedChangesRootDir(), c.IgnoreDependencies); err != nil {
 		return fmt.Errorf("encountered error while trying to prepare dependencies in %s: %s", c.OriginalDir(), err)
 	}
 	defer filesystem.RemoveAll(pkgFs, c.OriginalDir())

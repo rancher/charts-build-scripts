@@ -221,12 +221,16 @@ func main() {
 }
 
 func listPackages(c *cli.Context) {
+	List(PorcelainMode)
+}
+
+func List(porcelainMode bool) {
 	repoRoot := getRepoRoot()
 	packageList, err := charts.ListPackages(repoRoot, CurrentPackage)
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	if PorcelainMode {
+	if porcelainMode {
 		fmt.Println(strings.Join(packageList, " "))
 		return
 
@@ -235,7 +239,11 @@ func listPackages(c *cli.Context) {
 }
 
 func prepareCharts(c *cli.Context) {
-	packages := getPackages()
+	Prepare(CurrentPackage)
+}
+
+func Prepare(currentPackage string) {
+	packages := getPackages(currentPackage)
 	if len(packages) == 0 {
 		logrus.Fatal("Could not find any packages in packages/")
 	}
@@ -247,7 +255,11 @@ func prepareCharts(c *cli.Context) {
 }
 
 func generatePatch(c *cli.Context) {
-	packages := getPackages()
+	Patch(CurrentPackage)
+}
+
+func Patch(currentPackage string) {
+	packages := getPackages(currentPackage)
 	if len(packages) == 0 {
 		logrus.Infof("No packages found.")
 		return
@@ -259,7 +271,7 @@ func generatePatch(c *cli.Context) {
 		}
 		logrus.Fatalf(
 			"PACKAGE=\"%s\" must be set to point to exactly one package. Currently found the following packages: %s",
-			CurrentPackage, packageNames,
+			currentPackage, packageNames,
 		)
 	}
 	if err := packages[0].GeneratePatch(); err != nil {
@@ -268,7 +280,11 @@ func generatePatch(c *cli.Context) {
 }
 
 func generateCharts(c *cli.Context) {
-	packages := getPackages()
+	Charts(CurrentPackage)
+}
+
+func Charts(currentPackage string) {
+	packages := getPackages(currentPackage)
 	if len(packages) == 0 {
 		logrus.Infof("No packages found.")
 		return
@@ -282,6 +298,10 @@ func generateCharts(c *cli.Context) {
 }
 
 func createOrUpdateIndex(c *cli.Context) {
+	Index()
+}
+
+func Index() {
 	repoRoot := getRepoRoot()
 	if err := helm.CreateOrUpdateHelmIndex(filesystem.GetFilesystem(repoRoot)); err != nil {
 		logrus.Fatal(err)
@@ -289,23 +309,35 @@ func createOrUpdateIndex(c *cli.Context) {
 }
 
 func zipCharts(c *cli.Context) {
+	Zip(CurrentChart)
+}
+
+func Zip(currentChart string) {
 	repoRoot := getRepoRoot()
-	if err := zip.ArchiveCharts(repoRoot, CurrentChart); err != nil {
+	if err := zip.ArchiveCharts(repoRoot, currentChart); err != nil {
 		logrus.Fatal(err)
 	}
-	createOrUpdateIndex(c)
+	Index()
 }
 
 func unzipAssets(c *cli.Context) {
+	Unzip(CurrentAsset)
+}
+
+func Unzip(currentAsset string) {
 	repoRoot := getRepoRoot()
-	if err := zip.DumpAssets(repoRoot, CurrentAsset); err != nil {
+	if err := zip.DumpAssets(repoRoot, currentAsset); err != nil {
 		logrus.Fatal(err)
 	}
-	createOrUpdateIndex(c)
+	Index()
 }
 
 func cleanRepo(c *cli.Context) {
-	packages := getPackages()
+	Clean(CurrentPackage)
+}
+
+func Clean(currentPackage string) {
+	packages := getPackages(currentPackage)
 	if len(packages) == 0 {
 		logrus.Infof("No packages found.")
 		return
@@ -322,78 +354,128 @@ func validateRepo(c *cli.Context) {
 		logrus.Fatalf("cannot specify both local and remote validation")
 	}
 
-	CurrentPackage = "" // Validate always runs on all packages
-	chartsScriptOptions := parseScriptOptions()
+	if LocalMode {
+		ValidateLocal()
+		return
+	}
 
-	logrus.Infof("Checking if Git is clean")
+	if RemoteMode {
+		ValidateRemote()
+		return
+	}
+
+	Validate()
+}
+
+func checkGit() {
 	_, _, status := getGitInfo()
 	if !status.IsClean() {
 		logrus.Warnf("Git is not clean:\n%s", status)
 		logrus.Fatal("Repository must be clean to run validation")
 	}
+}
 
-	if RemoteMode {
-		logrus.Infof("Running remote validation only, skipping generating charts locally")
-	} else {
-		logrus.Infof("Generating charts")
-		generateCharts(c)
-
-		logrus.Infof("Checking if Git is clean after generating charts")
-		_, _, status = getGitInfo()
-		if !status.IsClean() {
-			logrus.Warnf("Generated charts produced the following changes in Git.\n%s", status)
-			logrus.Fatalf("Please commit these changes and run validation again.")
-		}
-		logrus.Infof("Successfully validated that current charts and assets are up to date.")
-	}
-
+func pullUpstream(chartsScriptOptions *options.ChartsScriptOptions) {
 	if chartsScriptOptions.ValidateOptions != nil {
-		if LocalMode {
-			logrus.Infof("Running local validation only, skipping pulling upstream")
-		} else {
-			repoRoot := getRepoRoot()
-			repoFs := filesystem.GetFilesystem(repoRoot)
-			releaseOptions, err := options.LoadReleaseOptionsFromFile(repoFs, "release.yaml")
-			if err != nil {
-				logrus.Fatalf("Unable to unmarshall release.yaml: %s", err)
+		repoRoot := getRepoRoot()
+		repoFs := filesystem.GetFilesystem(repoRoot)
+		releaseOptions, err := options.LoadReleaseOptionsFromFile(repoFs, "release.yaml")
+		if err != nil {
+			logrus.Fatalf("Unable to unmarshall release.yaml: %s", err)
+		}
+		u := chartsScriptOptions.ValidateOptions.UpstreamOptions
+		branch := chartsScriptOptions.ValidateOptions.Branch
+		logrus.Infof("Performing upstream validation against repository %s at branch %s", u.URL, branch)
+		compareGeneratedAssetsResponse, err := validate.CompareGeneratedAssets(repoFs, u, branch, releaseOptions)
+		if err != nil {
+			logrus.Fatal(err)
+		}
+		if !compareGeneratedAssetsResponse.PassedValidation() {
+			// Output charts that have been modified
+			compareGeneratedAssetsResponse.LogDiscrepancies()
+			logrus.Infof("Dumping release.yaml tracking changes that have been introduced")
+			if err := compareGeneratedAssetsResponse.DumpReleaseYaml(repoFs); err != nil {
+				logrus.Errorf("Unable to dump newly generated release.yaml: %s", err)
 			}
-			u := chartsScriptOptions.ValidateOptions.UpstreamOptions
-			branch := chartsScriptOptions.ValidateOptions.Branch
-			logrus.Infof("Performing upstream validation against repository %s at branch %s", u.URL, branch)
-			compareGeneratedAssetsResponse, err := validate.CompareGeneratedAssets(repoFs, u, branch, releaseOptions)
-			if err != nil {
+			logrus.Infof("Updating index.yaml")
+			if err := helm.CreateOrUpdateHelmIndex(repoFs); err != nil {
 				logrus.Fatal(err)
 			}
-			if !compareGeneratedAssetsResponse.PassedValidation() {
-				// Output charts that have been modified
-				compareGeneratedAssetsResponse.LogDiscrepancies()
-				logrus.Infof("Dumping release.yaml tracking changes that have been introduced")
-				if err := compareGeneratedAssetsResponse.DumpReleaseYaml(repoFs); err != nil {
-					logrus.Errorf("Unable to dump newly generated release.yaml: %s", err)
-				}
-				logrus.Infof("Updating index.yaml")
-				if err := helm.CreateOrUpdateHelmIndex(repoFs); err != nil {
-					logrus.Fatal(err)
-				}
-				logrus.Fatalf("Validation against upstream repository %s at branch %s failed.", u.URL, branch)
-			}
+			logrus.Fatalf("Validation against upstream repository %s at branch %s failed.", u.URL, branch)
 		}
 	}
+}
+
+func Validate() {
+	chartsScriptOptions := parseScriptOptions()
+
+	logrus.Infof("Checking if Git is clean")
+	checkGit()
+
+	logrus.Infof("Generating charts")
+	Charts("")
+
+	logrus.Infof("Checking if Git is clean after generating charts")
+	checkGit()
+	logrus.Infof("Successfully validated that current charts and assets are up to date.")
+
+	pullUpstream(chartsScriptOptions)
 
 	logrus.Info("Zipping charts to ensure that contents of assets, charts, and index.yaml are in sync.")
-	zipCharts(c)
+	Zip("")
 
 	logrus.Info("Doing a final check to ensure Git is clean")
-	_, _, status = getGitInfo()
-	if !status.IsClean() {
-		logrus.Warnf("Git is not clean:\n%s", status)
-		logrus.Fatal("Repository must be clean to pass validation")
-	}
+	checkGit()
+
+	logrus.Info("Successfully validated current repository!")
+}
+
+func ValidateLocal() {
+	logrus.Infof("Checking if Git is clean")
+	checkGit()
+
+	logrus.Infof("Generating charts")
+	Charts("")
+
+	logrus.Infof("Checking if Git is clean after generating charts")
+	checkGit()
+	logrus.Infof("Successfully validated that current charts and assets are up to date.")
+
+	logrus.Infof("Running local validation only, skipping pulling upstream")
+
+	logrus.Info("Zipping charts to ensure that contents of assets, charts, and index.yaml are in sync.")
+	Zip("")
+
+	logrus.Info("Doing a final check to ensure Git is clean")
+	checkGit()
+
+	logrus.Info("Successfully validated current repository!")
+}
+
+func ValidateRemote() {
+	chartsScriptOptions := parseScriptOptions()
+
+	logrus.Infof("Checking if Git is clean")
+	checkGit()
+
+	logrus.Infof("Running remote validation only, skipping generating charts locally")
+
+	pullUpstream(chartsScriptOptions)
+
+	logrus.Info("Zipping charts to ensure that contents of assets, charts, and index.yaml are in sync.")
+	Zip("")
+
+	logrus.Info("Doing a final check to ensure Git is clean")
+	checkGit()
 
 	logrus.Info("Successfully validated current repository!")
 }
 
 func standardizeRepo(c *cli.Context) {
+	Standardize()
+}
+
+func Standardize() {
 	repoRoot := getRepoRoot()
 	repoFs := filesystem.GetFilesystem(repoRoot)
 	if err := standardize.RestructureChartsAndAssets(repoFs); err != nil {
@@ -402,6 +484,10 @@ func standardizeRepo(c *cli.Context) {
 }
 
 func createOrUpdateTemplate(c *cli.Context) {
+	Template()
+}
+
+func Template() {
 	repoRoot := getRepoRoot()
 	repoFs := filesystem.GetFilesystem(repoRoot)
 	chartsScriptOptions := parseScriptOptions()
@@ -441,9 +527,9 @@ func getRepoRoot() string {
 	return repoRoot
 }
 
-func getPackages() []*charts.Package {
+func getPackages(currentPackage string) []*charts.Package {
 	repoRoot := getRepoRoot()
-	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
+	packages, err := charts.GetPackages(repoRoot, currentPackage)
 	if err != nil {
 		logrus.Fatal(err)
 	}

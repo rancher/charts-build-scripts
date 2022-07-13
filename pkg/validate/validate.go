@@ -1,7 +1,12 @@
 package validate
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -14,7 +19,9 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/zip"
 	"github.com/sirupsen/logrus"
 
+	"gopkg.in/yaml.v2"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/repo"
 )
 
 // CompareGeneratedAssetsResponse tracks resources that are added, deleted, and modified when comparing two charts repositories
@@ -188,4 +195,116 @@ func copyAndUnzip(repoFs billy.Filesystem, upstreamPath, localPath string) error
 		return fmt.Errorf("encountered error while copying over contents of modified upstream asset to charts: %s", err)
 	}
 	return nil
+}
+
+func CheckImageRancherPrefix() error {
+	index, err := repo.LoadIndexFile("index.yaml")
+	if err != nil {
+		return err
+	}
+	for _, versions := range index.Entries {
+		latestVersion := versions[0]
+		tgzPath := filepath.Join("", latestVersion.URLs[0])
+
+		versionValues, err := DecodeValuesFilesInTgz(tgzPath)
+		if err != nil {
+			logrus.Info(err)
+			continue
+		}
+		chartNameAndVersion := fmt.Sprintf("%s:%s", latestVersion.Name, latestVersion.Version)
+		for _, values := range versionValues {
+			chartImages := PickImagesFromValuesMap(values, chartNameAndVersion)
+			for _, chartImage := range chartImages {
+				if !imageHasRancherPrefix(chartImage) {
+					return fmt.Errorf("Image [%s] does not start with rancher/\n", chartImage)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// DecodeValueFilesInTgz reads tarball in tgzPath and returns a slice of values corresponding to values.yaml files found inside of it.
+func DecodeValuesFilesInTgz(tgzPath string) ([]map[interface{}]interface{}, error) {
+	tgz, err := os.Open(tgzPath)
+	if err != nil {
+		return nil, err
+	}
+	defer tgz.Close()
+	gzr, err := gzip.NewReader(tgz)
+	if err != nil {
+		return nil, err
+	}
+	defer gzr.Close()
+	tr := tar.NewReader(gzr)
+	var valuesSlice []map[interface{}]interface{}
+	for {
+		header, err := tr.Next()
+		switch {
+		case err == io.EOF:
+			return valuesSlice, nil
+		case err != nil:
+			return nil, err
+		case header.Typeflag == tar.TypeReg && isValuesFile(header.Name):
+			var values map[interface{}]interface{}
+			if err := decodeYAMLFile(tr, &values); err != nil {
+				return nil, err
+			}
+			valuesSlice = append(valuesSlice, values)
+		default:
+			continue
+		}
+	}
+}
+
+func decodeYAMLFile(r io.Reader, target interface{}) error {
+	data, err := ioutil.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal(data, target)
+}
+
+func isValuesFile(path string) bool {
+	basename := filepath.Base(path)
+	return basename == "values.yaml" || basename == "values.yml"
+}
+
+// PickImagesFromValuesMap walks a values map to find images, and returns the slice
+func PickImagesFromValuesMap(values map[interface{}]interface{}, chartNameAndVersion string) []string {
+	var images []string
+	walkMap(values, func(inputMap map[interface{}]interface{}) {
+		repository, ok := inputMap["repository"].(string)
+		if !ok {
+			return
+		}
+		// No string type assertion because some charts have float typed image tags
+		tag, ok := inputMap["tag"]
+		if !ok {
+			return
+		}
+		imageName := fmt.Sprintf("%s:%v", repository, tag)
+		images = append(images, imageName)
+		return
+	})
+	return images
+}
+
+func imageHasRancherPrefix(image string) bool {
+	return strings.HasPrefix(image, "rancher/")
+}
+
+// walkMap walks inputMap and calls the callback function on all map type nodes including the root node.
+func walkMap(inputMap interface{}, callback func(map[interface{}]interface{})) {
+	switch data := inputMap.(type) {
+	case map[interface{}]interface{}:
+		callback(data)
+		for _, value := range data {
+			walkMap(value, callback)
+		}
+	case []interface{}:
+		for _, elem := range data {
+			walkMap(elem, callback)
+		}
+	}
 }

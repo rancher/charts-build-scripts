@@ -122,6 +122,12 @@ func main() {
 			Flags:  []cli.Flag{packageFlag, porcelainFlag},
 		},
 		{
+			Name:   "list-asset-images",
+			Usage:  "Print a list of all images in an asset archive",
+			Action: listAssetImages,
+			Flags:  []cli.Flag{assetFlag, porcelainFlag},
+		},
+		{
 			Name:   "prepare",
 			Usage:  "Pull in the chart specified from upstream to the charts directory and apply any patch files",
 			Action: prepareCharts,
@@ -234,6 +240,26 @@ func listPackages(c *cli.Context) {
 	logrus.Infof("Found the following packages: %v", packageList)
 }
 
+func listAssetImages(c *cli.Context) {
+	repoRoot := getRepoRoot()
+	versionValues, err := validate.DecodeValuesFilesInTgz(fmt.Sprintf("%s/%s", repoRoot, CurrentAsset))
+	if err != nil {
+		logrus.Fatal(err)
+		return
+	}
+	var allImages []string
+	for _, values := range versionValues {
+		chartImages := validate.PickImagesFromValuesMap(values, "dummy")
+		allImages = append(allImages, chartImages...)
+	}
+	if PorcelainMode {
+		fmt.Println(strings.Join(allImages, " "))
+		return
+	}
+
+	logrus.Infof("Found the following images for asset [%s]: %v", CurrentAsset, allImages)
+}
+
 func prepareCharts(c *cli.Context) {
 	packages := getPackages()
 	if len(packages) == 0 {
@@ -330,6 +356,12 @@ func validateRepo(c *cli.Context) {
 	if !status.IsClean() {
 		logrus.Warnf("Git is not clean:\n%s", status)
 		logrus.Fatal("Repository must be clean to run validation")
+	}
+
+	logrus.Infof("Checking if all images start with rancher/")
+	err := validate.CheckImageRancherPrefix()
+	if err != nil {
+		logrus.Fatal(err)
 	}
 
 	if RemoteMode {

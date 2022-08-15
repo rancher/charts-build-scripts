@@ -1,11 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/rancher/charts-build-scripts/pkg/actions"
-	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
 	"github.com/rancher/charts-build-scripts/pkg/update"
@@ -210,65 +210,63 @@ func main() {
 	}
 }
 
-func listPackages(c *cli.Context) {
-	actions.List(CurrentPackage, PorcelainMode)
+func listPackages(c *cli.Context) error {
+	return actions.List(CurrentPackage, PorcelainMode)
 }
 
-func prepareCharts(c *cli.Context) {
-	actions.Prepare(CurrentPackage)
+func prepareCharts(c *cli.Context) error {
+	return actions.Prepare(CurrentPackage)
 }
 
-func generatePatch(c *cli.Context) {
-	actions.Patch(CurrentPackage)
+func generatePatch(c *cli.Context) error {
+	return actions.Patch(CurrentPackage)
 }
 
-func generateCharts(c *cli.Context) {
+func generateCharts(c *cli.Context) error {
 	actions.ChartsScriptOptionsFile = ChartsScriptOptionsFile
-	actions.Charts(CurrentPackage)
+	return actions.Charts(CurrentPackage)
 }
 
-func createOrUpdateIndex(c *cli.Context) {
-	actions.Index()
+func createOrUpdateIndex(c *cli.Context) error {
+	return actions.Index()
 }
 
-func zipCharts(c *cli.Context) {
-	actions.Zip(CurrentChart)
+func zipCharts(c *cli.Context) error {
+	return actions.Zip(CurrentChart)
 }
 
-func unzipAssets(c *cli.Context) {
-	actions.Unzip(CurrentAsset)
+func unzipAssets(c *cli.Context) error {
+	return actions.Unzip(CurrentAsset)
 }
 
-func cleanRepo(c *cli.Context) {
-	actions.Clean(CurrentPackage)
+func cleanRepo(c *cli.Context) error {
+	return actions.Clean(CurrentPackage)
 }
 
-func validateRepo(c *cli.Context) {
+func validateRepo(c *cli.Context) error {
 	actions.ChartsScriptOptionsFile = ChartsScriptOptionsFile
 	if LocalMode && RemoteMode {
-		logrus.Fatalf("cannot specify both local and remote validation")
+		return errors.New("cannot specify both local and remote validation")
 	}
 
 	if LocalMode {
-		actions.ValidateLocal()
-		return
+		return actions.ValidateLocal()
 	}
 
 	if RemoteMode {
-		actions.ValidateRemote()
-		return
+		return actions.ValidateRemote()
 	}
 
-	actions.Validate()
+	return actions.Validate()
 }
 
-func standardizeRepo(c *cli.Context) {
-	actions.Standardize()
+func standardizeRepo(c *cli.Context) error {
+	return actions.Standardize()
 }
 
-func createOrUpdateTemplate(c *cli.Context) {
+func createOrUpdateTemplate(c *cli.Context) error {
 	actions.ChartsScriptOptionsFile = ChartsScriptOptionsFile
-	actions.Template()
+	return actions.Template()
 }
 
 func setupCache(c *cli.Context) error {
@@ -279,21 +277,4 @@ func cleanCache(c *cli.Context) {
 	if err := puller.CleanRootCache(path.DefaultCachePath); err != nil {
 		logrus.Fatal(err)
 	}
-}
-
-func getRepoRoot() string {
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-	return repoRoot
-}
-
-func getPackages(currentPackage string) []*charts.Package {
-	repoRoot := getRepoRoot()
-	packages, err := charts.GetPackages(repoRoot, currentPackage)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	return packages
 }

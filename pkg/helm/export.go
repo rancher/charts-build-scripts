@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
@@ -36,7 +37,12 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 	if err := chart.Validate(); err != nil {
 		return fmt.Errorf("failed while trying to validate Helm chart: %s", err)
 	}
-	chartVersionSemver, err := semver.Make(chart.Metadata.Version)
+	chartVersion := chart.Metadata.Version
+	toParse := chartVersion
+	if strings.HasPrefix(chartVersion, "v") {
+		toParse = chartVersion[1:]
+	}
+	chartVersionSemver, err := semver.Make(toParse)
 	if err != nil {
 		return fmt.Errorf("cannot parse original chart version %s as valid semver", chart.Metadata.Version)
 	}
@@ -57,7 +63,6 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 		// Add buildMetadataFlag for forked charts
 		chartVersionSemver.Build = append(chartVersionSemver.Build, fmt.Sprintf("up%s", upstreamChartVersion))
 	}
-	chartVersion := chartVersionSemver.String()
 
 	// Assets are indexed by chart name, independent of which package that chart is contained within
 	chartAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, chart.Metadata.Name)

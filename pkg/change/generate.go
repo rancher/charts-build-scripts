@@ -17,7 +17,7 @@ const (
 )
 
 // GenerateChanges generates the change between fromDir and toDir and places it in the appropriate directories within gcDir
-func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string) error {
+func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string, replacePaths []string) error {
 	logrus.Infof("Generating changes to %s", path.GeneratedChangesDir)
 	// gcRootDir should always end with path.GeneratedChangesDir
 	if !strings.HasSuffix(gcRootDir, path.GeneratedChangesDir) {
@@ -25,6 +25,10 @@ func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string) erro
 	}
 	if err := removeAllGeneratedChanges(fs, gcRootDir); err != nil {
 		return fmt.Errorf("encountered error while trying to remove all existing generated changes before generating new changes: %s", err)
+	}
+	replacePathsMap := make(map[string]bool, len(replacePaths))
+	for _, path := range replacePaths {
+		replacePathsMap[path] = true
 	}
 	generateOverlayFile := func(fs billy.Filesystem, toPath string, isDir bool) error {
 		if isDir {
@@ -58,10 +62,20 @@ func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string) erro
 		if isDir {
 			return nil
 		}
-		patchPath, err := filesystem.MovePath(fromPath, fromDir, filepath.Join(gcRootDir, path.GeneratedChangesPatchDir))
+		p, err := filesystem.MovePath(fromPath, fromDir, "")
 		if err != nil {
 			return err
 		}
+		if _, ok := replacePathsMap[p]; ok {
+			if err := generateExcludeFile(fs, fromPath, isDir); err != nil {
+				return err
+			}
+			if err := generateOverlayFile(fs, toPath, isDir); err != nil {
+				return err
+			}
+			return nil
+		}
+		patchPath := filepath.Join(gcRootDir, path.GeneratedChangesPatchDir, p)
 		patchPathWithExt := fmt.Sprintf(patchFmt, patchPath)
 		generatedPatch, err := diff.GeneratePatch(fs, patchPathWithExt, fromPath, toPath)
 		if err != nil {

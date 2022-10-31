@@ -154,6 +154,7 @@ func GetChartFromOptions(opt options.ChartOptions) (Chart, error) {
 		WorkingDir:         workingDir,
 		Upstream:           upstream,
 		IgnoreDependencies: opt.IgnoreDependencies,
+		ReplacePaths:       opt.ReplacePaths,
 	}, nil
 }
 
@@ -175,6 +176,7 @@ func GetAdditionalChartFromOptions(opt options.AdditionalChartOptions) (Addition
 	a = AdditionalChart{
 		WorkingDir:         opt.WorkingDir,
 		IgnoreDependencies: opt.IgnoreDependencies,
+		ReplacePaths:       opt.ReplacePaths,
 	}
 	if opt.UpstreamOptions != nil {
 		upstream, err := GetUpstream(*opt.UpstreamOptions)

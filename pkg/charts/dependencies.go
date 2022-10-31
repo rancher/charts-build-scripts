@@ -251,8 +251,11 @@ func UpdateHelmMetadataWithDependencies(fs billy.Filesystem, mainHelmChartPath s
 		return err
 	}
 	// Pick up all existing dependencies tracked by Helm by name
-	helmDependencyMap := make(map[string]*helmChart.Dependency, len(chart.Metadata.Dependencies))
+	helmDependencyMap := make(map[string]*helmChart.Dependency, len(dependencyMap))
 	for _, dependency := range chart.Metadata.Dependencies {
+		if _, ok := dependencyMap[dependency.Name]; !ok {
+			continue
+		}
 		helmDependencyMap[dependency.Name] = dependency
 	}
 	// Update the Repository for each dependency

@@ -26,24 +26,6 @@ func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string) erro
 	if err := removeAllGeneratedChanges(fs, gcRootDir); err != nil {
 		return fmt.Errorf("encountered error while trying to remove all existing generated changes before generating new changes: %s", err)
 	}
-	generatePatchFile := func(fs billy.Filesystem, fromPath, toPath string, isDir bool) error {
-		if isDir {
-			return nil
-		}
-		patchPath, err := filesystem.MovePath(fromPath, fromDir, filepath.Join(gcRootDir, path.GeneratedChangesPatchDir))
-		if err != nil {
-			return err
-		}
-		patchPathWithExt := fmt.Sprintf(patchFmt, patchPath)
-		generatedPatch, err := diff.GeneratePatch(fs, patchPathWithExt, fromPath, toPath)
-		if err != nil {
-			return err
-		}
-		if generatedPatch {
-			logrus.Infof("Patch: %s", patchPath)
-		}
-		return nil
-	}
 	generateOverlayFile := func(fs billy.Filesystem, toPath string, isDir bool) error {
 		if isDir {
 			return nil
@@ -70,6 +52,24 @@ func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string) erro
 			return err
 		}
 		logrus.Infof("Exclude: %s", fromPath)
+		return nil
+	}
+	generatePatchFile := func(fs billy.Filesystem, fromPath, toPath string, isDir bool) error {
+		if isDir {
+			return nil
+		}
+		patchPath, err := filesystem.MovePath(fromPath, fromDir, filepath.Join(gcRootDir, path.GeneratedChangesPatchDir))
+		if err != nil {
+			return err
+		}
+		patchPathWithExt := fmt.Sprintf(patchFmt, patchPath)
+		generatedPatch, err := diff.GeneratePatch(fs, patchPathWithExt, fromPath, toPath)
+		if err != nil {
+			return err
+		}
+		if generatedPatch {
+			logrus.Infof("Patch: %s", patchPath)
+		}
 		return nil
 	}
 	return filesystem.CompareDirs(fs, fromDir, toDir, generateExcludeFile, generateOverlayFile, generatePatchFile)

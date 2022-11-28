@@ -22,9 +22,13 @@ import (
 )
 
 // PrepareDependencies prepares all of the dependencies of a given chart and regenerates the requirements.yaml or Chart.yaml
-func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDir string) error {
+func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDir string, ignoreDependencies []string) error {
 	logrus.Infof("Loading dependencies for chart")
-	if err := LoadDependencies(pkgFs, mainHelmChartPath, gcRootDir); err != nil {
+	ignoreDependencyMap := make(map[string]bool)
+	for _, dep := range ignoreDependencies {
+		ignoreDependencyMap[dep] = true
+	}
+	if err := LoadDependencies(pkgFs, mainHelmChartPath, gcRootDir, ignoreDependencyMap); err != nil {
 		return err
 	}
 	dependencyMap, err := GetDependencyMap(pkgFs, gcRootDir)
@@ -113,7 +117,7 @@ func getMainChartUpstreamOptions(pkgFs billy.Filesystem, gcRootDir string) (*opt
 }
 
 // LoadDependencies takes all existing subcharts in the package and loads them into the gcRootDir as dependencies
-func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDir string) error {
+func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDir string, ignoreDependencyMap map[string]bool) error {
 	// Get main chart options
 	mainChartUpstreamOpts, err := getMainChartUpstreamOptions(pkgFs, gcRootDir)
 	if err != nil {
@@ -123,6 +127,14 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 	mainChart, err := helmLoader.Load(filesystem.GetAbsPath(pkgFs, mainHelmChartPath))
 	if err != nil {
 		return err
+	}
+	var numChartsRemoved int
+	for i, dependency := range mainChart.Metadata.Dependencies {
+		if ignoreDependencyMap[dependency.Name] {
+			// delete this dependency
+			mainChart.Metadata.Dependencies = append(mainChart.Metadata.Dependencies[:i-numChartsRemoved], mainChart.Metadata.Dependencies[i+1-numChartsRemoved:]...)
+			numChartsRemoved++
+		}
 	}
 	// Handle local chart archives first since version numbers don't make a difference
 	for _, dependency := range mainChart.Metadata.Dependencies {
@@ -239,8 +251,11 @@ func UpdateHelmMetadataWithDependencies(fs billy.Filesystem, mainHelmChartPath s
 		return err
 	}
 	// Pick up all existing dependencies tracked by Helm by name
-	helmDependencyMap := make(map[string]*helmChart.Dependency, len(chart.Metadata.Dependencies))
+	helmDependencyMap := make(map[string]*helmChart.Dependency, len(dependencyMap))
 	for _, dependency := range chart.Metadata.Dependencies {
+		if _, ok := dependencyMap[dependency.Name]; !ok {
+			continue
+		}
 		helmDependencyMap[dependency.Name] = dependency
 	}
 	// Update the Repository for each dependency

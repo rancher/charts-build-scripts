@@ -63,22 +63,22 @@ func ApplyChanges(fs billy.Filesystem, toDir, gcRootDir string) error {
 			return err
 		}
 	}
-	exists, err = filesystem.PathExists(fs, chartsOverlayDirpath)
-	if err != nil {
-		return err
-	}
-	if exists {
-		err = filesystem.WalkDir(fs, chartsOverlayDirpath, applyOverlayFile)
-		if err != nil {
-			return err
-		}
-	}
 	exists, err = filesystem.PathExists(fs, chartsExcludeDirpath)
 	if err != nil {
 		return err
 	}
 	if exists {
 		err = filesystem.WalkDir(fs, chartsExcludeDirpath, applyExcludeFile)
+		if err != nil {
+			return err
+		}
+	}
+	exists, err = filesystem.PathExists(fs, chartsOverlayDirpath)
+	if err != nil {
+		return err
+	}
+	if exists {
+		err = filesystem.WalkDir(fs, chartsOverlayDirpath, applyOverlayFile)
 		if err != nil {
 			return err
 		}

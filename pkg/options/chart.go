@@ -16,6 +16,10 @@ type ChartOptions struct {
 	WorkingDir string `yaml:"workingDir" default:"charts"`
 	// UpstreamOptions is any options provided on how to get this chart from upstream
 	UpstreamOptions UpstreamOptions `yaml:",inline"`
+	// IgnoreDependencies drops certain dependencies from the list that is parsed from upstream
+	IgnoreDependencies []string `yaml:"ignoreDependencies"`
+	// ReplacePaths marks paths as those that should be replaced instead of patches. Consequently, these paths will exist in both generated-changes/excludes and generated-changes/overlay
+	ReplacePaths []string `yaml:"replacePaths"`
 }
 
 // UpstreamOptions represents the options presented to users to define where the upstream Helm chart is located

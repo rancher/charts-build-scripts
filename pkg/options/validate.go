@@ -4,6 +4,9 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/hashicorp/go-version"
+	"golang.org/x/exp/slices"
+
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"gopkg.in/yaml.v2"
@@ -41,8 +44,16 @@ func (r ReleaseOptions) Append(chartName string, chartVersion string) ReleaseOpt
 	if !ok {
 		versions = []string{}
 	}
+
+	if slices.Index(versions, chartVersion) != -1 {
+		// value is present, do not include it
+		return r
+	}
+
 	versions = append(versions, chartVersion)
+
 	r[chartName] = versions
+
 	return r
 }
 
@@ -74,8 +85,33 @@ func LoadReleaseOptionsFromFile(fs billy.Filesystem, path string) (ReleaseOption
 	return releaseOptions, yaml.Unmarshal(releaseOptionsBytes, &releaseOptions)
 }
 
+// SortBySemver sorts the version strings in release options according to semver constraints
+func (r ReleaseOptions) SortBySemver() {
+	for chartName, versions := range r {
+		slices.SortFunc(versions, CompareVersions)
+		r[chartName] = versions
+	}
+}
+
+// CompareVersions compares two semantic versions and determines ascending ordering
+func CompareVersions(a string, b string) bool {
+	v1, err := version.NewVersion(a)
+	if err != nil {
+		return false
+	}
+
+	v2, err := version.NewVersion(b)
+	if err != nil {
+		return false
+	}
+
+	return v1.LessThanOrEqual(v2)
+}
+
 // WriteToFile marshals the struct to yaml and writes it into the path specified
 func (r ReleaseOptions) WriteToFile(fs billy.Filesystem, path string) error {
+	r.SortBySemver()
+
 	releaseOptionsBytes, err := yaml.Marshal(r)
 	if err != nil {
 		return err

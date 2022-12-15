@@ -17,6 +17,8 @@ import (
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
+const ReleaseYamlFileName = "release.yaml"
+
 // CompareGeneratedAssetsResponse tracks resources that are added, deleted, and modified when comparing two charts repositories
 type CompareGeneratedAssetsResponse struct {
 	// UntrackedInRelease represents charts that need to be added to the release.yaml
@@ -43,11 +45,20 @@ func (r CompareGeneratedAssetsResponse) LogDiscrepancies() {
 // DumpReleaseYaml takes the response collected by this CompareGeneratedAssetsResponse and automatically creates the appropriate release.yaml,
 // assuming that the user does indeed intend to add, delete, or modify all assets that were marked in this comparison
 func (r CompareGeneratedAssetsResponse) DumpReleaseYaml(repoFs billy.Filesystem) error {
-	releaseYaml := options.ReleaseOptions{}
+	releaseYaml, err := options.LoadReleaseOptionsFromFile(repoFs, ReleaseYamlFileName)
+	if err != nil {
+		return err
+	}
+
+	if releaseYaml == nil {
+		releaseYaml = make(map[string][]string)
+	}
+
 	releaseYaml.Merge(r.UntrackedInRelease)
 	releaseYaml.Merge(r.RemovedPostRelease)
 	releaseYaml.Merge(r.ModifiedPostRelease)
-	return releaseYaml.WriteToFile(repoFs, "release.yaml")
+
+	return releaseYaml.WriteToFile(repoFs, ReleaseYamlFileName)
 }
 
 // CompareGeneratedAssets checks to see if current assets and charts match upstream, aside from those indicated in the release.yaml

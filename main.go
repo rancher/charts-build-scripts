@@ -13,6 +13,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
+	"github.com/rancher/charts-build-scripts/pkg/regsync"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/rancher/charts-build-scripts/pkg/standardize"
 	"github.com/rancher/charts-build-scripts/pkg/update"
@@ -141,6 +142,11 @@ func main() {
 			Action: generateCharts,
 			Before: setupCache,
 			Flags:  []cli.Flag{packageFlag, configFlag, cacheFlag},
+		},
+		{
+			Name:   "regsync",
+			Usage:  "Create a regsync config file containing all images used for the particular Rancher version",
+			Action: generateRegSyncConfigFile,
 		},
 		{
 			Name:   "index",
@@ -278,6 +284,12 @@ func generateCharts(c *cli.Context) {
 		if err := p.GenerateCharts(chartsScriptOptions.OmitBuildMetadataOnExport); err != nil {
 			logrus.Fatal(err)
 		}
+	}
+}
+
+func generateRegSyncConfigFile(c *cli.Context) {
+	if err := regsync.GenerateConfigFile(); err != nil {
+		logrus.Fatal(err)
 	}
 }
 

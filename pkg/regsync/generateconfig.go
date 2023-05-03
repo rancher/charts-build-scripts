@@ -122,8 +122,14 @@ sync:`)
 		fmt.Fprintln(file, "  tags:")
 		fmt.Fprintln(file, "    allow:")
 
-		for _, imageTag := range imageTagMap[repo] {
-			fmt.Fprintf(file, "    - %s\n", imageTag)
+		// We collect all tags and then sort them so there is consistency
+		// in the update of the regsync file always.
+		tags := make([]string, 0)
+		tags = append(tags, imageTagMap[repo]...)
+		sort.Strings(tags)
+
+		for _, tag := range tags {
+			fmt.Fprintf(file, "    - %s\n", tag)
 		}
 	}
 

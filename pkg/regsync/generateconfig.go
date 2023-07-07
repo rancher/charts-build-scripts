@@ -15,6 +15,13 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// chartsToIgnoreTags and systemChartsToIgnoreTags defines the charts and system charts in which a specified
+// image tag should be ignored.
+var chartsToIgnoreTags = map[string]string{
+	"rancher-vsphere-csi": "latest",
+	"rancher-vsphere-cpi": "latest",
+}
+
 // GenerateConfigFile creates a regsync config file out of the current branch.
 func GenerateConfigFile() error {
 	imageTagMap := make(map[string][]string)
@@ -53,7 +60,7 @@ func walkAssetsFolder(imageTagMap map[string][]string) error {
 
 			// There can be multiple values yaml files for single chart. So, making a for loop.
 			for _, valuesYaml := range valuesYamlMaps {
-				// Collecting all iamges with the following notation in the values yaml files
+				// Collecting all images with the following notation in the values yaml files
 				// reposoitory :
 				// tag :
 				walkMap(valuesYaml, func(inputMap map[interface{}]interface{}) {
@@ -65,6 +72,19 @@ func walkAssetsFolder(imageTagMap map[string][]string) error {
 					tag, ok := inputMap["tag"]
 					if !ok {
 						return
+					}
+
+					// Get the chart name from the folder
+					pathTrimmed := strings.Replace(path, "./assets/", "", 1)
+					chartName := strings.Split(pathTrimmed, "/")[0]
+
+					// If the chart & tag are in the ignore charttags map, we ignore them
+					for ignoreChartName, ignoreTag := range chartsToIgnoreTags {
+						if chartName == ignoreChartName {
+							if tag == ignoreTag {
+								return
+							}
+						}
 					}
 
 					// If the tag is already found, we don't append it again

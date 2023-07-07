@@ -74,13 +74,10 @@ func walkAssetsFolder(imageTagMap map[string][]string) error {
 						return
 					}
 
-					// Get the chart name from the folder
-					pathTrimmed := strings.Replace(path, "./assets/", "", 1)
-					chartName := strings.Split(pathTrimmed, "/")[0]
-
 					// If the chart & tag are in the ignore charttags map, we ignore them
 					for ignoreChartName, ignoreTag := range chartsToIgnoreTags {
-						if chartName == ignoreChartName {
+						// find the chart name using the path variable
+						if strings.Contains(path, fmt.Sprintf("/%s/", ignoreChartName)) {
 							if tag == ignoreTag {
 								return
 							}

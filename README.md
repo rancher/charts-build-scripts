@@ -23,6 +23,10 @@ curl -s https://raw.githubusercontent.com/rancher/charts-build-scripts/master/in
 
 `./bin/charts-build-scripts`
 
+## Debugging
+
+For more information on how to debug this project, please see [`docs/debugging.md`](docs/debugging.md).
+
 ## License
 Copyright (c) 2019 [Rancher Labs, Inc.](http://rancher.com)
 

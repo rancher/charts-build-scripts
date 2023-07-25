@@ -17,7 +17,7 @@ The command accepts either a local (l or local) or a remote (r or remote) flag. 
 3. **Repository Cleanliness Check**: Then, it ensures that your git repository is in a clean state, free from uncommitted changes, and ready to process.
 
 4. **Local Flag Operations**: If you have set the local flag:
-    1. **Chart Generation**: It immediately fires up to generate local charts.
+    1. **Chart Generation**: It immediately fires up to generate local charts. It loops through the packages, pulls the main chart into the charts folder, and packs the main chart and its dependencies into the assets folder.
     2. **Repository Cleanliness Check**: It revisits the cleanliness of your git repository.
 
 5. **Script Options Set**: If you've already set the script options:

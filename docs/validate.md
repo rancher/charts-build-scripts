@@ -25,9 +25,13 @@ The command accepts either a local (l or local) or a remote (r or remote) flag. 
         1. **Repository Root Retrieval**: It then finds your repository's root directory.
         2. **Loading Release Options**: Next, it fetches the release options from your `release.yaml`.
         3. **Asset & Chart Verification**: It verifies if the generated assets and charts are in sync with the upstream ones.
-        4. **Discrepancy Check**: If any discrepancies are found, such as charts that need to be added to `release.yaml`, charts that have been removed from the upstream, or charts that have been modified from the upstream:
-            1. **Logging Discrepancies**: These inconsistencies are logged for you to examine.
-            2. **Correcting release.yaml**: It goes ahead to create a correct `release.yaml` file, incorporating all the discrepancies found in the previous steps.
+        4. **Discrepancy Check**: It checks for three types of discrepancies:
+            1. Chart exists in local and is not tracked by `release.yaml`. If that's the case, the chart is added to the `UntrackedInRelease` list.
+            2. Chart was removed from local and is not tracked by `release.yaml`. If that's the case, the chart is added to the `RemovedPostRelease` list.
+            3. Chart was modified in local and is not tracked by `release.yaml`. If that's the case, the chart is added to the `ModifiedPostRelease` list.
+
+        5. **Logging Discrepancies**: These discrepancies found in the last step are logged for you to examine. It prints the `UntrackedInRelease`, `RemovedPostRelease` and `ModifiedPostRelease` lists.
+        6. **Correcting release.yaml**: It goes ahead to create a correct `release.yaml` file, incorporating all the discrepancies found in the previous steps.
 
 6. **Zip Charts**: Zipping charts to ensure that contents of assets, charts, and index.yaml are in sync.
 

@@ -23,6 +23,10 @@ curl -s https://raw.githubusercontent.com/rancher/charts-build-scripts/master/in
 
 `./bin/charts-build-scripts`
 
+## Validation command
+
+For more information on the validation command, please see [`docs/validate.md`](docs/validate.md).
+
 ## Debugging
 
 For more information on how to debug this project, please see [`docs/debugging.md`](docs/debugging.md).

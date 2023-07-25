@@ -33,7 +33,9 @@ The command accepts either a local (l or local) or a remote (r or remote) flag. 
         5. **Logging Discrepancies**: These discrepancies found in the last step are logged for you to examine. It prints the `UntrackedInRelease`, `RemovedPostRelease` and `ModifiedPostRelease` lists.
         6. **Correcting release.yaml**: It goes ahead to create a correct `release.yaml` file, incorporating all the discrepancies found in the previous steps.
 
-6. **Zip Charts**: Zipping charts to ensure that contents of assets, charts, and index.yaml are in sync.
+6. **Zip Charts**: Zipping charts to ensure that contents of assets, charts, and index.yaml are in sync. It zips charts from charts/ into assets/. If the asset was re-ordered, it will also update charts/. If specificChart is provided, it will filter the set of charts that will be targeted for zipping. It will also not update an asset if its internal contents have not changed.
+
+    **Note**: since we use helm package to zip charts, it's possible that the tgz file that is created reorders the contents of Chart.yaml and requirements.yaml to be alphabetical. Therefore, when zipping a chart we always need to unzip the finalized chart(s) back to the charts/ directory.
 
 7. **Final Cleanliness Check**: Finally, it does one last sweep to ensure that your git repository is clean. If not, it promptly alerts you of the situation, helping to avoid a potential mishap.
 

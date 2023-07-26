@@ -176,7 +176,7 @@ func CompareGeneratedAssets(repoFs billy.Filesystem, u options.UpstreamOptions, 
 		}
 		// Chart was modified in local and is not tracked by release.yaml
 		logrus.Infof("%s/%s was modified", chart.Metadata.Name, chart.Metadata.Version)
-		response.ModifiedPostRelease = response.RemovedPostRelease.Append(chart.Metadata.Name, chart.Metadata.Version)
+		response.ModifiedPostRelease = response.ModifiedPostRelease.Append(chart.Metadata.Name, chart.Metadata.Version)
 		return copyAndUnzip(repoFs, upstreamPath, localPath)
 	}
 

@@ -250,35 +250,29 @@ func UpdateHelmMetadataWithDependencies(fs billy.Filesystem, mainHelmChartPath s
 	if err != nil {
 		return err
 	}
-	// Pick up all existing dependencies tracked by Helm by name
-	helmDependencyMap := make(map[string]*helmChart.Dependency, len(dependencyMap))
-	for _, dependency := range chart.Metadata.Dependencies {
-		if _, ok := dependencyMap[dependency.Name]; !ok {
-			continue
-		}
-		helmDependencyMap[dependency.Name] = dependency
-	}
+
 	// Update the Repository for each dependency
 	for dependencyName := range dependencyMap {
-		d, ok := helmDependencyMap[dependencyName]
-		if !ok {
-			// Dependency does not exist, so we add it to the list
-			d = &helmChart.Dependency{
-				Name:      dependencyName,
-				Condition: fmt.Sprintf("%s.enabled", dependencyName),
+		found := false
+		for _, d := range chart.Metadata.Dependencies {
+			if d.Name == dependencyName {
+				d.Repository = fmt.Sprintf("file://./charts/%s", dependencyName)
+				d.Version = "" // Local chart archives don't need a version
+				found = true
 			}
-			helmDependencyMap[dependencyName] = d
 		}
-		d.Version = "" // Local chart archives don't need a version
-		d.Repository = fmt.Sprintf("file://./charts/%s", dependencyName)
+		if !found {
+			// Dependency does not exist, so we add it to the list
+			d := &helmChart.Dependency{
+				Name:       dependencyName,
+				Condition:  fmt.Sprintf("%s.enabled", dependencyName),
+				Version:    "", // Local chart archives don't need a version
+				Repository: fmt.Sprintf("file://./charts/%s", dependencyName),
+			}
+			chart.Metadata.Dependencies = append(chart.Metadata.Dependencies, d)
+		}
 	}
-	// Convert the map back into a list
-	chart.Metadata.Dependencies = make([]*helmChart.Dependency, len(helmDependencyMap))
-	i := 0
-	for _, dependency := range helmDependencyMap {
-		chart.Metadata.Dependencies[i] = dependency
-		i++
-	}
+
 	// Sort the list
 	sort.SliceStable(chart.Metadata.Dependencies, func(i, j int) bool {
 		return chart.Metadata.Dependencies[i].Name < chart.Metadata.Dependencies[j].Name

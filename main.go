@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
+	"github.com/rancher/charts-build-scripts/pkg/images"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
@@ -218,6 +219,11 @@ func main() {
 					Value:       "master",
 				},
 			},
+		},
+		{
+			Name:   "check-images",
+			Usage:  "Checks all container images used in the charts repository",
+			Action: checkImages,
 		},
 	}
 
@@ -478,4 +484,10 @@ func getGitInfo() (*git.Repository, *git.Worktree, git.Status) {
 		logrus.Fatal(err)
 	}
 	return repo, wt, status
+}
+
+func checkImages(c *cli.Context) {
+	if err := images.CheckImages(); err != nil {
+		logrus.Fatal(err)
+	}
 }

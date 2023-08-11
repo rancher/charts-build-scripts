@@ -12,7 +12,7 @@ import (
 const maxRetries = 5
 
 // Head sends a HEAD request to the given URL and returns an error if the request fails
-func Head(url string) error {
+func Head(url, token string) error {
 
 	// Retry until max retries reached
 	for retries := 0; retries <= maxRetries; retries++ {
@@ -21,6 +21,11 @@ func Head(url string) error {
 		req, err := http.NewRequest("HEAD", url, nil)
 		if err != nil {
 			return fmt.Errorf("error creating the HEAD request: %v", err)
+		}
+
+		// Add the authorization header if a token is provided
+		if token != "" {
+			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 		}
 
 		// Create a new HTTP client

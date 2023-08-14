@@ -65,7 +65,10 @@ func CheckImages() error {
 		}
 	}
 
-	logrus.Errorf("Images that have failed the check: %v", failedImages)
+	// If there are any images that have failed the check, return an error
+	if len(failedImages) > 0 {
+		return fmt.Errorf("images that have failed the check: %v", failedImages)
+	}
 
 	return nil
 }

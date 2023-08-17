@@ -114,6 +114,8 @@ creds:
 - registry: '{{ env "REGISTRY_ENDPOINT" }}'
   user: '{{ env "REGISTRY_USERNAME" }}'
   pass: '{{ env "REGISTRY_PASSWORD" }}'
+  reqConcurrent: 10
+  reqPerSec: 50
 defaults:
   mediaTypes:
   - application/vnd.docker.distribution.manifest.v2+json

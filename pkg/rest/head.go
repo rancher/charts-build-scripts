@@ -46,11 +46,12 @@ func Head(url, token string) error {
 			return nil
 
 		case http.StatusTooManyRequests:
-
 			// Get the retry after header, parse it to int64 and set a timer until retry
 			retryAfterMillis := response.Header.Get("Retry-After")
 			retryAfterMillisInt, _ := strconv.ParseInt(retryAfterMillis, 10, 64)
-			retryAfter := time.Now().Add(time.Duration(retryAfterMillisInt) * time.Nanosecond)
+
+			// Convert the retry after millis to a time.Time object and calculate the time until retry
+			retryAfter := time.Unix(retryAfterMillisInt, 0)
 			timeUntilRetry := time.Until(retryAfter)
 
 			logrus.Infof("request was rate limited, retrying in %s", timeUntilRetry)

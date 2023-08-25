@@ -226,9 +226,9 @@ func main() {
 			Action: checkImages,
 		},
 		{
-			Name:   "check-rc-tags",
-			Usage:  "Checks if there are any images with rc tags in the charts repository",
-			Action: checkRCTags,
+			Name:   "check-rc",
+			Usage:  "Checks if there are any images with rc tags or charts with rc versions in the charts repository",
+			Action: checkRCTagsAndVersions,
 		},
 	}
 
@@ -497,7 +497,7 @@ func checkImages(c *cli.Context) {
 	}
 }
 
-func checkRCTags(c *cli.Context) {
+func checkRCTagsAndVersions(c *cli.Context) {
 	if err := images.CheckRCTags(); err != nil {
 		logrus.Fatal(err)
 	}

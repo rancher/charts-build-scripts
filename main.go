@@ -225,6 +225,11 @@ func main() {
 			Usage:  "Checks all container images used in the charts repository",
 			Action: checkImages,
 		},
+		{
+			Name:   "check-rc-tags",
+			Usage:  "Checks if there are any images with rc tags in the charts repository",
+			Action: checkRCTags,
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -488,6 +493,12 @@ func getGitInfo() (*git.Repository, *git.Worktree, git.Status) {
 
 func checkImages(c *cli.Context) {
 	if err := images.CheckImages(); err != nil {
+		logrus.Fatal(err)
+	}
+}
+
+func checkRCTags(c *cli.Context) {
+	if err := images.CheckRCTags(); err != nil {
 		logrus.Fatal(err)
 	}
 }

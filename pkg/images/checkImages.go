@@ -1,6 +1,7 @@
 package images
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -35,11 +36,8 @@ func CheckImages() error {
 		return err
 	}
 
-	// Check if there's any image outside the rncher namespace
-	nonMatchingImages := checkPattern(imageTagMap)
-	if len(nonMatchingImages) > 0 {
-		return fmt.Errorf("found images outside the rancher namespace: %v", nonMatchingImages)
-	}
+	// Check if there's any image outside the rancher namespace
+	imagesOutsideNamespace := checkPattern(imageTagMap)
 
 	// Get a token to access the Docker Hub API
 	token, err := retrieveToken()
@@ -65,9 +63,11 @@ func CheckImages() error {
 		}
 	}
 
-	// If there are any images that have failed the check, return an error
-	if len(failedImages) > 0 {
-		return fmt.Errorf("images that have failed the check: %v", failedImages)
+	// If there are any images that have failed the check, log them and return an error
+	if len(failedImages) > 0 || len(imagesOutsideNamespace) > 0 {
+		logrus.Errorf("found images outside the rancher namespace: %v", imagesOutsideNamespace)
+		logrus.Errorf("images that are not on Docker Hub: %v", failedImages)
+		return errors.New("image check has failed")
 	}
 
 	return nil

@@ -227,7 +227,7 @@ func main() {
 		},
 		{
 			Name:   "check-rc",
-			Usage:  "Checks if there are any images with rc tags or charts with rc versions in the charts repository",
+			Usage:  "Checks if there are any images with RC tags or charts with RC versions in the charts repository",
 			Action: checkRCTagsAndVersions,
 		},
 	}
@@ -498,7 +498,17 @@ func checkImages(c *cli.Context) {
 }
 
 func checkRCTagsAndVersions(c *cli.Context) {
-	if err := images.CheckRCTags(); err != nil {
-		logrus.Fatal(err)
+	// Grab all images that contain RC tags
+	rcImageTagMap := images.CheckRCTags()
+
+	// Grab all chart versions that contain RC tags
+	rcChartVersionMap := charts.CheckRCCharts()
+
+	// If there are any charts that contains RC version or images that contains RC tags
+	// log them and return an error
+	if len(rcChartVersionMap) > 0 || len(rcImageTagMap) > 0 {
+		logrus.Errorf("found images with RC tags: %v", rcImageTagMap)
+		logrus.Errorf("found charts with RC version: %v", rcChartVersionMap)
+		logrus.Fatalf("rc check has failed")
 	}
 }

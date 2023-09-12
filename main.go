@@ -509,6 +509,8 @@ func checkRCTagsAndVersions(c *cli.Context) {
 	if len(rcChartVersionMap) > 0 || len(rcImageTagMap) > 0 {
 		logrus.Errorf("found images with RC tags: %v", rcImageTagMap)
 		logrus.Errorf("found charts with RC version: %v", rcChartVersionMap)
-		logrus.Fatalf("rc check has failed")
+		logrus.Fatal("RC check has failed")
 	}
+
+	logrus.Info("RC check has succeeded")
 }

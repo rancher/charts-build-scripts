@@ -47,6 +47,10 @@ func CheckImages() error {
 
 	// Loop through all images and tags to check if they exist
 	for image := range imageTagMap {
+		if len(image) == 0 {
+			logrus.Infof("found blank image, skipping")
+			continue
+		}
 
 		// Split image into namespace and repository
 		location := strings.Split(image, "/")

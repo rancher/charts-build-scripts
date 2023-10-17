@@ -48,7 +48,7 @@ func CheckImages() error {
 	// Loop through all images and tags to check if they exist
 	for image := range imageTagMap {
 		if len(image) == 0 {
-			logrus.Infof("found blank image, skipping")
+			logrus.Infof("found blank image, skipping tag check")
 			continue
 		}
 
@@ -82,6 +82,11 @@ func checkPattern(imageTagMap map[string][]string) []string {
 	nonMatchingImages := make([]string, 0)
 
 	for image := range imageTagMap {
+		if len(image) == 0 {
+			logrus.Infof("found blank image, skipping image namespace check")
+			continue
+		}
+
 		if !strings.HasPrefix(image, "rancher/") {
 			nonMatchingImages = append(nonMatchingImages, image)
 		}

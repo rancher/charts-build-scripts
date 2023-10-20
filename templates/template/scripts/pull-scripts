@@ -30,14 +30,27 @@ if ! [[ -f bin/charts-build-scripts ]] || [[ $(cat bin/charts-build-scripts) == 
     
     # Fall back to old process
     echo "Building binary locally..."
-    rm -rf charts-build-scripts
+
+    # Building in a temporary directory
+    CURR_DIR=$(pwd)
+    TEMP_DIR=$(mktemp -d)
+    cd $TEMP_DIR
+    echo ${TEMP_DIR}
+    cleanup() {
+        set +e
+        cd ${CURR_DIR}
+        [[ -n "${TEMP_DIR}" ]] && [[ -d "${TEMP_DIR}" ]] && rm -rf ${TEMP_DIR}
+    }
+    trap 'cleanup' EXIT
+
     git clone --depth 1 --branch $CHARTS_BUILD_SCRIPT_VERSION $CHARTS_BUILD_SCRIPTS_REPO 2>/dev/null
 
     cd charts-build-scripts
     VERSION_OVERRIDE=${CHARTS_BUILD_SCRIPT_VERSION} ./scripts/build
-    mv bin ..
-    cd ..
-    rm -rf charts-build-scripts
+    mv bin/charts-build-scripts ${CURR_DIR}/bin/charts-build-scripts
+    
+    # Return to original directory
+    cd ${CURR_DIR}
 else
     echo "${BINARY_NAME} => ./bin/charts-build-scripts"
 fi

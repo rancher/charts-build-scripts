@@ -104,7 +104,7 @@ func checkTag(namespace, repository, tag, token string) error {
 	// Sends HEAD request to check if namespace/repository:tag exists
 	err := rest.Head(url, token)
 	if err != nil {
-		logrus.Errorf("failed to check tag %s/%s:%s", namespace, repository, tag)
+		logrus.Errorf("failed to check tag %s/%s:%s - %s", namespace, repository, tag, err.Error())
 		return err
 	}
 

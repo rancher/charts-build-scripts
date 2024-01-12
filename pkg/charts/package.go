@@ -86,7 +86,7 @@ func (p *Package) GeneratePatch() error {
 }
 
 // GenerateCharts creates Helm chart archives for each chart after preparing it
-func (p *Package) GenerateCharts(omitBuildMetadataOnExport bool) error {
+func (p *Package) GenerateCharts(omitBuildMetadataOnExport bool, validateOnly bool) error {
 	if p.DoNotRelease {
 		logrus.Infof("Skipping package marked doNotRelease")
 		return nil
@@ -95,12 +95,12 @@ func (p *Package) GenerateCharts(omitBuildMetadataOnExport bool) error {
 		return fmt.Errorf("encountered error while trying to prepare package: %s", err)
 	}
 	// Add PackageVersion to format
-	err := p.Chart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, omitBuildMetadataOnExport)
+	err := p.Chart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, omitBuildMetadataOnExport, validateOnly)
 	if err != nil {
 		return fmt.Errorf("encountered error while exporting main chart: %s", err)
 	}
 	for _, additionalChart := range p.AdditionalCharts {
-		err = additionalChart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, omitBuildMetadataOnExport)
+		err = additionalChart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, omitBuildMetadataOnExport, validateOnly)
 		if err != nil {
 			return fmt.Errorf("encountered error while exporting %s: %s", additionalChart.WorkingDir, err)
 		}

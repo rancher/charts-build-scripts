@@ -290,9 +290,13 @@ func generateCharts(c *cli.Context) {
 		logrus.Infof("No packages found.")
 		return
 	}
+	validateOnly := false
+	if c.Command.Name == "validate" {
+		validateOnly = true
+	}
 	chartsScriptOptions := parseScriptOptions()
 	for _, p := range packages {
-		if err := p.GenerateCharts(chartsScriptOptions.OmitBuildMetadataOnExport); err != nil {
+		if err := p.GenerateCharts(chartsScriptOptions.OmitBuildMetadataOnExport, validateOnly); err != nil {
 			logrus.Fatal(err)
 		}
 	}

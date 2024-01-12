@@ -46,4 +46,7 @@ const (
 
 	// DefaultCachePath represents the default place to put a cache on pulled values
 	DefaultCachePath = ".charts-build-scripts/.cache"
+
+	// RepositoryLogosDir is a directory on your Staging/Live branch that contains the files with the logos of each chart
+	RepositoryLogosDir = "assets/logos"
 )

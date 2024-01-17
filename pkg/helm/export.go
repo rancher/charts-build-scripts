@@ -3,8 +3,12 @@ package helm
 import (
 	"fmt"
 	"math"
+	"net/url"
 	"os"
 	"path/filepath"
+
+	"github.com/rancher/charts-build-scripts/pkg/icons"
+	"helm.sh/helm/v3/pkg/chartutil"
 
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
@@ -26,7 +30,7 @@ var (
 
 // ExportHelmChart creates a Helm chart archive and an unarchived Helm chart at RepositoryAssetDirpath and RepositoryChartDirPath
 // helmChartPath is a relative path (rooted at the package level) that contains the chart.
-func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion *int, version *semver.Version, upstreamChartVersion string, omitBuildMetadata bool) error {
+func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion *int, version *semver.Version, upstreamChartVersion string, omitBuildMetadata, validateOnly bool) error {
 	// Try to load the chart to see if it can be exported
 	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
 	chart, err := helmLoader.Load(absHelmChartPath)
@@ -58,6 +62,28 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 		chartVersionSemver.Build = append(chartVersionSemver.Build, fmt.Sprintf("up%s", upstreamChartVersion))
 	}
 	chartVersion := chartVersionSemver.String()
+
+	// If its not only validation then download icons
+	if !validateOnly {
+		//checking if icon is pointing to a valid http/https url
+		u, err := url.Parse(chart.Metadata.Icon)
+		if err == nil && (u.Scheme == "http" || u.Scheme == "https") {
+			logrus.Infof("Chart icon is pointing to a remote url. Downloading it...")
+			// download icon and change the icon property to point to it
+			p, err := icons.Download(rootFs, chart.Metadata)
+			if err == nil { // managed to download the icon and save it locally
+				chart.Metadata.Icon = fmt.Sprintf("file://%s", p)
+			} else {
+				logrus.Errorf("failed to download icon for chart %s, err: %s", chart.Name(), err)
+			}
+		}
+	}
+
+	chartYamlPath := fmt.Sprintf("%s/Chart.yaml", absHelmChartPath)
+	err = chartutil.SaveChartfile(chartYamlPath, chart.Metadata)
+	if err != nil {
+		return err
+	}
 
 	// Assets are indexed by chart name, independent of which package that chart is contained within
 	chartAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, chart.Metadata.Name)

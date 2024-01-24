@@ -230,6 +230,12 @@ func main() {
 			Usage:  "Checks if there are any images with RC tags or charts with RC versions in the charts repository",
 			Action: checkRCTagsAndVersions,
 		},
+		{
+			Name:   "icon",
+			Usage:  "Download the chart icon locally and use it",
+			Action: downloadIcon,
+			Flags:  []cli.Flag{packageFlag, configFlag, cacheFlag},
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -290,13 +296,23 @@ func generateCharts(c *cli.Context) {
 		logrus.Infof("No packages found.")
 		return
 	}
-	validateOnly := false
-	if c.Command.Name == "validate" {
-		validateOnly = true
-	}
 	chartsScriptOptions := parseScriptOptions()
 	for _, p := range packages {
-		if err := p.GenerateCharts(chartsScriptOptions.OmitBuildMetadataOnExport, validateOnly); err != nil {
+		if err := p.GenerateCharts(chartsScriptOptions.OmitBuildMetadataOnExport); err != nil {
+			logrus.Fatal(err)
+		}
+	}
+}
+
+func downloadIcon(c *cli.Context) {
+	packages := getPackages()
+	if len(packages) == 0 {
+		logrus.Infof("No packages found.")
+		return
+	}
+	for _, p := range packages {
+		err := p.DownloadIcon()
+		if err != nil {
 			logrus.Fatal(err)
 		}
 	}

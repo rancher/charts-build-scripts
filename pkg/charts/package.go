@@ -2,13 +2,18 @@ package charts
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
 
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
+	"github.com/rancher/charts-build-scripts/pkg/icons"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/sirupsen/logrus"
+	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/chartutil"
 )
 
 // Package represents the configuration of a particular forked Helm chart
@@ -85,8 +90,43 @@ func (p *Package) GeneratePatch() error {
 	return nil
 }
 
+// DownloadIcon Downloads the icon from the charts.yaml file to the assets/logos folder
+// and changes the chart.yaml file to use it
+func (p *Package) DownloadIcon() error {
+	exists, err := filesystem.PathExists(p.fs, path.RepositoryChartsDir)
+	if err != nil {
+		return fmt.Errorf("failed to check for charts dir. Err: %w", err)
+	}
+	if !exists {
+		logrus.Infof("Charts dir does not exists. Please run `make prepare` first")
+		return nil
+	}
+	absHelmChartPath := filesystem.GetAbsPath(p.fs, path.RepositoryChartsDir)
+	chart, err := helmLoader.Load(absHelmChartPath)
+	if err != nil {
+		return fmt.Errorf("could not load Helm chart: %s", err)
+	}
+	u, err := url.Parse(chart.Metadata.Icon)
+	if err == nil && (u.Scheme == "http" || u.Scheme == "https") {
+		logrus.Infof("Chart icon is pointing to a remote url. Downloading it...")
+		// download icon and change the icon property to point to it
+		p, err := icons.Download(p.rootFs, chart.Metadata)
+		if err == nil { // managed to download the icon and save it locally
+			chart.Metadata.Icon = fmt.Sprintf("file://%s", p)
+		} else {
+			logrus.Errorf("failed to download icon for chart %s, err: %s", chart.Name(), err)
+		}
+		chartYamlPath := fmt.Sprintf("%s/Chart.yaml", absHelmChartPath)
+		err = chartutil.SaveChartfile(chartYamlPath, chart.Metadata)
+		if err != nil {
+			return fmt.Errorf("failed to save chart.yaml file. err: %w", err)
+		}
+	}
+	return nil
+}
+
 // GenerateCharts creates Helm chart archives for each chart after preparing it
-func (p *Package) GenerateCharts(omitBuildMetadataOnExport bool, validateOnly bool) error {
+func (p *Package) GenerateCharts(omitBuildMetadataOnExport bool) error {
 	if p.DoNotRelease {
 		logrus.Infof("Skipping package marked doNotRelease")
 		return nil
@@ -95,12 +135,12 @@ func (p *Package) GenerateCharts(omitBuildMetadataOnExport bool, validateOnly bo
 		return fmt.Errorf("encountered error while trying to prepare package: %s", err)
 	}
 	// Add PackageVersion to format
-	err := p.Chart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, omitBuildMetadataOnExport, validateOnly)
+	err := p.Chart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, omitBuildMetadataOnExport)
 	if err != nil {
 		return fmt.Errorf("encountered error while exporting main chart: %s", err)
 	}
 	for _, additionalChart := range p.AdditionalCharts {
-		err = additionalChart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, omitBuildMetadataOnExport, validateOnly)
+		err = additionalChart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, omitBuildMetadataOnExport)
 		if err != nil {
 			return fmt.Errorf("encountered error while exporting %s: %s", additionalChart.WorkingDir, err)
 		}

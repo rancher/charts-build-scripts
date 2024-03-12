@@ -1,11 +1,8 @@
-charts-build-scripts
-========
+# charts-build-scripts
 
-## Build Scripts For Rancher Charts
+## How to Use `charts-build-scripts`
 
-## Before running the scripts
-
-#### If you are creating a new charts repository 
+### Charts Repository Setup
 
 Checkout the Git branch that corresponds to your Staging or Live branch.
 
@@ -15,23 +12,53 @@ Export BRANCH_ROLE as `staging`, `live`, or `custom`. Then run:
 curl -s https://raw.githubusercontent.com/rancher/charts-build-scripts/master/init.sh > /dev/null | sh
 ```
 
-## Building
+### Building
 
 `make`
 
-## Running
+### Running
 
 `./bin/charts-build-scripts`
 
-## Validation command
+### Validation command
 
 For more information on the validation command, please see [`docs/validate.md`](docs/validate.md).
 
-## Debugging
+### Debugging
 
 For more information on how to debug this project, please see [`docs/debugging.md`](docs/debugging.md).
 
+
+## Developing `charts-build-scripts`
+
+### How to Run
+
+```
+go run main.go
+```
+
+### How to Run Unit Tests
+
+```
+go test ./...
+```
+
+### How to Lint
+
+```
+golangci-lint run ./...
+```
+
+### How to Release
+
+Releases are done via a github action that uses [`goreleaser`] (https://goreleaser.com/).
+In order to release, simply tag the commit that you want the release
+to be based off of with a tag that is in semver format. `goreleaser`
+takes care of the rest.
+
+
 ## License
+
 Copyright (c) 2019 [Rancher Labs, Inc.](http://rancher.com)
 
 Licensed under the Apache License, Version 2.0 (the "License");

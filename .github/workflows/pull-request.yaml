@@ -1,4 +1,4 @@
-name: Run linter and do a test build
+name: Lint and Test Build
 
 on:
   pull_request:
@@ -25,4 +25,4 @@ jobs:
     - name: Run goreleaser
       uses: goreleaser/goreleaser-action@v5
       with:
-        args: build
+        args: build --snapshot

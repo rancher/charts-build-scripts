@@ -1,36 +1,28 @@
-name: Pull-Request
+name: Run linter and do a test build
 
 on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: golangci/golangci-lint-action@v4
+        with:
+          version: v1.56
+
   build:
     runs-on: ubuntu-latest
-    container: 
-      image: rancher/dapper:v0.5.4
     steps:
-      - uses: actions/checkout@v1
-      - name: Run CI
-        run: dapper ci
+    - uses: actions/checkout@v4
 
-  build-validate:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout 
-      uses: actions/checkout@v3
-
-    - name: Build binaries
-      env:
-        CROSS: false
-      run: make build
-
-    - name: Checkout charts Repo
-      uses: actions/checkout@v3
+    - uses: actions/setup-go@v4
       with:
-        repository: rancher/charts
-        path: charts
+        go-version: '1.22'
 
-    - name: Run Validation
-      run: |
-        cd charts
-        ../bin/charts-build-scripts validate
+    - name: Run goreleaser
+      uses: goreleaser/goreleaser-action@v5
+      with:
+        args: build

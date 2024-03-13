@@ -9,3 +9,4 @@ charts-build-scripts
 pkg/.DS_Store
 templates/.DS_Store
 .vscode
+dist/

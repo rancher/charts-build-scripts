@@ -51,7 +51,7 @@ golangci-lint run ./...
 
 ### How to Release
 
-Releases are done via a github action that uses [`goreleaser`] (https://goreleaser.com/).
+Releases are done via a github action that uses [`goreleaser`](https://goreleaser.com/).
 In order to release, simply tag the commit that you want the release
 to be based off of with a tag that is in semver format. `goreleaser`
 takes care of the rest.
@@ -59,7 +59,7 @@ takes care of the rest.
 
 ## License
 
-Copyright (c) 2019 [Rancher Labs, Inc.](http://rancher.com)
+Copyright (c) 2024 [Rancher Labs, Inc.](http://rancher.com)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

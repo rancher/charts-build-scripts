@@ -117,6 +117,13 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem, mainChartUpstr
 		if err != nil {
 			return fmt.Errorf("encountered error while trying to get the main chart's working directory: %s", err)
 		}
+		if c.Upstream != nil {
+			logrus.Infof("pulling CRD upstream")
+			u := *c.Upstream
+			if err := u.Pull(rootFs, pkgFs, filepath.Join(mainChartWorkingDir, path.ChartCRDDir)); err != nil {
+				return fmt.Errorf("encountered error while trying to pull upstream into %s: %s", mainChartWorkingDir, err)
+			}
+		}
 		exists, err := filesystem.PathExists(pkgFs, filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
 		if err != nil {
 			return fmt.Errorf("encountered error while trying to check if %s exists: %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir), err)

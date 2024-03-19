@@ -16,12 +16,10 @@ additionalCharts:
 # These contain other charts that you would like to package alongside this chart
 - workingDir: # same as above
   upstreamOptions:
-    # Mutually exclusive with crdOptions
     url: # same as above
     subdirectory: # optional, same as above
     commit: # optional, same as above
   crdOptions:
-    # Mutually exclusive with upstreamOptions
     templateDirectory: # A directory within packages/<package>/template that will contain a template for your CRD chart
     crdDirectory: # Where to place your CRDs within a CRD chart (e.g. crds for default charts)
     addCRDValidationToMainChart: # Whether to add additional validation to your main chart to check that the CRD chart is installed.

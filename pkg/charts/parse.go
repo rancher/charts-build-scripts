@@ -162,9 +162,6 @@ func GetChartFromOptions(opt options.ChartOptions) (Chart, error) {
 // GetAdditionalChartFromOptions returns an AdditionalChart based on the options provided
 func GetAdditionalChartFromOptions(opt options.AdditionalChartOptions) (AdditionalChart, error) {
 	var a AdditionalChart
-	if opt.UpstreamOptions != nil && opt.CRDChartOptions != nil {
-		return a, fmt.Errorf("invalid additional chart options provided: cannot define both UpstreamOptions and CRDChartOptions")
-	}
 	if opt.UpstreamOptions == nil && opt.CRDChartOptions == nil {
 		return a, fmt.Errorf("cannot parse additional chart options: you must either provide a URL (UpstreamOptions) or provide CRDChartOptions")
 	}

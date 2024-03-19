@@ -4,9 +4,9 @@ package options
 type AdditionalChartOptions struct {
 	// WorkingDir is the working directory for this chart within packages/<package-name>
 	WorkingDir string `yaml:"workingDir"`
-	// UpstreamOptions is any options provided on how to get this chart from upstream. It is mutually exclusive with CRDChartOptions
+	// UpstreamOptions is any options provided on how to get this chart from upstream.
 	UpstreamOptions *UpstreamOptions `yaml:"upstreamOptions,omitempty"`
-	// CRDChartOptions is any options provided on how to generate a CRD chart. It is mutually exclusive with UpstreamOptions
+	// CRDChartOptions is any options provided on how to generate a CRD chart.
 	CRDChartOptions *CRDChartOptions `yaml:"crdOptions,omitempty"`
 	// IgnoreDependencies drops certain dependencies from the list that is parsed from upstream
 	IgnoreDependencies []string `yaml:"ignoreDependencies"`

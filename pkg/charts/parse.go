@@ -185,18 +185,25 @@ func GetAdditionalChartFromOptions(opt options.AdditionalChartOptions) (Addition
 	}
 	if opt.CRDChartOptions != nil {
 		crdDirectory := opt.CRDChartOptions.CRDDirectory
-		if len(crdDirectory) == 0 {
-			return a, fmt.Errorf("CRD options must provide a directory to place CRDs within")
+		useTarArchive := opt.CRDChartOptions.UseTarArchive
+		if crdDirectory == "" && !useTarArchive {
+			return a, fmt.Errorf("CRD options must provide a directory to place CRDs within or use tar archive")
+		}
+		if crdDirectory != "" && useTarArchive {
+			return a, fmt.Errorf("CRD options cannot provide both a directory to place CRDs within and use tar archive")
 		}
 		templateDirectory := opt.CRDChartOptions.TemplateDirectory
 		if len(templateDirectory) == 0 {
 			return a, fmt.Errorf("CRD options must provide a template directory")
 		}
+		if crdDirectory == "" {
+			crdDirectory = path.ChartCRDDir
+		}
 		a.CRDChartOptions = &options.CRDChartOptions{
 			TemplateDirectory:           templateDirectory,
 			CRDDirectory:                crdDirectory,
+			UseTarArchive:               useTarArchive,
 			AddCRDValidationToMainChart: opt.CRDChartOptions.AddCRDValidationToMainChart,
-			UseTarArchive:               opt.CRDChartOptions.UseTarArchive,
 		}
 	}
 	return a, nil

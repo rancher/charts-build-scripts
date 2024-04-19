@@ -18,10 +18,10 @@ type AdditionalChartOptions struct {
 type CRDChartOptions struct {
 	// The directory within packages/<package-name>/templates/ that will contain the template for your CRD chart
 	TemplateDirectory string `yaml:"templateDirectory"`
-	// The directory within your templateDirectory in which CRD files should be placed
+	// The directory within your templateDirectory in which CRD files should be placed. Mutually exclusive with UseTarArchive
 	CRDDirectory string `yaml:"crdDirectory" default:"templates"`
+	// UseTarArchive indicates whether to bundle and compress CRD files into a tgz file. Mutually exclusive with CRDDirectory
+	UseTarArchive bool `yaml:"useTarArchive"`
 	// Whether to add a validation file to your main chart to check that CRDs exist
 	AddCRDValidationToMainChart bool `yaml:"addCRDValidationToMainChart"`
-	// UseTarArchive indicates whether to bundle and compress CRD files into a tgz file
-	UseTarArchive bool `yaml:"useTarArchive"`
 }

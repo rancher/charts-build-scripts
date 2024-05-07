@@ -89,10 +89,10 @@ func (c *AdditionalChart) RevertMainChanges(pkgFs billy.Filesystem) error {
 	}
 	if c.CRDChartOptions.UseTarArchive {
 		if err := filesystem.UnarchiveTgz(pkgFs, filepath.Join(c.WorkingDir, path.ChartExtraFileDir, path.ChartCRDTgzFilename), "", filepath.Join(c.WorkingDir, c.CRDChartOptions.CRDDirectory), false); err != nil {
-			return fmt.Errorf("encountered error while trying to unarchive CRD files from %s: %s", filepath.Join(c.WorkingDir, path.ChartExtraFileDir, path.ChartCRDTgzFilename), err)
+			return fmt.Errorf("encountered error while trying to unarchive CRD files from %s: %s", filepath.Join(c.WorkingDir, "files", path.ChartCRDTgzFilename), err)
 		}
 	}
-	// copy CRD files from packages/<package>/charts-crd/crd-manifest/ back to packages/<package>/charts/crds/
+	// copy CRD files from packages/<package>/<workingDir>/<crdDirectory>/ back to packages/<package>/crds/
 	if err := helm.CopyCRDsFromChart(pkgFs, c.WorkingDir, c.CRDChartOptions.CRDDirectory, mainChartWorkingDir, path.ChartCRDDir); err != nil {
 		return fmt.Errorf("encountered error while trying to copy CRDs from %s to %s: %s", c.WorkingDir, mainChartWorkingDir, err)
 	}

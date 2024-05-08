@@ -196,7 +196,7 @@ func GetAdditionalChartFromOptions(opt options.AdditionalChartOptions) (Addition
 		if len(templateDirectory) == 0 {
 			return a, fmt.Errorf("CRD options must provide a template directory")
 		}
-		if crdDirectory == "" {
+		if crdDirectory == "" && useTarArchive {
 			crdDirectory = path.ChartCRDDir
 		}
 		a.CRDChartOptions = &options.CRDChartOptions{

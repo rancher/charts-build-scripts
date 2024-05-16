@@ -22,6 +22,14 @@ func CopyCRDsFromChart(fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHel
 	}
 	srcCRDsDirpath := filepath.Join(srcHelmChartPath, srcCRDsDir)
 	dstCRDsDirpath := filepath.Join(dstHelmChartPath, destCRDsDir)
+
+	exists, err := filesystem.PathExists(fs, srcCRDsDirpath)
+	if err != nil {
+		return fmt.Errorf("error checking if CRDs directory exists: %s", err)
+	} else if !exists {
+		return os.ErrNotExist
+	}
+
 	logrus.Infof("Copying CRDs from %s to %s", srcCRDsDirpath, dstCRDsDirpath)
 	return filesystem.CopyDir(fs, srcCRDsDirpath, dstCRDsDirpath)
 }

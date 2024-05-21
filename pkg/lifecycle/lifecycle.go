@@ -2,6 +2,8 @@ package lifecycle
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
@@ -24,14 +26,22 @@ type Dependencies struct {
 	vr                *VersionRules
 	// These wrappers are used to mock the filesystem and git status in the tests
 	walkDirWrapper           WalkDirFunc
+	makeRemoveWrapper        MakeRemoveFunc
 	checkIfGitIsCleanWrapper CheckIfGitIsCleanFunc
+	gitAddAndCommitWrapper   GitAddAndCommitFunc
 }
 
 // WalkDirFunc is a function type that will be used to walk through the filesystem
 type WalkDirFunc func(fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error
 
+// MakeRemoveFunc is a function type that will be used to execute make remove
+type MakeRemoveFunc func(chart, version string, debug bool) error
+
 // CheckIfGitIsCleanFunc is a function type that will be used to check if the git tree is clean
 type CheckIfGitIsCleanFunc func(debug bool) (bool, error)
+
+// GitAddAndCommitFunc is a function type that will be used to add and commit changes in the git tree
+type GitAddAndCommitFunc func(message string) error
 
 func cycleLog(debugMode bool, msg string, data interface{}) {
 	if debugMode {
@@ -53,8 +63,10 @@ func InitDependencies(repoRoot, branchVersion string, currentChart string, debug
 	var err error
 	// Create a new Dependencies struct
 	dep := &Dependencies{
-		checkIfGitIsCleanWrapper: checkIfGitIsClean, // Assign the checkIfGitIsClean function to the wrapper
-
+		walkDirWrapper:           filesystem.WalkDir, // Assign the WalkDir function to the wrapper
+		makeRemoveWrapper:        makeRemove,         // Assign the makeRemove function to the wrapper
+		checkIfGitIsCleanWrapper: checkIfGitIsClean,  // Assign the checkIfGitIsClean function to the wrapper
+		gitAddAndCommitWrapper:   gitAddAndCommit,    // Assign the gitAddAndCommit function to the wrapper
 	}
 
 	cycleLog(debug, "Getting branch version rules for: ", branchVersion)
@@ -114,5 +126,97 @@ func (ld *Dependencies) ApplyRules(currentChart string, debug bool) error {
 
 	// Execute make remove for each chart and version that is not in the lifecycle
 	// Commit after each chart removal...
+	removedAssetsVersions, err := ld.removeVersionsAssets(debug)
+	if err != nil {
+		return err
+	}
+
+	logrus.Infof("Removed a total of %d assets", len(removedAssetsVersions))
+	cycleLog(debug, "Removed assets", removedAssetsVersions)
+
+	return nil
+}
+
+// removeVersionsAssets will iterate through assetsVersionsMap and remove the versions that are not in the lifecycle commiting the changes
+func (ld *Dependencies) removeVersionsAssets(debug bool) (map[string][]Asset, error) {
+	logrus.Info("Executing make remove")
+
+	// Save what was removed for validation
+	var removedAssetsVersionsMap map[string][]Asset = make(map[string][]Asset)
+	var removedAssetsVersion []Asset = make([]Asset, 0)
+
+	// Loop through the assetsVersionsMap, i.e: entries in the index.yaml
+	for chartName, assetsVersionsMap := range ld.assetsVersionsMap {
+		cycleLog(debug, "Chart name", chartName)
+
+		// Reset the slice for the next iteration
+		removedAssetsVersion = nil
+
+		// Skip if there are no versions to remove
+		if len(assetsVersionsMap) == 0 {
+			cycleLog(debug, "Skipping... no versions found for", chartName)
+			continue
+		}
+
+		// Loop through the versions of the chart and remove the ones that are not in the lifecycle
+		for _, asset := range assetsVersionsMap {
+			isVersionInLifecycle := ld.vr.checkChartVersionForLifecycle(asset.version)
+			if isVersionInLifecycle {
+				logrus.Debugf("Version %s is in lifecycle for %s", asset.version, chartName)
+				continue // Skipping version in lifecycle
+			} else {
+				err := ld.makeRemoveWrapper(chartName, asset.version, debug)
+				if err != nil {
+					logrus.Errorf("Error while removing %s version %s: %s", chartName, asset.version, err)
+					return nil, err // Abort and return error if the removal fails
+				}
+				// Saving removed asset version
+				removedAssetsVersion = append(removedAssetsVersion, asset)
+			}
+		}
+
+		// If no versions were removed from the existing ones, do not commit.
+		clean, err := ld.checkIfGitIsCleanWrapper(debug)
+		if err != nil {
+			return nil, err
+		}
+		if clean {
+			logrus.Infof("No versions were removed for %s", chartName)
+			continue // Skipping
+		}
+
+		// Commit each chart removal versions in a single commit
+		err = ld.gitAddAndCommitWrapper(fmt.Sprintf("Remove %s versions", chartName))
+		if err != nil {
+			logrus.Errorf("Error while committing the removal of %s versions: %s", chartName, err)
+			return nil, err // Abort and return error if the commit fails
+		}
+
+		// Saving removed asset versions
+		removedAssetsVersionsMap[chartName] = removedAssetsVersion
+	}
+
+	logrus.Info("lifecycle-assets-clean is Done!")
+	return removedAssetsVersionsMap, nil
+}
+
+// makeRemove will execute make remove script to a specific chart and version
+func makeRemove(chart, version string, debug bool) error {
+
+	chartArg := fmt.Sprintf("CHART=%s", chart)
+	versionArg := fmt.Sprintf("VERSION=%s", version)
+	logrus.Infof("Executing > make remove %s %s \n", chartArg, versionArg)
+	cmd := exec.Command("make", "remove", chartArg, versionArg)
+
+	if debug {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
+
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("cmd.Run() failed for chart:%s and version:%s with error:%w",
+			chart, version, err)
+	}
 	return nil
 }

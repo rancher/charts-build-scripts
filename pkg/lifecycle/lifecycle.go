@@ -23,8 +23,12 @@ type Dependencies struct {
 	assetsVersionsMap map[string][]Asset
 	vr                *VersionRules
 	// These wrappers are used to mock the filesystem and git status in the tests
+	walkDirWrapper           WalkDirFunc
 	checkIfGitIsCleanWrapper CheckIfGitIsCleanFunc
 }
+
+// WalkDirFunc is a function type that will be used to walk through the filesystem
+type WalkDirFunc func(fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error
 
 // CheckIfGitIsCleanFunc is a function type that will be used to check if the git tree is clean
 type CheckIfGitIsCleanFunc func(debug bool) (bool, error)
@@ -93,4 +97,22 @@ func InitDependencies(repoRoot, branchVersion string, currentChart string, debug
 	}
 
 	return dep, nil
+}
+
+// ApplyRules will populate all assets versions and paths, sort the versions,
+// and execute make remove for each chart and version.
+// After each chart removal, it will commit the changes in a single commit
+// for all versions of that chart.
+func (ld *Dependencies) ApplyRules(currentChart string, debug bool) error {
+	// Populate the assets versions and paths combining the index.yaml and assets folder
+	err := ld.populateAssetsVersionsPath(debug)
+	if err != nil {
+		return err
+	}
+	// Sort the versions before removing
+	ld.sortAssetsVersions()
+
+	// Execute make remove for each chart and version that is not in the lifecycle
+	// Commit after each chart removal...
+	return nil
 }

@@ -3,7 +3,11 @@ package lifecycle
 import (
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 
+	"github.com/Masterminds/semver"
+	"github.com/go-git/go-billy/v5"
 	helmRepo "helm.sh/helm/v3/pkg/repo"
 )
 
@@ -47,4 +51,77 @@ func getAssetsMapFromIndex(absRepositoryHelmIndexFile, currentChart string, debu
 	}
 
 	return assetsMap, nil
+}
+
+// populateAssetsVersionsPath will combine the information from the index.yaml file and the assets directory to get the path of each asset version for each chart.
+// It will populate the assetsVersionsMap with the path of the assets.
+// It walks through the assets directory and compares the version of the assets with the version of the assets in the index.yaml file.
+func (ld *Dependencies) populateAssetsVersionsPath(debug bool) error {
+	// Return a complet map of assets with their version and path in the repository
+	var assetsVersionsMap = make(map[string][]Asset)
+
+	// Lets see what we have on assets/<chart> dir
+	// doFunc is callback function passed as an argument to the WalkDir function
+	// WalkDir is expected to call doFunc for each file or directory it encounters
+	// during its traversal of the directory specified by dirPath
+	// All results will be appended fo filePaths
+	var filePaths []string
+	doFunc := func(fs billy.Filesystem, path string, isDir bool) error {
+		if !isDir {
+			filePaths = append(filePaths, path)
+		}
+		return nil
+	}
+
+	// Range through the assetsMap and get the path of the assets
+	for chart, assets := range ld.assetsVersionsMap {
+
+		dirPath := fmt.Sprintf("assets/%s", chart)
+		cycleLog(debug, "Getting assets at path", dirPath)
+
+		err := ld.walkDirWrapper(ld.rootFs, dirPath, doFunc)
+		if err != nil {
+			return fmt.Errorf("encountered error while walking through the assets directory: %w", err)
+		}
+
+		// Now we have the path of the assets, at filePaths
+		for _, asset := range assets {
+			for _, filePath := range filePaths {
+				// Ranging through assets and filePaths to get the version of the asset
+				version := strings.TrimPrefix(filePath, dirPath+"/"+chart+"-")
+				version = strings.TrimSuffix(version, ".tgz")
+				// Compare the received slice of paths with the current versions in assets
+				// lets append the path to the assetsMap
+				if asset.version == version {
+					cycleLog(debug, "adding asset to map", filePath)
+					asset.path = filePath
+					assetsVersionsMap[chart] = append(assetsVersionsMap[chart], asset)
+				}
+			}
+		}
+		// Reset filePaths slice to be used again in the next iteration through the next asset
+		filePaths = nil
+	}
+	// Reset and assign new assetsVersionsMap to the struct
+	ld.assetsVersionsMap = nil
+	ld.assetsVersionsMap = assetsVersionsMap
+
+	// Now fileNames slice contains the names of all files in the directories
+	return nil
+}
+
+// sortAssetsVersions will convert to semver and
+// sort the assets for each key in the assetsVersionsMap
+func (ld *Dependencies) sortAssetsVersions() {
+	// Iterate over the map and sort the assets for each key
+	for k, assets := range ld.assetsVersionsMap {
+		sort.Slice(assets, func(i, j int) bool {
+			vi, _ := semver.NewVersion(assets[i].version)
+			vj, _ := semver.NewVersion(assets[j].version)
+			return vi.LessThan(vj)
+		})
+		ld.assetsVersionsMap[k] = assets
+	}
+
+	return
 }

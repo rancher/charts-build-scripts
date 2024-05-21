@@ -8,6 +8,7 @@ go 1.18
 replace k8s.io/client-go => k8s.io/client-go v0.24.3
 
 require (
+	github.com/Masterminds/semver v1.5.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/go-git/go-billy/v5 v5.3.1
 	github.com/go-git/go-git/v5 v5.4.2

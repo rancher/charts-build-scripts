@@ -11,6 +11,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/images"
+	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
@@ -557,7 +558,13 @@ func checkRCTagsAndVersions(c *cli.Context) {
 
 func lifecycleAssetsClean(c *cli.Context) {
 	// Initialize dependnecies and check necessary files
+	repoRoot := getRepoRoot()
 
+	lifeCycleDep, err := lifecycle.InitDependencies(repoRoot, c.String("branch-version"), CurrentChart, DebugMode)
+	if err != nil {
+		logrus.Fatalf("encountered error while initializing dependencies for lifecycle-assets-clean: %s", err)
+	}
+	_ = lifeCycleDep // temporary placeholder, will be removed on a next commit
 	// Initialize dependencies with branch-version, current chart and debug mode
 
 	// Apply versioning rules

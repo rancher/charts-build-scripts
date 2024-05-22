@@ -113,7 +113,7 @@ func Test_removeVersionsAssets(t *testing.T) {
 			t.Errorf("Expected 2 removed assets, got %d", len(removedAssetsVersions))
 
 		case len(removedAssetsVersions["chart1"]) != 3:
-			t.Errorf("Expected 2 removed assets for chart1, got %d", len(removedAssetsVersions["chart1"]))
+			t.Errorf("Expected 3 removed assets for chart1, got %d", len(removedAssetsVersions["chart1"]))
 
 		case len(removedAssetsVersions["chart2"]) != 2:
 			t.Errorf("Expected 2 removed assets for chart2, got %d", len(removedAssetsVersions["chart2"]))

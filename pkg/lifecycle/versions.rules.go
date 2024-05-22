@@ -19,6 +19,21 @@ type VersionRules struct {
 	maxVersion    int
 }
 
+func (vr *VersionRules) log(debug bool) {
+	if !debug {
+		return
+	}
+
+	for key, val := range vr.rules {
+		cycleLog(debug, "Branch version", key)
+		cycleLog(debug, "|- min version", val.min)
+		cycleLog(debug, "|- max version", val.max)
+	}
+	cycleLog(debug, "Applied rules for branch version", nil)
+	cycleLog(debug, "|-- min version", vr.minVersion)
+	cycleLog(debug, "|-- max version", vr.maxVersion)
+}
+
 // GetVersionRules will check and convert the provided branch version,
 // create the hard-coded rules for the charts repository and calculate the minimum and maximum versions according to the branch version.
 func GetVersionRules(branchVersion string, debug bool) (*VersionRules, error) {
@@ -50,6 +65,8 @@ func GetVersionRules(branchVersion string, debug bool) (*VersionRules, error) {
 
 	// Calculate the min and maximum versions allowed for the current branch version lifecycle
 	vr.getMinMaxVersionInts()
+
+	vr.log(debug)
 
 	return vr, err
 }

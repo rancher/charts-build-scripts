@@ -17,9 +17,8 @@ type Asset struct {
 	path    string
 }
 
-// Dependencies struct holds the necessary filesystem,
-// assets versions map, version rules and methods
-// to apply the lifecycle rules in the target branch
+// Dependencies holds the necessary filesystem,
+// assets versions map, version rules and methods to apply the lifecycle rules in the target branch
 type Dependencies struct {
 	rootFs            billy.Filesystem
 	assetsVersionsMap map[string][]Asset
@@ -30,6 +29,8 @@ type Dependencies struct {
 	checkIfGitIsCleanWrapper CheckIfGitIsCleanFunc
 	gitAddAndCommitWrapper   GitAddAndCommitFunc
 }
+
+// Function types to be mocked in the tests and used on Dependencies struct methods
 
 // WalkDirFunc is a function type that will be used to walk through the filesystem
 type WalkDirFunc func(fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error
@@ -43,6 +44,7 @@ type CheckIfGitIsCleanFunc func(debug bool) (bool, error)
 // GitAddAndCommitFunc is a function type that will be used to add and commit changes in the git tree
 type GitAddAndCommitFunc func(message string) error
 
+// cycleLog is a function to log debug messages if debug mode is enabled
 func cycleLog(debugMode bool, msg string, data interface{}) {
 	if debugMode {
 		if data != nil {
@@ -61,7 +63,7 @@ func InitDependencies(repoRoot, branchVersion string, currentChart string, debug
 		DisableQuote: true,
 	})
 	var err error
-	// Create a new Dependencies struct
+	// Create the Dependencies struct which will be used for the entire process
 	dep := &Dependencies{
 		walkDirWrapper:           filesystem.WalkDir, // Assign the WalkDir function to the wrapper
 		makeRemoveWrapper:        makeRemove,         // Assign the makeRemove function to the wrapper
@@ -124,11 +126,15 @@ func (ld *Dependencies) ApplyRules(currentChart string, debug bool) error {
 	// Sort the versions before removing
 	ld.sortAssetsVersions()
 
-	// Execute make remove for each chart and version that is not in the lifecycle
-	// Commit after each chart removal...
+	// Execute make remove for each chart and version that is not in the lifecycle.
+	// Commit after each chart removal.
 	removedAssetsVersions, err := ld.removeVersionsAssets(debug)
 	if err != nil {
 		return err
+	}
+
+	if len(removedAssetsVersions) == 0 {
+		logrus.Infof("No assets were removed")
 	}
 
 	logrus.Infof("Removed a total of %d assets", len(removedAssetsVersions))
@@ -137,13 +143,13 @@ func (ld *Dependencies) ApplyRules(currentChart string, debug bool) error {
 	return nil
 }
 
-// removeVersionsAssets will iterate through assetsVersionsMap and remove the versions that are not in the lifecycle commiting the changes
+// removeVersionsAssets will iterate through assetsVersionsMap and remove the versions that are not in the lifecycle committing the changes
 func (ld *Dependencies) removeVersionsAssets(debug bool) (map[string][]Asset, error) {
 	logrus.Info("Executing make remove")
 
 	// Save what was removed for validation
 	var removedAssetsVersionsMap map[string][]Asset = make(map[string][]Asset)
-	var removedAssetsVersion []Asset = make([]Asset, 0)
+	var removedAssetsVersion []Asset
 
 	// Loop through the assetsVersionsMap, i.e: entries in the index.yaml
 	for chartName, assetsVersionsMap := range ld.assetsVersionsMap {
@@ -158,7 +164,7 @@ func (ld *Dependencies) removeVersionsAssets(debug bool) (map[string][]Asset, er
 			continue
 		}
 
-		// Loop through the versions of the chart and remove the ones that are not in the lifecycle
+		// Loop through the versions of the asset and remove the ones that are not in the lifecycle
 		for _, asset := range assetsVersionsMap {
 			isVersionInLifecycle := ld.vr.checkChartVersionForLifecycle(asset.version)
 			if isVersionInLifecycle {

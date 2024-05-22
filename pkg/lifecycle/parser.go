@@ -84,14 +84,14 @@ func (ld *Dependencies) populateAssetsVersionsPath(debug bool) error {
 			return fmt.Errorf("encountered error while walking through the assets directory: %w", err)
 		}
 
-		// Now we have the path of the assets, at filePaths
+		// Now we have the path of the assets, at filePaths slice
 		for _, asset := range assets {
 			for _, filePath := range filePaths {
 				// Ranging through assets and filePaths to get the version of the asset
 				version := strings.TrimPrefix(filePath, dirPath+"/"+chart+"-")
 				version = strings.TrimSuffix(version, ".tgz")
 				// Compare the received slice of paths with the current versions in assets
-				// lets append the path to the assetsMap
+				// lets append the path to the assetsVersionsMap
 				if asset.version == version {
 					cycleLog(debug, "adding asset to map", filePath)
 					asset.path = filePath

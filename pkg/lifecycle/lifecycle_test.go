@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func Test_removeVersionsAssets(t *testing.T) {
+func Test_removeAssetsVersions(t *testing.T) {
 
 	t.Run("Remove Versions Assets fail at makeRemoveWrapper", func(t *testing.T) {
 		// Init and mock dependencies
@@ -22,11 +22,11 @@ func Test_removeVersionsAssets(t *testing.T) {
 		}
 
 		// Execute
-		_, err := dep.removeVersionsAssets(false)
+		_, err := dep.removeAssetsVersions(false)
 
 		// Assert
 		if err == nil {
-			t.Errorf("removeVersionsAssets returned an error: %v", err)
+			t.Errorf("removeAssetsVersions should have returned an error: %v", err)
 		}
 	})
 
@@ -45,11 +45,11 @@ func Test_removeVersionsAssets(t *testing.T) {
 		}
 
 		// Execute
-		_, err := dep.removeVersionsAssets(false)
+		_, err := dep.removeAssetsVersions(false)
 
 		// Assert
 		if err == nil {
-			t.Errorf("removeVersionsAssets returned an error: %v", err)
+			t.Errorf("removeAssetsVersions should have returned an error: %v", err)
 		}
 	})
 
@@ -68,11 +68,11 @@ func Test_removeVersionsAssets(t *testing.T) {
 		}
 
 		// Execute
-		_, err := dep.removeVersionsAssets(false)
+		_, err := dep.removeAssetsVersions(false)
 
 		// Assert
 		if err == nil {
-			t.Errorf("removeVersionsAssets returned an error: %v", err)
+			t.Errorf("removeAssetsVersions should have returned an error: %v", err)
 		}
 	})
 
@@ -102,12 +102,12 @@ func Test_removeVersionsAssets(t *testing.T) {
 		}
 
 		// Execute
-		removedAssetsVersions, err := dep.removeVersionsAssets(false)
+		removedAssetsVersions, err := dep.removeAssetsVersions(false)
 
 		// Assert
 		switch {
 		case err != nil:
-			t.Errorf("removeVersionsAssets returned an error: %v", err)
+			t.Errorf("removeAssetsVersions returned an error: %v", err)
 
 		case len(removedAssetsVersions) != 2:
 			t.Errorf("Expected 2 removed assets, got %d", len(removedAssetsVersions))
@@ -152,12 +152,12 @@ func Test_removeVersionsAssets(t *testing.T) {
 		}
 
 		// Execute
-		removedAssetsVersions, err := dep.removeVersionsAssets(false)
+		removedAssetsVersions, err := dep.removeAssetsVersions(false)
 
 		// Assert
 		switch {
 		case err != nil:
-			t.Errorf("removeVersionsAssets returned an error: %v", err)
+			t.Errorf("removeAssetsVersions returned an error: %v", err)
 
 		case len(removedAssetsVersions) != 1:
 			t.Errorf("Expected 1 removed assets in slice, got %d", len(removedAssetsVersions))
@@ -182,12 +182,12 @@ func Test_removeVersionsAssets(t *testing.T) {
 		}
 
 		// Execute
-		removedAssetsVersions, err := dep.removeVersionsAssets(false)
+		removedAssetsVersions, err := dep.removeAssetsVersions(false)
 
 		// Assert
 		switch {
 		case err != nil:
-			t.Errorf("removeVersionsAssets returned an error: %v", err)
+			t.Errorf("removeAssetsVersions returned an error: %v", err)
 
 		case len(removedAssetsVersions) != 0:
 			t.Errorf("Expected 0 removed assets, got %d", len(removedAssetsVersions))

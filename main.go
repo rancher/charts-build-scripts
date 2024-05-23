@@ -39,8 +39,8 @@ const (
 	DefaultPorcelainEnvironmentVariable = "PORCELAIN"
 	// DefaultCacheEnvironmentVariable is the default environment variable that indicates that a cache should be used on pulls to remotes
 	DefaultCacheEnvironmentVariable = "USE_CACHE"
-	// DefaultDebugEnvironeventVariable is the default environment variable that indicates that debug mode should be enabled
-	DefaultDebugEnvironeventVariable = "DEBUG"
+	// DefaultDebugEnvironmentVariable is the default environment variable that indicates that debug mode should be enabled
+	DefaultDebugEnvironmentVariable = "DEBUG"
 )
 
 var (
@@ -129,7 +129,7 @@ func main() {
 		Name:        "debugFlag",
 		Usage:       "Enable debug mode",
 		Destination: &DebugMode,
-		EnvVar:      DefaultDebugEnvironeventVariable,
+		EnvVar:      DefaultDebugEnvironmentVariable,
 	}
 	app.Commands = []cli.Command{
 		{

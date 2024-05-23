@@ -71,6 +71,15 @@ func InitDependencies(repoRoot, branchVersion string, currentChart string, debug
 		gitAddAndCommitWrapper:   gitAddAndCommit,    // Assign the gitAddAndCommit function to the wrapper
 	}
 
+	// Git tree must be clean before proceeding with removing charts
+	clean, err := dep.checkIfGitIsCleanWrapper(debug)
+	if !clean {
+		return nil, fmt.Errorf("git is not clean, it must be clean before proceeding with removing charts")
+	}
+	if err != nil {
+		return nil, err
+	}
+
 	cycleLog(debug, "Getting branch version rules for: ", branchVersion)
 	// Initialize and check version rules for the current branch
 	dep.vr, err = GetVersionRules(branchVersion, debug)
@@ -83,12 +92,18 @@ func InitDependencies(repoRoot, branchVersion string, currentChart string, debug
 
 	// Check if the assets folder and Helm index file exists in the repository
 	exists, err := filesystem.PathExists(dep.rootFs, path.RepositoryAssetsDir)
-	if err != nil || !exists {
+	if err != nil {
 		return nil, fmt.Errorf("encountered error while checking if assets folder already exists in repository: %s", err)
 	}
+	if !exists {
+		return nil, fmt.Errorf("assets folder does not exist in the repository")
+	}
 	exists, err = filesystem.PathExists(dep.rootFs, path.RepositoryHelmIndexFile)
-	if err != nil || !exists {
+	if err != nil {
 		return nil, fmt.Errorf("encountered error while checking if Helm index file already exists in repository: %s", err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("Helm index file does not exist in the repository")
 	}
 
 	// Get the absolute path of the Helm index file and assets versions map to apply rules
@@ -99,15 +114,6 @@ func InitDependencies(repoRoot, branchVersion string, currentChart string, debug
 	}
 	if err != nil {
 		return nil, err // Abort and return error if the assets map is empty
-	}
-
-	// Git tree must be clean before proceeding with removing charts
-	clean, err := dep.checkIfGitIsCleanWrapper(debug)
-	if !clean {
-		return nil, fmt.Errorf("git is not clean, it must be clean before proceeding with removing charts")
-	}
-	if err != nil {
-		return nil, err
 	}
 
 	return dep, nil
@@ -128,7 +134,7 @@ func (ld *Dependencies) ApplyRules(currentChart string, debug bool) error {
 
 	// Execute make remove for each chart and version that is not in the lifecycle.
 	// Commit after each chart removal.
-	removedAssetsVersions, err := ld.removeVersionsAssets(debug)
+	removedAssetsVersions, err := ld.removeAssetsVersions(debug)
 	if err != nil {
 		return err
 	}
@@ -143,8 +149,8 @@ func (ld *Dependencies) ApplyRules(currentChart string, debug bool) error {
 	return nil
 }
 
-// removeVersionsAssets will iterate through assetsVersionsMap and remove the versions that are not in the lifecycle committing the changes
-func (ld *Dependencies) removeVersionsAssets(debug bool) (map[string][]Asset, error) {
+// removeAssetsVersions will iterate through assetsVersionsMap and remove the versions that are not in the lifecycle committing the changes
+func (ld *Dependencies) removeAssetsVersions(debug bool) (map[string][]Asset, error) {
 	logrus.Info("Executing make remove")
 
 	// Save what was removed for validation

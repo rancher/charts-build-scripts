@@ -133,7 +133,7 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 		// Call the function we're testing
 		err := ld.populateAssetsVersionsPath(false)
 		if err == nil {
-			t.Fatalf("populateAssetsVersionsPath returned an error: %v", err)
+			t.Fatalf("populateAssetsVersionsPath should have returned an error: %v", err)
 		}
 	})
 }

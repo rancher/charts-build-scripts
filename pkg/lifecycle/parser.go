@@ -26,13 +26,13 @@ func getAssetsMapFromIndex(absRepositoryHelmIndexFile, currentChart string, debu
 	switch {
 	case currentChart == "":
 		cycleLog(debug, "Current chart is empty, getting all charts", nil)
-		for _, entry := range helmIndexFile.Entries {
+		for chartName, entry := range helmIndexFile.Entries {
 			for _, chartVersion := range entry {
 				annotatedVersions = append(annotatedVersions, Asset{
 					version: chartVersion.Version,
 				})
 			}
-			assetsMap[entry[0].Name] = annotatedVersions
+			assetsMap[chartName] = annotatedVersions
 			annotatedVersions = nil // Reset the slice for the next iteration
 		}
 
@@ -44,7 +44,6 @@ func getAssetsMapFromIndex(absRepositoryHelmIndexFile, currentChart string, debu
 		for _, chartVersion := range helmIndexFile.Entries[currentChart] {
 			annotatedVersions = append(annotatedVersions, Asset{
 				version: chartVersion.Version,
-				// path:    chartVersion.URLs[0], we can't trust this field
 			})
 		}
 		assetsMap[currentChart] = annotatedVersions

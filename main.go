@@ -11,6 +11,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/images"
+	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
@@ -38,6 +39,8 @@ const (
 	DefaultPorcelainEnvironmentVariable = "PORCELAIN"
 	// DefaultCacheEnvironmentVariable is the default environment variable that indicates that a cache should be used on pulls to remotes
 	DefaultCacheEnvironmentVariable = "USE_CACHE"
+	// DefaultDebugEnvironmentVariable is the default environment variable that indicates that debug mode should be enabled
+	DefaultDebugEnvironmentVariable = "DEBUG"
 )
 
 var (
@@ -64,6 +67,8 @@ var (
 	RemoteMode bool
 	// CacheMode indicates that caching should be used on all remotely pulled resources
 	CacheMode = false
+	// DebugMode indicates that debug mode should be enabled
+	DebugMode = false
 )
 
 func main() {
@@ -115,6 +120,16 @@ func main() {
 		Required:    false,
 		Destination: &CacheMode,
 		EnvVar:      DefaultCacheEnvironmentVariable,
+	}
+	branchVersionFlag := cli.StringFlag{
+		Name:  "branch-version",
+		Usage: "Available inputs: (2.5; 2.6; 2.7; 2.8; 2.9). The branch version to compare against. This is used to determine which assets to remove from the repository. ",
+	}
+	debugFlag := cli.BoolFlag{
+		Name:        "debugFlag",
+		Usage:       "Enable debug mode",
+		Destination: &DebugMode,
+		EnvVar:      DefaultDebugEnvironmentVariable,
 	}
 	app.Commands = []cli.Command{
 		{
@@ -235,6 +250,12 @@ func main() {
 			Usage:  "Download the chart icon locally and use it",
 			Action: downloadIcon,
 			Flags:  []cli.Flag{packageFlag, configFlag, cacheFlag},
+		},
+		{
+			Name:   "lifecycle-assets",
+			Usage:  "Clean up assets that don't belong on this branch",
+			Action: lifecycleAssetsClean,
+			Flags:  []cli.Flag{branchVersionFlag, chartFlag, debugFlag},
 		},
 	}
 
@@ -533,4 +554,19 @@ func checkRCTagsAndVersions(c *cli.Context) {
 	}
 
 	logrus.Info("RC check has succeeded")
+}
+
+func lifecycleAssetsClean(c *cli.Context) {
+	// Initialize dependencies with branch-version, current chart and debug mode
+	repoRoot := getRepoRoot()
+	lifeCycleDep, err := lifecycle.InitDependencies(repoRoot, c.String("branch-version"), CurrentChart, DebugMode)
+	if err != nil {
+		logrus.Fatalf("encountered error while initializing dependencies for lifecycle-assets-clean: %s", err)
+	}
+
+	// Apply versioning rules
+	err = lifeCycleDep.ApplyRules(CurrentChart, DebugMode)
+	if err != nil {
+		logrus.Fatalf("Failed to apply versioning rules for lifecycle-assets-clean: %s", err)
+	}
 }

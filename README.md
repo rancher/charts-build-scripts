@@ -53,8 +53,21 @@ golangci-lint run ./...
 
 Releases are done via a github action that uses [`goreleaser`](https://goreleaser.com/).
 In order to release, simply tag the commit that you want the release
-to be based off of with a tag that is in semver format. `goreleaser`
-takes care of the rest.
+to be based off of with a tag that is in semver format. For example:
+```
+git tag v0.1.9
+```
+Then, push that tag to the the rancher/charts-build-scripts repo.
+Here is an example, assuming that rancher/charts-build-scripts is
+configured as `upstream` in your local repo:
+```
+git push upstream --tags
+```
+Pushing the tag will trigger a github actions workflow that will use
+the `goreleaser` action to build binaries for many different combinations
+of OS and processor architecture. This same `goreleaser` action will
+then create a release using these binaries. Release notes will be
+constructed from commit messages.
 
 
 ## License

@@ -17,6 +17,8 @@ builds:
       - amd64
       - arm
       - arm64
+    ldflags:
+      - -X main.Version={{.Version}} -X main.GitCommit={{.ShortCommit}}
 
 archives:
   - format: binary

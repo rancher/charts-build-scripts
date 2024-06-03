@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
@@ -88,6 +89,7 @@ func CompareGeneratedAssets(repoFs billy.Filesystem, u options.UpstreamOptions, 
 	if err := standardize.RestructureChartsAndAssets(releaseFs); err != nil {
 		return response, fmt.Errorf("failed to standardize upstream: %s", err)
 	}
+	// TODO: Add a check bypass here, all assets that do not belong on this lifecycle should be skipped
 	// Walk through directories and execute release logic
 	localOnly := func(fs billy.Filesystem, localPath string, isDir bool) error {
 		if isDir {

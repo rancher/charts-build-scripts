@@ -22,7 +22,7 @@ type Asset struct {
 type Dependencies struct {
 	rootFs            billy.Filesystem
 	assetsVersionsMap map[string][]Asset
-	vr                *VersionRules
+	VR                *VersionRules
 	// These wrappers are used to mock the filesystem and git status in the tests
 	walkDirWrapper           WalkDirFunc
 	makeRemoveWrapper        MakeRemoveFunc
@@ -58,7 +58,7 @@ func cycleLog(debugMode bool, msg string, data interface{}) {
 // InitDependencies will check the filesystem, branch version,
 // git status, initialize the Dependencies struct and populate it.
 // If anything fails the operation will be aborted.
-func InitDependencies(repoRoot, branchVersion string, currentChart string, debug bool) (*Dependencies, error) {
+func InitDependencies(rootFs billy.Filesystem, branchVersion string, currentChart string, debug bool) (*Dependencies, error) {
 	logrus.SetFormatter(&logrus.TextFormatter{
 		DisableQuote: true,
 	})
@@ -82,13 +82,13 @@ func InitDependencies(repoRoot, branchVersion string, currentChart string, debug
 
 	cycleLog(debug, "Getting branch version rules for: ", branchVersion)
 	// Initialize and check version rules for the current branch
-	dep.vr, err = GetVersionRules(branchVersion, debug)
+	dep.VR, err = GetVersionRules(branchVersion, debug)
 	if err != nil {
 		return nil, fmt.Errorf("encountered error while getting current branch version: %s", err)
 	}
 
 	// Get the filesystem and index.yaml path for the repository
-	dep.rootFs = filesystem.GetFilesystem(repoRoot)
+	dep.rootFs = rootFs
 
 	// Check if the assets folder and Helm index file exists in the repository
 	exists, err := filesystem.PathExists(dep.rootFs, path.RepositoryAssetsDir)
@@ -172,7 +172,7 @@ func (ld *Dependencies) removeAssetsVersions(debug bool) (map[string][]Asset, er
 
 		// Loop through the versions of the asset and remove the ones that are not in the lifecycle
 		for _, asset := range assetsVersionsMap {
-			isVersionInLifecycle := ld.vr.checkChartVersionForLifecycle(asset.version)
+			isVersionInLifecycle := ld.VR.CheckChartVersionForLifecycle(asset.version)
 			if isVersionInLifecycle {
 				logrus.Debugf("Version %s is in lifecycle for %s", asset.version, chartName)
 				continue // Skipping version in lifecycle

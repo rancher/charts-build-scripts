@@ -18,7 +18,7 @@ func Test_removeAssetsVersions(t *testing.T) {
 			checkIfGitIsCleanWrapper: func(debug bool) (bool, error) { return false, nil },
 			gitAddAndCommitWrapper:   func(message string) error { return nil },
 			assetsVersionsMap:        map[string][]Asset{"chart1": {{version: "999.0.0"}}},
-			vr:                       vr,
+			VR:                       vr,
 		}
 
 		// Execute
@@ -41,7 +41,7 @@ func Test_removeAssetsVersions(t *testing.T) {
 			},
 			gitAddAndCommitWrapper: func(message string) error { return nil },
 			assetsVersionsMap:      map[string][]Asset{"chart1": {{version: "999.0.0"}}},
-			vr:                     vr,
+			VR:                     vr,
 		}
 
 		// Execute
@@ -64,7 +64,7 @@ func Test_removeAssetsVersions(t *testing.T) {
 				return fmt.Errorf("Some error at gitAddAndCommitWrapper")
 			},
 			assetsVersionsMap: map[string][]Asset{"chart1": {{version: "999.0.0"}}},
-			vr:                vr,
+			VR:                vr,
 		}
 
 		// Execute
@@ -98,7 +98,7 @@ func Test_removeAssetsVersions(t *testing.T) {
 					{version: "0.1.0"},
 				},
 			},
-			vr: vr,
+			VR: vr,
 		}
 
 		// Execute
@@ -148,7 +148,7 @@ func Test_removeAssetsVersions(t *testing.T) {
 					{version: "101.0.0"},
 				},
 			},
-			vr: vr,
+			VR: vr,
 		}
 
 		// Execute
@@ -178,7 +178,7 @@ func Test_removeAssetsVersions(t *testing.T) {
 			assetsVersionsMap: map[string][]Asset{
 				"chart1": {},
 			},
-			vr: vr,
+			VR: vr,
 		}
 
 		// Execute

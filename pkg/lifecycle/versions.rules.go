@@ -76,7 +76,7 @@ func GetVersionRules(branchVersion string, debug bool) (*VersionRules, error) {
 //	Branch can only hold until 2 previous versions of the current branch version.
 //	Branch cannot hold versions from newer branches, only older ones.
 //
-// See checkChartVersionForLifecycle() for more details.
+// See CheckChartVersionForLifecycle() for more details.
 func (vr *VersionRules) getMinMaxVersionInts() {
 	// e.g: 2.9 - 0.2 = 2.7
 	minVersionStr := vr.rules[(vr.branchVersion - 0.2)].min
@@ -100,11 +100,17 @@ func convertBranchVersion(branchVersion string) (float32, error) {
 	return float32(floatVersion), nil
 }
 
-// checkChartVersionForLifecycle will
+// ExtractBranchVersion will extract the branch version from the branch name
+func ExtractBranchVersion(branch string) string {
+	parts := strings.Split(branch, "-v")
+	return parts[len(parts)-1]
+}
+
+// CheckChartVersionForLifecycle will
 // Check if the chart version is within the range of the current version:
 //
 //	If the chart version is within the range, return true, otherwise return false
-func (vr *VersionRules) checkChartVersionForLifecycle(chartVersion string) bool {
+func (vr *VersionRules) CheckChartVersionForLifecycle(chartVersion string) bool {
 	chartVersionInt, _ := strconv.Atoi(strings.Split(chartVersion, ".")[0])
 	/**
 	Rule Example:

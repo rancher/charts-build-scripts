@@ -559,7 +559,8 @@ func checkRCTagsAndVersions(c *cli.Context) {
 func lifecycleAssetsClean(c *cli.Context) {
 	// Initialize dependencies with branch-version, current chart and debug mode
 	repoRoot := getRepoRoot()
-	lifeCycleDep, err := lifecycle.InitDependencies(repoRoot, c.String("branch-version"), CurrentChart, DebugMode)
+	rootFs := filesystem.GetFilesystem(repoRoot)
+	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, DebugMode)
 	if err != nil {
 		logrus.Fatalf("encountered error while initializing dependencies for lifecycle-assets-clean: %s", err)
 	}

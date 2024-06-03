@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
@@ -69,6 +70,13 @@ func CompareGeneratedAssets(repoFs billy.Filesystem, u options.UpstreamOptions, 
 		ModifiedPostRelease: options.ReleaseOptions{},
 		RemovedPostRelease:  options.ReleaseOptions{},
 	}
+
+	// Initialize lifecycle package for validating with assets lifecycle rules
+	lifeCycleDep, err := lifecycle.InitDependencies(repoFs, lifecycle.ExtractBranchVersion(branch), "", false)
+	if err != nil {
+		logrus.Fatalf("encountered error while initializing dependencies for lifecycle-assets-clean: %s", err)
+	}
+
 	// Pull repository
 	logrus.Infof("Pulling upstream repository %s at branch %s", u.URL, branch)
 	releasedChartsRepoBranch, err := puller.GetGithubRepository(u, &branch)
@@ -88,6 +96,7 @@ func CompareGeneratedAssets(repoFs billy.Filesystem, u options.UpstreamOptions, 
 	if err := standardize.RestructureChartsAndAssets(releaseFs); err != nil {
 		return response, fmt.Errorf("failed to standardize upstream: %s", err)
 	}
+
 	// Walk through directories and execute release logic
 	localOnly := func(fs billy.Filesystem, localPath string, isDir bool) error {
 		if isDir {
@@ -111,7 +120,12 @@ func CompareGeneratedAssets(repoFs billy.Filesystem, u options.UpstreamOptions, 
 		}
 		// Chart exists in local and is not tracked by release.yaml
 		logrus.Infof("%s/%s is untracked", chart.Metadata.Name, chart.Metadata.Version)
-		response.UntrackedInRelease = response.UntrackedInRelease.Append(chart.Metadata.Name, chart.Metadata.Version)
+		// If the chart exists in local and not on the upstream it may have been removed by the lifecycle rules
+		isVersionInLifecycle := lifeCycleDep.VR.CheckChartVersionForLifecycle(chart.Metadata.Version)
+		if isVersionInLifecycle {
+			// this chart should not be removed
+			response.UntrackedInRelease = response.UntrackedInRelease.Append(chart.Metadata.Name, chart.Metadata.Version)
+		}
 		return nil
 	}
 

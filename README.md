@@ -1,11 +1,8 @@
-charts-build-scripts
-========
+# charts-build-scripts
 
-## Build Scripts For Rancher Charts
+## How to Use `charts-build-scripts`
 
-## Before running the scripts
-
-#### If you are creating a new charts repository 
+### Charts Repository Setup
 
 Checkout the Git branch that corresponds to your Staging or Live branch.
 
@@ -15,24 +12,67 @@ Export BRANCH_ROLE as `staging`, `live`, or `custom`. Then run:
 curl -s https://raw.githubusercontent.com/rancher/charts-build-scripts/master/init.sh > /dev/null | sh
 ```
 
-## Building
+### Building
 
 `make`
 
-## Running
+### Running
 
 `./bin/charts-build-scripts`
 
-## Validation command
+### Validation command
 
 For more information on the validation command, please see [`docs/validate.md`](docs/validate.md).
 
-## Debugging
+### Debugging
 
 For more information on how to debug this project, please see [`docs/debugging.md`](docs/debugging.md).
 
+
+## Developing `charts-build-scripts`
+
+### How to Run
+
+```
+go run main.go
+```
+
+### How to Run Unit Tests
+
+```
+go test ./...
+```
+
+### How to Lint
+
+```
+golangci-lint run ./...
+```
+
+### How to Release
+
+Releases are done via a github action that uses [`goreleaser`](https://goreleaser.com/).
+In order to release, simply tag the commit that you want the release
+to be based off of with a tag that is in semver format. For example:
+```
+git tag v0.1.9
+```
+Then, push that tag to the the rancher/charts-build-scripts repo.
+Here is an example, assuming that rancher/charts-build-scripts is
+configured as `upstream` in your local repo:
+```
+git push upstream --tags
+```
+Pushing the tag will trigger a github actions workflow that will use
+the `goreleaser` action to build binaries for many different combinations
+of OS and processor architecture. This same `goreleaser` action will
+then create a release using these binaries. Release notes will be
+constructed from commit messages.
+
+
 ## License
-Copyright (c) 2019 [Rancher Labs, Inc.](http://rancher.com)
+
+Copyright (c) 2024 [Rancher Labs, Inc.](http://rancher.com)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

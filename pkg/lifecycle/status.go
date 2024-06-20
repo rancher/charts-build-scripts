@@ -41,7 +41,6 @@ func (ld *Dependencies) getStatus() (*Status, error) {
 	}
 
 	// Separate the assets to be released from the assets to be forward ported after the comparison
-	status.separateReleaseFromForwardPort()
 
 	return status, nil
 }
@@ -121,10 +120,10 @@ func (s *Status) listProdAndDevAssets() error {
 		logrus.Errorf("Error while getting assets from production and development branches: %s", err)
 		return err
 	}
-	_ = releasedAssets // This will be removed in the future.
-	_ = devAssets      // This will be removed in the future.
 
 	// Compare the assets versions between the production and development branches
+	s.compareReleasedAndDevAssets(releasedAssets, devAssets)
+	logrus.Info("Comparison ended and logs saved in the logs directory")
 	return nil
 }
 
@@ -205,4 +204,61 @@ func (s *Status) getProdAndDevAssetsFromGit(git *Git, tempDir string) (map[strin
 		return nil, nil, err
 	}
 	return releasedAssets, devAssets, nil
+}
+
+// compareReleasedAndDevAssets will compare the assets versions between
+// the production and development branches, returning 4 different maps for further analysis.
+func (s *Status) compareReleasedAndDevAssets(releasedAssets, developmentAssets map[string][]Asset) {
+
+	releaseInLifecycle := make(map[string][]Asset)
+	noReleaseOutLifecycle := make(map[string][]Asset)
+	noReleaseInLifecycle := make(map[string][]Asset)
+	releasedOutLifecycle := make(map[string][]Asset)
+	/** Compare the assets versions between the production and development branches
+	* assets released and in the lifecycle; therefore ok
+	* assets not released and out of the lifecycle; therefore ok
+	* assets not released and in the lifecycle; therefore it should be released...WARN
+	* assets released and not in the lifecycle; therefore it should not be released...ERROR
+	**/
+
+	for devAsset, devVersions := range developmentAssets {
+
+		// released assets versions to compare with
+		releasedVersions := releasedAssets[devAsset]
+
+		for _, devVersion := range devVersions {
+			// check if the version is already released
+			released := checkIfVersionIsReleased(devVersion.version, releasedVersions)
+			// check if the version is in the lifecycle
+			inLifecycle := s.ld.VR.CheckChartVersionForLifecycle(devVersion.version)
+
+			switch {
+			case released && inLifecycle:
+				releaseInLifecycle[devAsset] = append(releaseInLifecycle[devAsset], devVersion)
+			case !released && !inLifecycle:
+				noReleaseOutLifecycle[devAsset] = append(noReleaseOutLifecycle[devAsset], devVersion)
+			case !released && inLifecycle:
+				noReleaseInLifecycle[devAsset] = append(noReleaseInLifecycle[devAsset], devVersion)
+			case released && !inLifecycle:
+				releasedOutLifecycle[devAsset] = append(releasedOutLifecycle[devAsset], devVersion)
+			}
+		}
+	}
+
+	s.assetsReleasedInLifecycle = releaseInLifecycle
+	s.assetsNotReleasedOutLifecycle = noReleaseOutLifecycle
+	s.assetsNotReleasedInLifecycle = noReleaseInLifecycle
+	s.assetsReleasedOutLifecycle = releasedOutLifecycle
+	return
+}
+
+// checkIfVersionIsReleased iterates a given version against the list of released versions
+// and returns true if the version is found in the list of released versions.
+func checkIfVersionIsReleased(version string, releasedVersions []Asset) bool {
+	for _, releasedVersion := range releasedVersions {
+		if version == releasedVersion.version {
+			return true
+		}
+	}
+	return false
 }

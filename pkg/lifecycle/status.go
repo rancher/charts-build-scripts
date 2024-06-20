@@ -41,6 +41,7 @@ func (ld *Dependencies) getStatus() (*Status, error) {
 	}
 
 	// Separate the assets to be released from the assets to be forward ported after the comparison
+	status.separateReleaseFromForwardPort()
 
 	return status, nil
 }
@@ -261,4 +262,25 @@ func checkIfVersionIsReleased(version string, releasedVersions []Asset) bool {
 		}
 	}
 	return false
+}
+
+// separateReleaseFromForwardPort will separate the assets to be released from the assets to be forward ported, the assets were loaded previously by listProdAndDevAssets function.
+func (s *Status) separateReleaseFromForwardPort() {
+	assetsToBeReleased := make(map[string][]Asset)
+	assetsToBeForwardPorted := make(map[string][]Asset)
+
+	for asset, versions := range s.assetsNotReleasedInLifecycle {
+		for _, version := range versions {
+			if toRelease := s.ld.VR.CheckChartVersionToRelease(version.version); toRelease {
+				assetsToBeReleased[asset] = append(assetsToBeReleased[asset], version)
+			} else {
+				assetsToBeForwardPorted[asset] = append(assetsToBeForwardPorted[asset], version)
+			}
+		}
+	}
+
+	s.assetsToBeReleased = assetsToBeReleased
+	s.assetsToBeForwardPorted = assetsToBeForwardPorted
+
+	return
 }

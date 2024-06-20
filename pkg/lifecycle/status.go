@@ -118,12 +118,15 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) error {
 
 	// ##############################################################################
 	// Save the logs for the current branch
+	cbLogs.writeHEAD(status.ld.VR, "Assets versions vs the lifecycle rules in the current branch")
 
 	// ##############################################################################
 	// Save the logs for the comparison between production and development branches
+	pdLogs.writeHEAD(status.ld.VR, "Released assets vs development assets with lifecycle rules")
 
 	// ##############################################################################
 	// Save the logs for the separations of assets to be released and forward ported
+	rfLogs.writeHEAD(status.ld.VR, "Assets to be released vs forward ported")
 
 	return nil
 }

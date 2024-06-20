@@ -1,7 +1,9 @@
 package lifecycle
 
 import (
+	"fmt"
 	"os"
+	"time"
 
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/path"
@@ -46,6 +48,43 @@ func (ld *Dependencies) getStatus() (*Status, error) {
 	return status, nil
 }
 
+// createLogFiles will create the log files for the current branch, production and development branches
+// and the assets to be released and forward ported, returning the logs objects for each file.
+func createLogFiles(chart string) (*logs, *logs, *logs, error) {
+	// get a timestamp
+	currentTime := time.Now()
+	now := currentTime.Format("2006-01-02T15:04")
+
+	// create the log file names with the timestamp and chart name if any
+	cbLogFile := fmt.Sprintf("%s_%s_current-branch.log", now, chart)
+	pdLogFile := fmt.Sprintf("%s_%s_production-compare-development.log", now, chart)
+	rfLogFile := fmt.Sprintf("%s_%s_released-forward-ported.log", now, chart)
+
+	// Create the logs infrastructure in the filesystem for:
+	// current branch logs
+	cbLogs, err := createLogs(cbLogFile)
+	if err != nil {
+		logrus.Errorf("Error while creating logs: %s", err)
+		return nil, nil, nil, err
+	}
+
+	// production and development branches logs
+	pdLogs, err := createLogs(pdLogFile)
+	if err != nil {
+		logrus.Errorf("Error while creating logs: %s", err)
+		return nil, nil, nil, err
+	}
+
+	// released and forward ported logs
+	rfLogs, err := createLogs(rfLogFile)
+	if err != nil {
+		logrus.Errorf("Error while creating logs: %s", err)
+		return nil, nil, nil, err
+	}
+
+	return cbLogs, pdLogs, rfLogs, nil
+}
+
 // CheckLifecycleStatusAndSave checks the lifecycle status of the assets
 // at 3 different levels prints to the console and saves to log files at 'logs/' folder.
 func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) error {
@@ -58,7 +97,14 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) error {
 	}
 	_ = status // This will be removed in the future.
 
-	// Create the logs infrastructure in the filesystem
+	// Create the logs infrastructure in the filesystem and close them once the function ends
+	cbLogs, pdLogs, rfLogs, err := createLogFiles(chart)
+	if err != nil {
+		return err
+	}
+	defer cbLogs.file.Close()
+	defer pdLogs.file.Close()
+	defer rfLogs.file.Close()
 
 	// ##############################################################################
 	// Save the logs for the current branch

@@ -100,3 +100,15 @@ func (l *logs) write(data string, logType string) {
 		}
 	}
 }
+
+// writeVersions receives the loaded assets versions map and writes it to the log file
+// in human-readable format
+func (l *logs) writeVersions(assetsVersions map[string][]Asset, logType string) {
+	for asset, versions := range assetsVersions {
+		l.write("", "SEPARATE")
+		l.write(asset, logType)
+		for _, version := range versions {
+			l.write(version.version, "")
+		}
+	}
+}

@@ -95,8 +95,6 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) error {
 		logrus.Errorf("Error while getting the status: %s", err)
 		return err
 	}
-	_ = status // This will be removed in the future.
-
 	// Create the logs infrastructure in the filesystem and close them once the function ends
 	cbLogs, pdLogs, rfLogs, err := createLogFiles(chart)
 	if err != nil {
@@ -119,14 +117,42 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) error {
 	// ##############################################################################
 	// Save the logs for the current branch
 	cbLogs.writeHEAD(status.ld.VR, "Assets versions vs the lifecycle rules in the current branch")
-
+	cbLogs.write("Versions INSIDE the lifecycle in the current branch", "INFO")
+	cbLogs.writeVersions(status.assetsInLifecycleCurrentBranch, "INFO")
+	cbLogs.write("", "END")
+	cbLogs.write("Versions OUTSIDE the lifecycle in the current branch", "WARN")
+	cbLogs.writeVersions(status.assetsOutLifecycleCurrentBranch, "WARN")
+	cbLogs.write("", "END")
 	// ##############################################################################
 	// Save the logs for the comparison between production and development branches
 	pdLogs.writeHEAD(status.ld.VR, "Released assets vs development assets with lifecycle rules")
+	pdLogs.write("Assets RELEASED and Inside the lifecycle", "INFO")
+	pdLogs.write(fmt.Sprintf("At the production branch: %s", status.ld.VR.prodBranch), "INFO")
+	pdLogs.writeVersions(status.assetsReleasedInLifecycle, "INFO")
+	pdLogs.write("", "END")
 
+	pdLogs.write("Assets NOT released and Out of the lifecycle", "INFO")
+	pdLogs.write(fmt.Sprintf("At the development branch: %s", status.ld.VR.devBranch), "INFO")
+	pdLogs.writeVersions(status.assetsNotReleasedOutLifecycle, "INFO")
+	pdLogs.write("", "END")
+
+	pdLogs.write("Assets NOT released and Inside the lifecycle", "WARN")
+	pdLogs.write(fmt.Sprintf("At the development branch: %s", status.ld.VR.devBranch), "WARN")
+	pdLogs.writeVersions(status.assetsNotReleasedInLifecycle, "WARN")
+	pdLogs.write("", "END")
+
+	pdLogs.write("Assets released and Out of the lifecycle", "ERROR")
+	pdLogs.write(fmt.Sprintf("At the production branch: %s", status.ld.VR.prodBranch), "ERROR")
+	pdLogs.writeVersions(status.assetsReleasedOutLifecycle, "ERROR")
+	pdLogs.write("", "END")
 	// ##############################################################################
 	// Save the logs for the separations of assets to be released and forward ported
 	rfLogs.writeHEAD(status.ld.VR, "Assets to be released vs forward ported")
+	rfLogs.write("Assets to be RELEASED", "INFO")
+	rfLogs.writeVersions(status.assetsToBeReleased, "INFO")
+	cbLogs.write("", "END")
+	rfLogs.write("Assets to be FORWARD-PORTED", "INFO")
+	rfLogs.writeVersions(status.assetsToBeForwardPorted, "INFO")
 
 	return nil
 }

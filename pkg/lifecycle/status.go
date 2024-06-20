@@ -106,6 +106,16 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) error {
 	defer pdLogs.file.Close()
 	defer rfLogs.file.Close()
 
+	// optional filter logs by specific chart
+	if chart != "" {
+		status.assetsInLifecycleCurrentBranch = map[string][]Asset{chart: status.assetsInLifecycleCurrentBranch[chart]}
+		status.assetsOutLifecycleCurrentBranch = map[string][]Asset{chart: status.assetsOutLifecycleCurrentBranch[chart]}
+		status.assetsReleasedInLifecycle = map[string][]Asset{chart: status.assetsReleasedInLifecycle[chart]}
+		status.assetsNotReleasedOutLifecycle = map[string][]Asset{chart: status.assetsNotReleasedOutLifecycle[chart]}
+		status.assetsNotReleasedInLifecycle = map[string][]Asset{chart: status.assetsNotReleasedInLifecycle[chart]}
+		status.assetsReleasedOutLifecycle = map[string][]Asset{chart: status.assetsReleasedOutLifecycle[chart]}
+	}
+
 	// ##############################################################################
 	// Save the logs for the current branch
 

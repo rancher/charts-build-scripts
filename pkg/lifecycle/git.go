@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Git struct holds necessary data to work with the current git repository
 type Git struct {
 	Dir string
 }
@@ -23,6 +24,38 @@ func cloneAtDir(url, dir string) (*Git, error) {
 		return nil, fmt.Errorf("error while cloning repository: %s", err)
 	}
 	return &Git{Dir: dir}, nil
+}
+
+// fetchAndCheckoutBranch fetches and checks out a branch
+func (g *Git) fetchAndCheckoutBranch(branch string) error {
+	logrus.Infof("Fetching and checking out at: %s", branch)
+	err := g.fetchBranch(branch)
+	if err != nil {
+		return err
+	}
+	return g.checkoutBranch(branch)
+}
+
+func (g *Git) fetchBranch(branch string) error {
+	cmd := exec.Command("git", "-C", g.Dir, "fetch", "origin", branch+":"+branch)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		logrus.Errorf("error while fetching branch: %s; err: %v", branch, err)
+		return fmt.Errorf("error while fetching branch: %s", err)
+	}
+	return nil
+}
+
+func (g *Git) checkoutBranch(branch string) error {
+	cmd := exec.Command("git", "-C", g.Dir, "checkout", branch)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		logrus.Errorf("error while checking out branch: %s; err: %v", branch, err)
+		return fmt.Errorf("error while checking out branch: %s", err)
+	}
+	return nil
 }
 
 // checkIfGitIsClean checks if the git repository is clean and,

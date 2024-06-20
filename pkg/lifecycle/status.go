@@ -177,7 +177,12 @@ func (s *Status) getProdAndDevAssetsFromGit(git *Git, tempDir string) (map[strin
 	tempDirRootFs := filesystem.GetFilesystem(tempDir)
 	tempHelmIndexPath := filesystem.GetAbsPath(tempDirRootFs, path.RepositoryHelmIndexFile)
 
-	// TODO: Fetch and checkout to the production branch
+	// Fetch and checkout to the production branch
+	err := git.fetchAndCheckoutBranch(s.ld.VR.prodBranch)
+	if err != nil {
+		logrus.Errorf("Error while fetching and checking out the production branch at: %s", err)
+		return nil, nil, err
+	}
 
 	// Get the map for the released assets versions on the production branch
 	releasedAssets, err := getAssetsMapFromIndex(tempHelmIndexPath, "", false)
@@ -186,7 +191,12 @@ func (s *Status) getProdAndDevAssetsFromGit(git *Git, tempDir string) (map[strin
 		return nil, nil, err
 	}
 
-	// TODO: Fetch and checkout to the development branch
+	// Fetch and checkout to the development branch
+	err = git.fetchAndCheckoutBranch(s.ld.VR.devBranch)
+	if err != nil {
+		logrus.Errorf("Error while fetching and checking out the development branch at: %s", err)
+		return nil, nil, err
+	}
 
 	// Get the map for the development assets versions on the development branch
 	devAssets, err := getAssetsMapFromIndex(tempHelmIndexPath, "", false)

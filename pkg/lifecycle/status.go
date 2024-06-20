@@ -24,7 +24,7 @@ type Status struct {
 func (ld *Dependencies) getStatus() (*Status, error) {
 	status := &Status{ld: ld}
 	// List the current assets versions in the current branch
-
+	status.listCurrentAssetsVersionsOnTheCurrentBranch()
 	// List the production and development assets versions comparisons from the default branches
 
 	// Separate the assets to be released from the assets to be forward ported after the comparison
@@ -56,4 +56,28 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) error {
 	// Save the logs for the separations of assets to be released and forward ported
 
 	return nil
+}
+
+// listCurrentAssetsVersionsOnTheCurrentBranch returns the Status struct by reference
+// with 2 maps of assets versions, one for the assets that are in the lifecycle,
+// and another for the assets that are outside of the lifecycle.
+func (s *Status) listCurrentAssetsVersionsOnTheCurrentBranch() {
+	insideLifecycle := make(map[string][]Asset)
+	outsideLifecycle := make(map[string][]Asset)
+
+	for asset, versions := range s.ld.assetsVersionsMap {
+		for _, version := range versions {
+			inLifecycle := s.ld.VR.CheckChartVersionForLifecycle(version.version)
+			if inLifecycle {
+				insideLifecycle[asset] = append(insideLifecycle[asset], version)
+			} else {
+				outsideLifecycle[asset] = append(outsideLifecycle[asset], version)
+			}
+		}
+	}
+
+	s.assetsInLifecycleCurrentBranch = insideLifecycle
+	s.assetsOutLifecycleCurrentBranch = outsideLifecycle
+
+	return
 }

@@ -3,6 +3,8 @@ package lifecycle
 import (
 	"os"
 
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/sirupsen/logrus"
 )
 
@@ -39,6 +41,7 @@ func (ld *Dependencies) getStatus() (*Status, error) {
 	}
 
 	// Separate the assets to be released from the assets to be forward ported after the comparison
+	status.separateReleaseFromForwardPort()
 
 	return status, nil
 }
@@ -112,9 +115,14 @@ func (s *Status) listProdAndDevAssets() error {
 		return err
 	}
 
-	_ = git // this will be removed in the future
-
 	// Fetch, checkout and map assets versions in the production and development branches
+	releasedAssets, devAssets, err := s.getProdAndDevAssetsFromGit(git, tempDir)
+	if err != nil {
+		logrus.Errorf("Error while getting assets from production and development branches: %s", err)
+		return err
+	}
+	_ = releasedAssets // This will be removed in the future.
+	_ = devAssets      // This will be removed in the future.
 
 	// Compare the assets versions between the production and development branches
 	return nil
@@ -160,4 +168,31 @@ func destroyTemporaryDirStructure(defaultWorkingDir, tempDir string) error {
 		return err
 	}
 	return nil
+}
+
+// getProdAndDevAssetsFromGit will fetch and checkout the production and development branches,
+// get the assets versions from the index.yaml file and return the maps for the assets versions.
+func (s *Status) getProdAndDevAssetsFromGit(git *Git, tempDir string) (map[string][]Asset, map[string][]Asset, error) {
+	// get filesystem and index file at the temporary directory
+	tempDirRootFs := filesystem.GetFilesystem(tempDir)
+	tempHelmIndexPath := filesystem.GetAbsPath(tempDirRootFs, path.RepositoryHelmIndexFile)
+
+	// TODO: Fetch and checkout to the production branch
+
+	// Get the map for the released assets versions on the production branch
+	releasedAssets, err := getAssetsMapFromIndex(tempHelmIndexPath, "", false)
+	if err != nil {
+		logrus.Errorf("Error while getting assets map from index: %s", err)
+		return nil, nil, err
+	}
+
+	// TODO: Fetch and checkout to the development branch
+
+	// Get the map for the development assets versions on the development branch
+	devAssets, err := getAssetsMapFromIndex(tempHelmIndexPath, "", false)
+	if err != nil {
+		logrus.Errorf("Error while getting assets map from index: %s", err)
+		return nil, nil, err
+	}
+	return releasedAssets, devAssets, nil
 }

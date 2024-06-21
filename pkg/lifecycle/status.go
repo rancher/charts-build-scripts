@@ -150,7 +150,7 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) error {
 	rfLogs.writeHEAD(status.ld.VR, "Assets to be released vs forward ported")
 	rfLogs.write("Assets to be RELEASED", "INFO")
 	rfLogs.writeVersions(status.assetsToBeReleased, "INFO")
-	cbLogs.write("", "END")
+	rfLogs.write("", "END")
 	rfLogs.write("Assets to be FORWARD-PORTED", "INFO")
 	rfLogs.writeVersions(status.assetsToBeForwardPorted, "INFO")
 

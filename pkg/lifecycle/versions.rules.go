@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 // ProductionBranchPrefix is the official prefix for the production branch
@@ -138,10 +140,11 @@ func (vr *VersionRules) CheckChartVersionForLifecycle(chartVersion string) bool 
 }
 
 // CheckChartVersionToRelease will return if the current versyion being analyzed is the one to be released or not
-func (vr *VersionRules) CheckChartVersionToRelease(chartVersion string) bool {
-	chartVersionInt, _ := strconv.Atoi(strings.Split(chartVersion, ".")[0])
-	if chartVersionInt == (vr.maxVersion - 1) {
-		return true
+func (vr *VersionRules) CheckChartVersionToRelease(chartVersion string) (bool, error) {
+	chartVersionInt, err := strconv.Atoi(strings.Split(chartVersion, ".")[0])
+	if err != nil {
+		logrus.Errorf("failed to check version to release for chartVersion:%s with error:%v", chartVersion, err)
+		return false, err
 	}
-	return false
+	return chartVersionInt == (vr.maxVersion - 1), nil
 }

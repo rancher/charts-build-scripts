@@ -14,11 +14,8 @@ type logs struct {
 	filePath string
 }
 
-// SEPARATOR is a standard separator for logs
-const SEPARATOR = "\n"
-
-// ENDER is a standard end for the logged information
-const ENDER = "\n__________________________________________________________________\n"
+const separator = "\n"
+const ender = "\n__________________________________________________________________\n"
 
 // createLogs creates a new log file and returns a logs struct with the file and file path
 func createLogs(fileName string) (*logs, error) {
@@ -51,7 +48,7 @@ func (l *logs) writeHEAD(versionRules *VersionRules, title string) {
 	l.write(fmt.Sprintf("development branch: %s", versionRules.devBranch), "INFO")
 	l.write(fmt.Sprintf("production branch: %s", versionRules.prodBranch), "INFO")
 
-	rules := make(map[string]string)
+	rules := make(map[string]string, len(versionRules.rules))
 	for k, v := range versionRules.rules {
 		rules[fmt.Sprintf("%.1f", k)] = fmt.Sprintf("min: %s, max: %s", v.min, v.max)
 	}
@@ -84,13 +81,13 @@ func (l *logs) write(data string, logType string) {
 			logrus.Errorf("Error while writing logs: %s", err)
 		}
 	case "SEPARATE":
-		fmt.Printf(SEPARATOR)
-		if _, err := l.file.WriteString(SEPARATOR); err != nil {
+		fmt.Printf(separator)
+		if _, err := l.file.WriteString(separator); err != nil {
 			logrus.Errorf("Error while writing logs: %s", err)
 		}
 	case "END":
-		fmt.Printf(ENDER)
-		if _, err := l.file.WriteString("\n" + ENDER + "\n"); err != nil {
+		fmt.Printf(ender)
+		if _, err := l.file.WriteString("\n" + ender + "\n"); err != nil {
 			logrus.Errorf("Error while writing logs: %s", err)
 		}
 	default:

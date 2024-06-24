@@ -43,7 +43,11 @@ func (ld *Dependencies) getStatus() (*Status, error) {
 	}
 
 	// Separate the assets to be released from the assets to be forward ported after the comparison
-	status.separateReleaseFromForwardPort()
+	err = status.separateReleaseFromForwardPort()
+	if err != nil {
+		logrus.Errorf("failed to separate releases from forward-ports: %v", err)
+		return status, fmt.Errorf("failed to separate releases from forward-ports: %v", err)
+	}
 
 	return status, nil
 }
@@ -350,13 +354,17 @@ func checkIfVersionIsReleased(version string, releasedVersions []Asset) bool {
 }
 
 // separateReleaseFromForwardPort will separate the assets to be released from the assets to be forward ported, the assets were loaded previously by listProdAndDevAssets function.
-func (s *Status) separateReleaseFromForwardPort() {
+func (s *Status) separateReleaseFromForwardPort() error {
 	assetsToBeReleased := make(map[string][]Asset)
 	assetsToBeForwardPorted := make(map[string][]Asset)
 
 	for asset, versions := range s.assetsNotReleasedInLifecycle {
 		for _, version := range versions {
-			if toRelease := s.ld.VR.CheckChartVersionToRelease(version.version); toRelease {
+			toRelease, err := s.ld.VR.CheckChartVersionToRelease(version.version)
+			if err != nil {
+				return err
+			}
+			if toRelease {
 				assetsToBeReleased[asset] = append(assetsToBeReleased[asset], version)
 			} else {
 				assetsToBeForwardPorted[asset] = append(assetsToBeForwardPorted[asset], version)
@@ -367,5 +375,5 @@ func (s *Status) separateReleaseFromForwardPort() {
 	s.assetsToBeReleased = assetsToBeReleased
 	s.assetsToBeForwardPorted = assetsToBeForwardPorted
 
-	return
+	return nil
 }

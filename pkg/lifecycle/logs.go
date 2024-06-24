@@ -91,7 +91,7 @@ func (l *logs) write(data string, logType string) {
 			logrus.Errorf("Error while writing logs: %s", err)
 		}
 	default:
-		fmt.Printf(data)
+		fmt.Println(data)
 		if _, err := l.file.WriteString(data + "\n"); err != nil {
 			logrus.Errorf("Error while writing logs: %s", err)
 		}

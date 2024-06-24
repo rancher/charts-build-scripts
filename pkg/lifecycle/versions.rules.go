@@ -4,7 +4,15 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
+
+// ProductionBranchPrefix is the official prefix for the production branch
+const ProductionBranchPrefix = "prod-v"
+
+// DevBranchPrefix is the official prefix for the development branch
+const DevBranchPrefix = "dev-v"
 
 type version struct {
 	min string
@@ -17,6 +25,8 @@ type VersionRules struct {
 	branchVersion float32
 	minVersion    int
 	maxVersion    int
+	devBranch     string
+	prodBranch    string
 }
 
 func (vr *VersionRules) log(debug bool) {
@@ -65,6 +75,9 @@ func GetVersionRules(branchVersion string, debug bool) (*VersionRules, error) {
 
 	// Calculate the min and maximum versions allowed for the current branch version lifecycle
 	vr.getMinMaxVersionInts()
+
+	vr.prodBranch = fmt.Sprintf("%s%.1f", ProductionBranchPrefix, vr.branchVersion)
+	vr.devBranch = fmt.Sprintf("%s%.1f", DevBranchPrefix, vr.branchVersion)
 
 	vr.log(debug)
 
@@ -124,4 +137,14 @@ func (vr *VersionRules) CheckChartVersionForLifecycle(chartVersion string) bool 
 		return true
 	}
 	return false
+}
+
+// CheckChartVersionToRelease will return if the current versyion being analyzed is the one to be released or not
+func (vr *VersionRules) CheckChartVersionToRelease(chartVersion string) (bool, error) {
+	chartVersionInt, err := strconv.Atoi(strings.Split(chartVersion, ".")[0])
+	if err != nil {
+		logrus.Errorf("failed to check version to release for chartVersion:%s with error:%v", chartVersion, err)
+		return false, err
+	}
+	return chartVersionInt == (vr.maxVersion - 1), nil
 }

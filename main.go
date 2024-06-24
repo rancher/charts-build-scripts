@@ -257,6 +257,12 @@ func main() {
 			Action: lifecycleAssetsClean,
 			Flags:  []cli.Flag{branchVersionFlag, chartFlag, debugFlag},
 		},
+		{
+			Name:   "lifecycle-status",
+			Usage:  "Get the status of the current assets and charts based on the branch version and chart version according to the lifecycle rules",
+			Action: lifecycleStatus,
+			Flags:  []cli.Flag{branchVersionFlag, chartFlag},
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -569,5 +575,20 @@ func lifecycleAssetsClean(c *cli.Context) {
 	err = lifeCycleDep.ApplyRules(CurrentChart, DebugMode)
 	if err != nil {
 		logrus.Fatalf("Failed to apply versioning rules for lifecycle-assets-clean: %s", err)
+	}
+}
+
+func lifecycleStatus(c *cli.Context) {
+	// Initialize dependencies with branch-version and current chart
+	rootFs := filesystem.GetFilesystem(getRepoRoot())
+	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, false)
+	if err != nil {
+		logrus.Fatalf("encountered error while initializing dependencies for lifecycle-assets-clean: %s", err)
+	}
+
+	// Execute lifecycle status check and save the logs
+	err = lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
+	if err != nil {
+		logrus.Fatalf("Failed to check lifecycle status: %s", err)
 	}
 }

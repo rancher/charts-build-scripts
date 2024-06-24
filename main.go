@@ -41,6 +41,8 @@ const (
 	DefaultCacheEnvironmentVariable = "USE_CACHE"
 	// DefaultDebugEnvironmentVariable is the default environment variable that indicates that debug mode should be enabled
 	DefaultDebugEnvironmentVariable = "DEBUG"
+	// DefaultBranchVersionEnvironmentVariable is the default environment variable that indicates the branch version to compare against
+	DefaultBranchVersionEnvironmentVariable = "BRANCH_VERSION"
 )
 
 var (
@@ -94,8 +96,14 @@ func main() {
 		EnvVar:      DefaultPackageEnvironmentVariable,
 	}
 	chartFlag := cli.StringFlag{
-		Name:        "chart,c",
-		Usage:       "A chart you would like to run the scripts on. Can include version.",
+		Name: "chart,c",
+		Usage: `Usage:
+			./bin/charts-build-scripts <some_command> --chart="chart-name"
+			CHART=<chart_name> make <some_command>
+
+		A chart you would like to run the scripts on. Can include version.
+		Default Environment Variable:
+		`,
 		Required:    false,
 		Destination: &CurrentChart,
 		EnvVar:      DefaultChartEnvironmentVariable,
@@ -122,12 +130,27 @@ func main() {
 		EnvVar:      DefaultCacheEnvironmentVariable,
 	}
 	branchVersionFlag := cli.StringFlag{
-		Name:  "branch-version",
-		Usage: "Available inputs: (2.5; 2.6; 2.7; 2.8; 2.9). The branch version to compare against. This is used to determine which assets to remove from the repository. ",
+		Name: "branch-version",
+		Usage: `Usage:
+			./bin/charts-build-scripts <command> --branch-version="x.y"
+			BRANCH_VERSION="x.y" make <command>
+
+		The branch version line to compare against.
+		Available inputs: (2.5; 2.6; 2.7; 2.8; 2.9).
+		Default Environment Variable:
+		`,
+		Required: true,
+		EnvVar:   DefaultBranchVersionEnvironmentVariable,
 	}
 	debugFlag := cli.BoolFlag{
-		Name:        "debugFlag",
-		Usage:       "Enable debug mode",
+		Name: "debug",
+		Usage: `Usage:
+			./bin/charts-build-scripts <some_command> --debug=true
+			DEBUG=true make <some_command>
+
+		Enable debug mode with more verbose output
+		Default Environment Variable:
+		`,
 		Destination: &DebugMode,
 		EnvVar:      DefaultDebugEnvironmentVariable,
 	}
@@ -252,14 +275,18 @@ func main() {
 			Flags:  []cli.Flag{packageFlag, configFlag, cacheFlag},
 		},
 		{
-			Name:   "lifecycle-assets",
-			Usage:  "Clean up assets that don't belong on this branch",
-			Action: lifecycleAssetsClean,
+			Name: "enforce-lifecycle",
+			Usage: `(work in progress)
+			Remove all assets versions that don't belong on this branch according to the lifecycle rules.
+			All assets versions that are older than 3 minor versions from the provided branch version(2.7; 2.8; 2.9) will be removed.
+			`,
+			Action: enforceLifecycle,
 			Flags:  []cli.Flag{branchVersionFlag, chartFlag, debugFlag},
 		},
 		{
-			Name:   "lifecycle-status",
-			Usage:  "Get the status of the current assets and charts based on the branch version and chart version according to the lifecycle rules",
+			Name: "lifecycle-status",
+			Usage: `Print the status of the current assets and charts based on the branch version and chart version according to the lifecycle rules.
+			Saves the logs in the logs/ directory.`,
 			Action: lifecycleStatus,
 			Flags:  []cli.Flag{branchVersionFlag, chartFlag},
 		},
@@ -562,10 +589,12 @@ func checkRCTagsAndVersions(c *cli.Context) {
 	logrus.Info("RC check has succeeded")
 }
 
-func lifecycleAssetsClean(c *cli.Context) {
+func enforceLifecycle(c *cli.Context) {
+
 	// Initialize dependencies with branch-version, current chart and debug mode
 	repoRoot := getRepoRoot()
 	rootFs := filesystem.GetFilesystem(repoRoot)
+
 	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, DebugMode)
 	if err != nil {
 		logrus.Fatalf("encountered error while initializing dependencies for lifecycle-assets-clean: %s", err)
@@ -579,8 +608,10 @@ func lifecycleAssetsClean(c *cli.Context) {
 }
 
 func lifecycleStatus(c *cli.Context) {
+
 	// Initialize dependencies with branch-version and current chart
 	rootFs := filesystem.GetFilesystem(getRepoRoot())
+
 	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, false)
 	if err != nil {
 		logrus.Fatalf("encountered error while initializing dependencies for lifecycle-assets-clean: %s", err)

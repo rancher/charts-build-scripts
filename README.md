@@ -1,5 +1,8 @@
 # charts-build-scripts
 
+This repository is maintained by `@rancher/release-team`.
+It is a crucial part of our release process for the Charts repository.
+
 ## How to Use `charts-build-scripts`
 
 ### Charts Repository Setup

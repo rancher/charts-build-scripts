@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/sirupsen/logrus"
 )
@@ -23,11 +24,12 @@ type Dependencies struct {
 	rootFs            billy.Filesystem
 	assetsVersionsMap map[string][]Asset
 	VR                *VersionRules
+	Git               *git.Git
 	// These wrappers are used to mock the filesystem and git status in the tests
-	walkDirWrapper           WalkDirFunc
-	makeRemoveWrapper        MakeRemoveFunc
-	checkIfGitIsCleanWrapper CheckIfGitIsCleanFunc
-	gitAddAndCommitWrapper   GitAddAndCommitFunc
+	walkDirWrapper         WalkDirFunc
+	makeRemoveWrapper      MakeRemoveFunc
+	statusPorceLainWrapper StatusPorcelainFunc
+	addAndCommitWrapper    AddAndCommitFunc
 }
 
 // Function types to be mocked in the tests and used on Dependencies struct methods
@@ -38,11 +40,11 @@ type WalkDirFunc func(fs billy.Filesystem, dirPath string, doFunc filesystem.Rel
 // MakeRemoveFunc is a function type that will be used to execute make remove
 type MakeRemoveFunc func(chart, version string, debug bool) error
 
-// CheckIfGitIsCleanFunc is a function type that will be used to check if the git tree is clean
-type CheckIfGitIsCleanFunc func(debug bool) (bool, error)
+// StatusPorcelainFunc is a function type that will be used to check if the git tree is clean
+type StatusPorcelainFunc func(debug bool) (bool, error)
 
-// GitAddAndCommitFunc is a function type that will be used to add and commit changes in the git tree
-type GitAddAndCommitFunc func(message string) error
+// AddAndCommitFunc is a function type that will be used to add and commit changes in the git tree
+type AddAndCommitFunc func(message string) error
 
 // cycleLog is a function to log debug messages if debug mode is enabled
 func cycleLog(debugMode bool, msg string, data interface{}) {
@@ -63,21 +65,29 @@ func InitDependencies(rootFs billy.Filesystem, branchVersion string, currentChar
 		DisableQuote: true,
 	})
 	var err error
+
+	workDir, _ := os.Getwd()
+	git, err := git.OpenGitRepo(workDir)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create the Dependencies struct which will be used for the entire process
 	dep := &Dependencies{
-		walkDirWrapper:           filesystem.WalkDir, // Assign the WalkDir function to the wrapper
-		makeRemoveWrapper:        makeRemove,         // Assign the makeRemove function to the wrapper
-		checkIfGitIsCleanWrapper: checkIfGitIsClean,  // Assign the checkIfGitIsClean function to the wrapper
-		gitAddAndCommitWrapper:   gitAddAndCommit,    // Assign the gitAddAndCommit function to the wrapper
+		walkDirWrapper:         filesystem.WalkDir,  // Assign the WalkDir function to the wrapper
+		makeRemoveWrapper:      makeRemove,          // Assign the makeRemove function to the wrapper
+		statusPorceLainWrapper: git.StatusProcelain, // Assign the IsCleanGitRepo function to the wrapper
+		addAndCommitWrapper:    git.AddAndCommit,    // Assign the gitAddAndCommit function to the wrapper
+		Git:                    git,
 	}
 
 	// Git tree must be clean before proceeding with removing charts
-	clean, err := dep.checkIfGitIsCleanWrapper(debug)
-	if !clean {
-		return nil, fmt.Errorf("git is not clean, it must be clean before proceeding with removing charts")
-	}
+	clean, err := dep.statusPorceLainWrapper(debug)
 	if err != nil {
 		return nil, err
+	}
+	if !clean {
+		return nil, fmt.Errorf("git repo should be clean")
 	}
 
 	cycleLog(debug, "Getting branch version rules for: ", branchVersion)
@@ -188,7 +198,7 @@ func (ld *Dependencies) removeAssetsVersions(debug bool) (map[string][]Asset, er
 		}
 
 		// If no versions were removed from the existing ones, do not commit.
-		clean, err := ld.checkIfGitIsCleanWrapper(debug)
+		clean, err := ld.statusPorceLainWrapper(debug)
 		if err != nil {
 			return nil, err
 		}
@@ -198,7 +208,7 @@ func (ld *Dependencies) removeAssetsVersions(debug bool) (map[string][]Asset, er
 		}
 
 		// Commit each chart removal versions in a single commit
-		err = ld.gitAddAndCommitWrapper(fmt.Sprintf("Remove %s versions", chartName))
+		err = ld.addAndCommitWrapper(fmt.Sprintf("Remove %s versions", chartName))
 		if err != nil {
 			logrus.Errorf("Error while committing the removal of %s versions: %s", chartName, err)
 			return nil, err // Abort and return error if the commit fails

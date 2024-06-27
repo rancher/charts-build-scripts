@@ -29,7 +29,7 @@ func getAssetsMapFromIndex(absRepositoryHelmIndexFile, currentChart string, debu
 		for chartName, entry := range helmIndexFile.Entries {
 			for _, chartVersion := range entry {
 				annotatedVersions = append(annotatedVersions, Asset{
-					version: chartVersion.Version,
+					Version: chartVersion.Version,
 				})
 			}
 			assetsMap[chartName] = annotatedVersions
@@ -43,7 +43,7 @@ func getAssetsMapFromIndex(absRepositoryHelmIndexFile, currentChart string, debu
 		}
 		for _, chartVersion := range helmIndexFile.Entries[currentChart] {
 			annotatedVersions = append(annotatedVersions, Asset{
-				version: chartVersion.Version,
+				Version: chartVersion.Version,
 			})
 		}
 		assetsMap[currentChart] = annotatedVersions
@@ -91,7 +91,7 @@ func (ld *Dependencies) populateAssetsVersionsPath(debug bool) error {
 				version = strings.TrimSuffix(version, ".tgz")
 				// Compare the received slice of paths with the current versions in assets
 				// lets append the path to the assetsVersionsMap
-				if asset.version == version {
+				if asset.Version == version {
 					cycleLog(debug, "adding asset to map", filePath)
 					asset.path = filePath
 					assetsVersionsMap[chart] = append(assetsVersionsMap[chart], asset)
@@ -115,8 +115,8 @@ func (ld *Dependencies) sortAssetsVersions() {
 	// Iterate over the map and sort the assets for each key
 	for k, assets := range ld.assetsVersionsMap {
 		sort.Slice(assets, func(i, j int) bool {
-			vi, _ := semver.NewVersion(assets[i].version)
-			vj, _ := semver.NewVersion(assets[j].version)
+			vi, _ := semver.NewVersion(assets[i].Version)
+			vj, _ := semver.NewVersion(assets[j].Version)
 			return vi.LessThan(vj)
 		})
 		ld.assetsVersionsMap[k] = assets

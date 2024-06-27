@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/sirupsen/logrus"
 )
@@ -189,7 +190,7 @@ func (s *Status) listProdAndDevAssets() error {
 	defer destroyTemporaryDirStructure(defaultWorkingDir, tempDir)
 
 	// Clone the repository at the temporary directory
-	git, err := cloneAtDir("https://github.com/rancher/charts", tempDir)
+	git, err := git.CloneAtDir("https://github.com/rancher/charts", tempDir)
 	if err != nil {
 		return err
 	}
@@ -251,13 +252,13 @@ func destroyTemporaryDirStructure(defaultWorkingDir, tempDir string) error {
 
 // getProdAndDevAssetsFromGit will fetch and checkout the production and development branches,
 // get the assets versions from the index.yaml file and return the maps for the assets versions.
-func (s *Status) getProdAndDevAssetsFromGit(git *Git, tempDir string) (map[string][]Asset, map[string][]Asset, error) {
+func (s *Status) getProdAndDevAssetsFromGit(git *git.Git, tempDir string) (map[string][]Asset, map[string][]Asset, error) {
 	// get filesystem and index file at the temporary directory
 	tempDirRootFs := filesystem.GetFilesystem(tempDir)
 	tempHelmIndexPath := filesystem.GetAbsPath(tempDirRootFs, path.RepositoryHelmIndexFile)
 
 	// Fetch and checkout to the production branch
-	err := git.fetchAndCheckoutBranch(s.ld.VR.ProdBranch)
+	err := git.FetchAndCheckoutBranch(s.ld.VR.ProdBranch)
 	if err != nil {
 		logrus.Errorf("Error while fetching and checking out the production branch at: %s", err)
 		return nil, nil, err
@@ -271,7 +272,7 @@ func (s *Status) getProdAndDevAssetsFromGit(git *Git, tempDir string) (map[strin
 	}
 
 	// Fetch and checkout to the development branch
-	err = git.fetchAndCheckoutBranch(s.ld.VR.DevBranch)
+	err = git.FetchAndCheckoutBranch(s.ld.VR.DevBranch)
 	if err != nil {
 		logrus.Errorf("Error while fetching and checking out the development branch at: %s", err)
 		return nil, nil, err

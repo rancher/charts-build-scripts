@@ -77,10 +77,10 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 			// rootFs: fs,
 			assetsVersionsMap: map[string][]Asset{
 				"chart1": {
-					{version: "1.0.0"},
+					{Version: "1.0.0"},
 				},
 				"chart2": {
-					{version: "1.0.0"},
+					{Version: "1.0.0"},
 				},
 			},
 			walkDirWrapper: func(fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error {
@@ -104,10 +104,10 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 		// Check that the assetsVersionsMap was populated correctly
 		expected := map[string][]Asset{
 			"chart1": {
-				{version: "1.0.0", path: "assets/chart1/chart1-1.0.0.tgz"},
+				{Version: "1.0.0", path: "assets/chart1/chart1-1.0.0.tgz"},
 			},
 			"chart2": {
-				{version: "1.0.0", path: "assets/chart2/chart2-1.0.0.tgz"},
+				{Version: "1.0.0", path: "assets/chart2/chart2-1.0.0.tgz"},
 			},
 		}
 		if !reflect.DeepEqual(ld.assetsVersionsMap, expected) {
@@ -121,7 +121,7 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 			// rootFs: fs,
 			assetsVersionsMap: map[string][]Asset{
 				"chart1": {
-					{version: "1.0.0"},
+					{Version: "1.0.0"},
 				},
 			},
 			walkDirWrapper: func(fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error {
@@ -143,14 +143,14 @@ func Test_sortAssetsVersions(t *testing.T) {
 	dep := &Dependencies{
 		assetsVersionsMap: map[string][]Asset{
 			"key1": {
-				{version: "1.0.0"},
-				{version: "0.1.0"},
-				{version: "0.0.1"},
+				{Version: "1.0.0"},
+				{Version: "0.1.0"},
+				{Version: "0.0.1"},
 			},
 			"key2": {
-				{version: "2.0.0"},
-				{version: "1.1.0"},
-				{version: "1.0.1"},
+				{Version: "2.0.0"},
+				{Version: "1.1.0"},
+				{Version: "1.0.1"},
 			},
 		},
 	}
@@ -159,15 +159,15 @@ func Test_sortAssetsVersions(t *testing.T) {
 	dep.sortAssetsVersions()
 
 	// Assert
-	if dep.assetsVersionsMap["key1"][0].version != "0.0.1" ||
-		dep.assetsVersionsMap["key1"][1].version != "0.1.0" ||
-		dep.assetsVersionsMap["key1"][2].version != "1.0.0" {
+	if dep.assetsVersionsMap["key1"][0].Version != "0.0.1" ||
+		dep.assetsVersionsMap["key1"][1].Version != "0.1.0" ||
+		dep.assetsVersionsMap["key1"][2].Version != "1.0.0" {
 		t.Errorf("assetsVersionsMap was not sorted correctly for key1")
 	}
 
-	if dep.assetsVersionsMap["key2"][0].version != "1.0.1" ||
-		dep.assetsVersionsMap["key2"][1].version != "1.1.0" ||
-		dep.assetsVersionsMap["key2"][2].version != "2.0.0" {
+	if dep.assetsVersionsMap["key2"][0].Version != "1.0.1" ||
+		dep.assetsVersionsMap["key2"][1].Version != "1.1.0" ||
+		dep.assetsVersionsMap["key2"][2].Version != "2.0.0" {
 		t.Errorf("assetsVersionsMap was not sorted correctly for key2")
 	}
 }

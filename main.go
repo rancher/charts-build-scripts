@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/rancher/charts-build-scripts/pkg/auto"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
@@ -288,6 +289,18 @@ func main() {
 			Usage: `Print the status of the current assets and charts based on the branch version and chart version according to the lifecycle rules.
 			Saves the logs in the logs/ directory.`,
 			Action: lifecycleStatus,
+			Flags:  []cli.Flag{branchVersionFlag, chartFlag},
+		},
+		{
+			Name: "auto-forward-port",
+			Usage: `Execute the forward-port script to forward port a chart or all to the production branch.
+				The charts to be forward ported are listed in the result of lifecycle-status command.
+				It is advised to run make lifecycle-status before running this command.
+				At the end of the execution, the script will create a PR with the changes to each chart.
+				At the end of the execution, the script will save the logs in the logs directory,
+				with all assets versions and branches that were pushed to the upstream repository.
+			`,
+			Action: autoForwardPort,
 			Flags:  []cli.Flag{branchVersionFlag, chartFlag},
 		},
 	}
@@ -590,17 +603,17 @@ func checkRCTagsAndVersions(c *cli.Context) {
 }
 
 func enforceLifecycle(c *cli.Context) {
-
 	// Initialize dependencies with branch-version, current chart and debug mode
+	logrus.Info("Initializing dependencies for enforce-lifecycle")
 	repoRoot := getRepoRoot()
 	rootFs := filesystem.GetFilesystem(repoRoot)
-
 	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, DebugMode)
 	if err != nil {
-		logrus.Fatalf("encountered error while initializing dependencies for lifecycle-assets-clean: %s", err)
+		logrus.Fatalf("encountered error while initializing dependencies: %s", err)
 	}
 
 	// Apply versioning rules
+	logrus.Info("Starting to enforce lifecycle rules for assets")
 	err = lifeCycleDep.ApplyRules(CurrentChart, DebugMode)
 	if err != nil {
 		logrus.Fatalf("Failed to apply versioning rules for lifecycle-assets-clean: %s", err)
@@ -608,18 +621,49 @@ func enforceLifecycle(c *cli.Context) {
 }
 
 func lifecycleStatus(c *cli.Context) {
-
 	// Initialize dependencies with branch-version and current chart
+	logrus.Info("Initializing dependencies for lifecycle-status")
 	rootFs := filesystem.GetFilesystem(getRepoRoot())
-
 	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, false)
 	if err != nil {
-		logrus.Fatalf("encountered error while initializing dependencies for lifecycle-assets-clean: %s", err)
+		logrus.Fatalf("encountered error while initializing dependencies: %s", err)
 	}
 
 	// Execute lifecycle status check and save the logs
-	err = lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
+	logrus.Info("Checking lifecycle status and saving logs")
+	_, err = lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
 	if err != nil {
 		logrus.Fatalf("Failed to check lifecycle status: %s", err)
 	}
+}
+
+func autoForwardPort(c *cli.Context) {
+	// Initialize dependencies with branch-version and current chart
+	logrus.Info("Initializing dependencies for auto-forward-port")
+	rootFs := filesystem.GetFilesystem(getRepoRoot())
+	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, false)
+	if err != nil {
+		logrus.Fatalf("encountered error while initializing dependencies: %v", err)
+	}
+
+	// Execute lifecycle status check and save the logs
+	logrus.Info("Checking lifecycle status and saving logs")
+	status, err := lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
+	if err != nil {
+		logrus.Fatalf("Failed to check lifecycle status: %v", err)
+	}
+
+	// Execute forward port with loaded information from status
+	logrus.Info("Preparing forward port data")
+	fp, err := auto.CreateForwardPortStructure(lifeCycleDep, status.AssetsToBeForwardPorted)
+	if err != nil {
+		logrus.Fatalf("Failed to prepare forward port: %v", err)
+	}
+
+	logrus.Info("Starting forward port execution")
+	err = fp.ExecuteForwardPort(CurrentChart)
+	if err != nil {
+		logrus.Fatalf("Failed to execute forward port: %v", err)
+	}
+
 }

@@ -15,32 +15,9 @@ func Test_removeAssetsVersions(t *testing.T) {
 			makeRemoveWrapper: func(chart, version string, debug bool) error {
 				return fmt.Errorf("Some error at makeRemoveWrapper")
 			},
-			checkIfGitIsCleanWrapper: func(debug bool) (bool, error) { return false, nil },
-			gitAddAndCommitWrapper:   func(message string) error { return nil },
-			assetsVersionsMap:        map[string][]Asset{"chart1": {{version: "999.0.0"}}},
-			VR:                       vr,
-		}
-
-		// Execute
-		_, err := dep.removeAssetsVersions(false)
-
-		// Assert
-		if err == nil {
-			t.Errorf("removeAssetsVersions should have returned an error: %v", err)
-		}
-	})
-
-	t.Run("Remove Versions Assets fail at checkIfGitIsCleanWrapper", func(t *testing.T) {
-		// Init and mock dependencies
-		vr, _ := GetVersionRules("2.9", false)
-		dep := &Dependencies{
-			// initialize other fields as necessary
-			makeRemoveWrapper: func(chart, version string, debug bool) error { return nil },
-			checkIfGitIsCleanWrapper: func(debug bool) (bool, error) {
-				return false, fmt.Errorf("Some error at checkIfGitIsCleanWrapper")
-			},
-			gitAddAndCommitWrapper: func(message string) error { return nil },
-			assetsVersionsMap:      map[string][]Asset{"chart1": {{version: "999.0.0"}}},
+			statusPorceLainWrapper: func(debug bool) (bool, error) { return false, nil },
+			addAndCommitWrapper:    func(message string) error { return nil },
+			assetsVersionsMap:      map[string][]Asset{"chart1": {{Version: "999.0.0"}}},
 			VR:                     vr,
 		}
 
@@ -53,17 +30,40 @@ func Test_removeAssetsVersions(t *testing.T) {
 		}
 	})
 
-	t.Run("Remove Versions Assets fail at gitAddAndCommitWrapper", func(t *testing.T) {
+	t.Run("Remove Versions Assets fail at statusPorceLainWrapper", func(t *testing.T) {
 		// Init and mock dependencies
 		vr, _ := GetVersionRules("2.9", false)
 		dep := &Dependencies{
 			// initialize other fields as necessary
-			makeRemoveWrapper:        func(chart, version string, debug bool) error { return nil },
-			checkIfGitIsCleanWrapper: func(debug bool) (bool, error) { return false, nil },
-			gitAddAndCommitWrapper: func(message string) error {
-				return fmt.Errorf("Some error at gitAddAndCommitWrapper")
+			makeRemoveWrapper: func(chart, version string, debug bool) error { return nil },
+			statusPorceLainWrapper: func(debug bool) (bool, error) {
+				return false, fmt.Errorf("Some error at statusPorceLainWrapper")
 			},
-			assetsVersionsMap: map[string][]Asset{"chart1": {{version: "999.0.0"}}},
+			addAndCommitWrapper: func(message string) error { return nil },
+			assetsVersionsMap:   map[string][]Asset{"chart1": {{Version: "999.0.0"}}},
+			VR:                  vr,
+		}
+
+		// Execute
+		_, err := dep.removeAssetsVersions(false)
+
+		// Assert
+		if err == nil {
+			t.Errorf("removeAssetsVersions should have returned an error: %v", err)
+		}
+	})
+
+	t.Run("Remove Versions Assets fail at addAndCommitWrapper", func(t *testing.T) {
+		// Init and mock dependencies
+		vr, _ := GetVersionRules("2.9", false)
+		dep := &Dependencies{
+			// initialize other fields as necessary
+			makeRemoveWrapper:      func(chart, version string, debug bool) error { return nil },
+			statusPorceLainWrapper: func(debug bool) (bool, error) { return false, nil },
+			addAndCommitWrapper: func(message string) error {
+				return fmt.Errorf("Some error at addAndCommitWrapper")
+			},
+			assetsVersionsMap: map[string][]Asset{"chart1": {{Version: "999.0.0"}}},
 			VR:                vr,
 		}
 
@@ -80,22 +80,22 @@ func Test_removeAssetsVersions(t *testing.T) {
 		// Init and mock dependencies
 		vr, _ := GetVersionRules("2.9", false)
 		dep := &Dependencies{
-			makeRemoveWrapper:        func(chart, version string, debug bool) error { return nil },
-			checkIfGitIsCleanWrapper: func(debug bool) (bool, error) { return false, nil },
-			gitAddAndCommitWrapper:   func(message string) error { return nil },
+			makeRemoveWrapper:      func(chart, version string, debug bool) error { return nil },
+			statusPorceLainWrapper: func(debug bool) (bool, error) { return false, nil },
+			addAndCommitWrapper:    func(message string) error { return nil },
 			assetsVersionsMap: map[string][]Asset{
 				"chart1": {
-					{version: "105.0.0"},
-					{version: "104.1.0"},
-					{version: "103.0.1"},
-					{version: "102.9.150"},
-					{version: "101.0.0"},
-					{version: "100.0.0"},
-					{version: "99.9.9"},
+					{Version: "105.0.0"},
+					{Version: "104.1.0"},
+					{Version: "103.0.1"},
+					{Version: "102.9.150"},
+					{Version: "101.0.0"},
+					{Version: "100.0.0"},
+					{Version: "99.9.9"},
 				},
 				"chart2": {
-					{version: "110.0.0"},
-					{version: "0.1.0"},
+					{Version: "110.0.0"},
+					{Version: "0.1.0"},
 				},
 			},
 			VR: vr,
@@ -120,17 +120,17 @@ func Test_removeAssetsVersions(t *testing.T) {
 		}
 
 		for _, asset := range removedAssetsVersions["chart1"] {
-			if asset.version == "105.0.0" || asset.version == "100.0.0" || asset.version == "99.9.9" {
+			if asset.Version == "105.0.0" || asset.Version == "100.0.0" || asset.Version == "99.9.9" {
 				continue
 			}
-			t.Errorf("Unexpected removed asset version on chart1: %s", asset.version)
+			t.Errorf("Unexpected removed asset version on chart1: %s", asset.Version)
 		}
 
 		for _, asset := range removedAssetsVersions["chart2"] {
-			if asset.version == "110.0.0" || asset.version == "0.1.0" {
+			if asset.Version == "110.0.0" || asset.Version == "0.1.0" {
 				continue
 			}
-			t.Errorf("Unexpected removed asset version on chart2: %s", asset.version)
+			t.Errorf("Unexpected removed asset version on chart2: %s", asset.Version)
 		}
 	})
 
@@ -138,14 +138,14 @@ func Test_removeAssetsVersions(t *testing.T) {
 		// Init and mock dependencies
 		vr, _ := GetVersionRules("2.9", false)
 		dep := &Dependencies{
-			makeRemoveWrapper:        func(chart, version string, debug bool) error { return nil },
-			checkIfGitIsCleanWrapper: func(debug bool) (bool, error) { return false, nil },
-			gitAddAndCommitWrapper:   func(message string) error { return nil },
+			makeRemoveWrapper:      func(chart, version string, debug bool) error { return nil },
+			statusPorceLainWrapper: func(debug bool) (bool, error) { return false, nil },
+			addAndCommitWrapper:    func(message string) error { return nil },
 			assetsVersionsMap: map[string][]Asset{
 				"chart1": {
-					{version: "103.0.1"},
-					{version: "102.9.150"},
-					{version: "101.0.0"},
+					{Version: "103.0.1"},
+					{Version: "102.9.150"},
+					{Version: "101.0.0"},
 				},
 			},
 			VR: vr,
@@ -172,9 +172,9 @@ func Test_removeAssetsVersions(t *testing.T) {
 		// Init and mock dependencies
 		vr, _ := GetVersionRules("2.9", false)
 		dep := &Dependencies{
-			makeRemoveWrapper:        func(chart, version string, debug bool) error { return nil },
-			checkIfGitIsCleanWrapper: func(debug bool) (bool, error) { return true, nil },
-			gitAddAndCommitWrapper:   func(message string) error { return nil },
+			makeRemoveWrapper:      func(chart, version string, debug bool) error { return nil },
+			statusPorceLainWrapper: func(debug bool) (bool, error) { return true, nil },
+			addAndCommitWrapper:    func(message string) error { return nil },
 			assetsVersionsMap: map[string][]Asset{
 				"chart1": {},
 			},

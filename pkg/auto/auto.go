@@ -115,60 +115,68 @@ func checkIfChartChanged(lastChart, currentChart string) bool {
 		return false
 	}
 
-	// Check for special cases like (fleet and neuvector), and CRD dependencies
-	specialCase := checkChartCommonPrefixes(lastChart, currentChart)
-	if specialCase != "" {
+	// Check for special edge cases
+	edgeCase := checkEdgeCasesIfChartChanged(lastChart, currentChart)
+	if !edgeCase {
 		return false
 	}
 
 	return true
 }
 
-// checkChartCommonPrefixes will check for special cases like (fleet and neuvector), and CRD dependencies
-// It will return the common prefix if it exists, otherwise it will return an empty string.
-// If the only common prefix is rancher, it will return an empty string.
-func checkChartCommonPrefixes(lastChart, currentChart string) string {
-	minLength := 0
-	minChart := ""
-	// compare which chart is shorter in name (last or current)
-	if len(currentChart) < len(lastChart) {
-		minLength = len(currentChart)
-		minChart = currentChart
+// checkEdgeCasesIfChartChanged will check for special cases like:
+//
+//	-CRD dependencies
+//	-fleet
+//	-neuvector
+//	-rancher-alerting-driver + rancher-aks-operator
+//	-rancher-gke-operator + rancher-gatekeeper
+//
+// It will return true if the chart changed, false otherwise
+func checkEdgeCasesIfChartChanged(lastChart, currentChart string) bool {
+
+	lastParts := strings.Split(lastChart, "-")
+	currentParts := strings.Split(currentChart, "-")
+
+	minLength := 0 // compare which chart is shorter in name (last or current)
+	if len(currentParts) < len(lastParts) {
+		minLength = len(currentParts)
 	} else {
-		minLength = len(lastChart)
-		minChart = lastChart
+		minLength = len(lastParts)
 	}
 
-	// Find the length of the common prefix if any
-	commonPrefixLength := 0
+	equalCounter := 0
 	for i := 0; i < minLength; i++ {
-		if lastChart[i] != currentChart[i] {
-			break
+		if lastParts[i] == currentParts[i] {
+			equalCounter++
 		}
-		commonPrefixLength++
 	}
 
-	// If there's no common prefix, return empty strings
-	if commonPrefixLength == 0 {
-		return ""
+	if equalCounter == 0 {
+		return true
+	}
+	if equalCounter == 1 && strings.HasPrefix("rancher-", lastParts[0]) &&
+		minLength < 3 {
+		return true
 	}
 
-	// Subtract the common prefix removing "-" if it exists
-	commonPrefix := removeSuffixIfExists(minChart[:commonPrefixLength], "-")
-	// if the only common prefix is rancher, return empty string
-	if commonPrefix == "rancher" {
-		return ""
+	if equalCounter == 1 && minLength >= 3 {
+		return true
 	}
-	// return the common prefix
-	return commonPrefix
-}
 
-// removeSuffixIfExists will remove the suffix from the string if it exists
-func removeSuffixIfExists(s, suffix string) string {
-	if strings.HasSuffix(s, suffix) {
-		return strings.TrimSuffix(s, suffix)
+	// treat operators edge cases
+	// rancher-aks-operator && rancher-gke-operator || rancher-aks-operator-crd && rancher-gke-operator-crd
+	if (equalCounter == 2 && minLength == 3) || (equalCounter == 3 && minLength == 4) {
+		if lastParts[0] == "rancher" && currentParts[0] == "rancher" {
+			if lastParts[2] == "operator" && currentParts[2] == "operator" {
+				if lastParts[1] != currentParts[1] {
+					return true
+				}
+			}
+		}
 	}
-	return s
+
+	return false
 }
 
 // createNewBranchToForwardPort will create a new branch to forward-port the assets

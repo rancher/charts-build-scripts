@@ -111,43 +111,43 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) (*Status, erro
 
 	// ##############################################################################
 	// Save the logs for the current branch
-	cbLogs.writeHEAD(status.ld.VR, "Assets versions vs the lifecycle rules in the current branch")
-	cbLogs.write("Versions INSIDE the lifecycle in the current branch", "INFO")
-	cbLogs.writeVersions(status.assetsInLifecycleCurrentBranch, "INFO")
-	cbLogs.write("", "END")
-	cbLogs.write("Versions OUTSIDE the lifecycle in the current branch", "WARN")
-	cbLogs.writeVersions(status.assetsOutLifecycleCurrentBranch, "WARN")
-	cbLogs.write("", "END")
+	cbLogs.WriteHEAD(status.ld.VR, "Assets versions vs the lifecycle rules in the current branch")
+	cbLogs.Write("Versions INSIDE the lifecycle in the current branch", "INFO")
+	cbLogs.WriteVersions(status.assetsInLifecycleCurrentBranch, "INFO")
+	cbLogs.Write("", "END")
+	cbLogs.Write("Versions OUTSIDE the lifecycle in the current branch", "WARN")
+	cbLogs.WriteVersions(status.assetsOutLifecycleCurrentBranch, "WARN")
+	cbLogs.Write("", "END")
 	// ##############################################################################
 	// Save the logs for the comparison between production and development branches
-	pdLogs.writeHEAD(status.ld.VR, "Released assets vs development assets with lifecycle rules")
-	pdLogs.write("Assets RELEASED and Inside the lifecycle", "INFO")
-	pdLogs.write(fmt.Sprintf("At the production branch: %s", status.ld.VR.ProdBranch), "INFO")
-	pdLogs.writeVersions(status.assetsReleasedInLifecycle, "INFO")
-	pdLogs.write("", "END")
+	pdLogs.WriteHEAD(status.ld.VR, "Released assets vs development assets with lifecycle rules")
+	pdLogs.Write("Assets RELEASED and Inside the lifecycle", "INFO")
+	pdLogs.Write(fmt.Sprintf("At the production branch: %s", status.ld.VR.ProdBranch), "INFO")
+	pdLogs.WriteVersions(status.assetsReleasedInLifecycle, "INFO")
+	pdLogs.Write("", "END")
 
-	pdLogs.write("Assets NOT released and Out of the lifecycle", "INFO")
-	pdLogs.write(fmt.Sprintf("At the development branch: %s", status.ld.VR.DevBranch), "INFO")
-	pdLogs.writeVersions(status.assetsNotReleasedOutLifecycle, "INFO")
-	pdLogs.write("", "END")
+	pdLogs.Write("Assets NOT released and Out of the lifecycle", "INFO")
+	pdLogs.Write(fmt.Sprintf("At the development branch: %s", status.ld.VR.DevBranch), "INFO")
+	pdLogs.WriteVersions(status.assetsNotReleasedOutLifecycle, "INFO")
+	pdLogs.Write("", "END")
 
-	pdLogs.write("Assets NOT released and Inside the lifecycle", "WARN")
-	pdLogs.write(fmt.Sprintf("At the development branch: %s", status.ld.VR.DevBranch), "WARN")
-	pdLogs.writeVersions(status.assetsNotReleasedInLifecycle, "WARN")
-	pdLogs.write("", "END")
+	pdLogs.Write("Assets NOT released and Inside the lifecycle", "WARN")
+	pdLogs.Write(fmt.Sprintf("At the development branch: %s", status.ld.VR.DevBranch), "WARN")
+	pdLogs.WriteVersions(status.assetsNotReleasedInLifecycle, "WARN")
+	pdLogs.Write("", "END")
 
-	pdLogs.write("Assets released and Out of the lifecycle", "ERROR")
-	pdLogs.write(fmt.Sprintf("At the production branch: %s", status.ld.VR.ProdBranch), "ERROR")
-	pdLogs.writeVersions(status.assetsReleasedOutLifecycle, "ERROR")
-	pdLogs.write("", "END")
+	pdLogs.Write("Assets released and Out of the lifecycle", "ERROR")
+	pdLogs.Write(fmt.Sprintf("At the production branch: %s", status.ld.VR.ProdBranch), "ERROR")
+	pdLogs.WriteVersions(status.assetsReleasedOutLifecycle, "ERROR")
+	pdLogs.Write("", "END")
 	// ##############################################################################
 	// Save the logs for the separations of assets to be released and forward ported
-	rfLogs.writeHEAD(status.ld.VR, "Assets to be released vs forward ported")
-	rfLogs.write("Assets to be RELEASED", "INFO")
-	rfLogs.writeVersions(status.assetsToBeReleased, "INFO")
-	rfLogs.write("", "END")
-	rfLogs.write("Assets to be FORWARD-PORTED", "INFO")
-	rfLogs.writeVersions(status.AssetsToBeForwardPorted, "INFO")
+	rfLogs.WriteHEAD(status.ld.VR, "Assets to be released vs forward ported")
+	rfLogs.Write("Assets to be RELEASED", "INFO")
+	rfLogs.WriteVersions(status.assetsToBeReleased, "INFO")
+	rfLogs.Write("", "END")
+	rfLogs.Write("Assets to be FORWARD-PORTED", "INFO")
+	rfLogs.WriteVersions(status.AssetsToBeForwardPorted, "INFO")
 
 	return status, nil
 }

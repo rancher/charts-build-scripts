@@ -44,6 +44,8 @@ const (
 	DefaultDebugEnvironmentVariable = "DEBUG"
 	// DefaultBranchVersionEnvironmentVariable is the default environment variable that indicates the branch version to compare against
 	DefaultBranchVersionEnvironmentVariable = "BRANCH_VERSION"
+	// DefaultForkEnvironmentVariable is the default environment variable that indicates the fork URL
+	DefaultForkEnvironmentVariable = "FORK"
 )
 
 var (
@@ -72,6 +74,8 @@ var (
 	CacheMode = false
 	// DebugMode indicates that debug mode should be enabled
 	DebugMode = false
+	// ForkURL represents the fork URL configured as a remote in your local git repository
+	ForkURL = ""
 )
 
 func main() {
@@ -154,6 +158,18 @@ func main() {
 		`,
 		Destination: &DebugMode,
 		EnvVar:      DefaultDebugEnvironmentVariable,
+	}
+	forkFlag := cli.StringFlag{
+		Name: "fork",
+		Usage: `Usage:
+			./bin/charts-build-scripts <command> --fork="<fork-URL>"
+			FORK="<fork-URL>" make <command>
+
+		Your fork URL configured as a remote in your local git repository.
+		`,
+		Required:    true,
+		Destination: &ForkURL,
+		EnvVar:      DefaultForkEnvironmentVariable,
 	}
 	app.Commands = []cli.Command{
 		{
@@ -301,7 +317,7 @@ func main() {
 				with all assets versions and branches that were pushed to the upstream repository.
 			`,
 			Action: autoForwardPort,
-			Flags:  []cli.Flag{branchVersionFlag, chartFlag},
+			Flags:  []cli.Flag{branchVersionFlag, chartFlag, forkFlag},
 		},
 	}
 
@@ -638,6 +654,11 @@ func lifecycleStatus(c *cli.Context) {
 }
 
 func autoForwardPort(c *cli.Context) {
+
+	if ForkURL == "" {
+		logrus.Fatalf("FORK environment variable must be set to run auto-forward-port")
+	}
+
 	// Initialize dependencies with branch-version and current chart
 	logrus.Info("Initializing dependencies for auto-forward-port")
 	rootFs := filesystem.GetFilesystem(getRepoRoot())
@@ -655,7 +676,7 @@ func autoForwardPort(c *cli.Context) {
 
 	// Execute forward port with loaded information from status
 	logrus.Info("Preparing forward port data")
-	fp, err := auto.CreateForwardPortStructure(lifeCycleDep, status.AssetsToBeForwardPorted)
+	fp, err := auto.CreateForwardPortStructure(lifeCycleDep, status.AssetsToBeForwardPorted, ForkURL)
 	if err != nil {
 		logrus.Fatalf("Failed to prepare forward port: %v", err)
 	}

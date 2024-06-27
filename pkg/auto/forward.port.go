@@ -3,6 +3,7 @@ package auto
 import (
 	"fmt"
 
+	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/sirupsen/logrus"
 )
@@ -14,7 +15,7 @@ import (
 
 // CreateForwardPortStructure will create the ForwardPort struct with access to the necessary dependencies.
 // It will also check if yq command is installed on the system.
-func CreateForwardPortStructure(ld *lifecycle.Dependencies, assetsToPort map[string][]lifecycle.Asset) (*ForwardPort, error) {
+func CreateForwardPortStructure(ld *lifecycle.Dependencies, assetsToPort map[string][]lifecycle.Asset, forkURL string) (*ForwardPort, error) {
 	// is yq installed?
 	yqPath, err := whichYQCommand()
 	if err != nil {
@@ -22,6 +23,26 @@ func CreateForwardPortStructure(ld *lifecycle.Dependencies, assetsToPort map[str
 		logrus.Errorf("Please install yq and try again")
 		logrus.Error("go install github.com/mikefarah/yq/v4@latest")
 	}
+
+	forkRemote, ok := ld.Git.Remotes[forkURL]
+	if !ok {
+		logrus.Errorf("Remote %s not found in git remotes, you need to configure your fork on your git remote references", forkURL)
+
+		return nil, fmt.Errorf("Remote %s not found in git remotes, you need to configure your fork on your git remote references", forkURL)
+	}
+
+	isForkRemoteConfigured := git.CheckForValidForkRemote(
+		"https://github.com/rancher/charts",
+		forkURL,
+		"charts")
+
+	if !isForkRemoteConfigured {
+		logrus.Errorf("Remote %s not configured correctly, you need to configure your fork on your git remote references", forkURL)
+		return nil, fmt.Errorf("Remote %s not configured correctly, you need to configure your fork on your git remote references", forkURL)
+	}
+
+	_ = forkRemote // to be removed when implemented
+
 	return &ForwardPort{
 		yqPath:                  yqPath,
 		git:                     ld.Git,

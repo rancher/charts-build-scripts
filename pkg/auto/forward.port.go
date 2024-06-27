@@ -1,6 +1,8 @@
 package auto
 
 import (
+	"fmt"
+
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/sirupsen/logrus"
 )
@@ -36,6 +38,34 @@ func (fp *ForwardPort) ExecuteForwardPort(chart string) error {
 	if err != nil {
 		return err
 	}
-	_ = commands // to be removed later
+	// Organize the commands into pull requests grouping by chart with it's dependencies
+	fp.organizePullRequestsByChart(commands)
 	return nil
+}
+
+// organizePullRequests will organize the commands into pull requests
+func (fp *ForwardPort) organizePullRequestsByChart(commands []Command) {
+	lastChart := ""
+
+	for _, command := range commands {
+
+		changed := checkIfChartChanged(lastChart, command.Chart)
+
+		// If the chart is the same as the last chart, append the command to the pull request
+		if !changed {
+			pr := fp.pullRequests[lastChart]           // Extract the struct from the map
+			pr.commands = append(pr.commands, command) // Modify the struct's field
+			fp.pullRequests[lastChart] = pr            // Put the modified struct back into the map
+		}
+
+		// If the chart is different from the last chart, organize a new pull request
+		if changed {
+			pr := PullRequest{
+				branch:   fmt.Sprintf("auto-forward-port-%s-%.1f", command.Chart, fp.VR.BranchVersion),
+				commands: []Command{command},
+			}
+			fp.pullRequests[command.Chart] = pr
+			lastChart = command.Chart
+		}
+	}
 }

@@ -104,3 +104,69 @@ func (fp *ForwardPort) writeMakeCommand(asset, version string) (Command, error) 
 
 	return Command{Chart: asset, Command: commands, Version: version}, nil
 }
+
+// checkIfChartChanged will check if the chart has changed from the last chart.
+// It will return true if the chart has changed, otherwise it will return false.
+// If the chart has changed, it will check for special cases like (fleet and neuvector), and CRD dependencies.
+func checkIfChartChanged(lastChart, currentChart string) bool {
+	// Check if the current chart is different from the last chart
+	sameCharts := (lastChart == currentChart)
+	if sameCharts {
+		return false
+	}
+
+	// Check for special cases like (fleet and neuvector), and CRD dependencies
+	specialCase := checkChartCommonPrefixes(lastChart, currentChart)
+	if specialCase != "" {
+		return false
+	}
+
+	return true
+}
+
+// checkChartCommonPrefixes will check for special cases like (fleet and neuvector), and CRD dependencies
+// It will return the common prefix if it exists, otherwise it will return an empty string.
+// If the only common prefix is rancher, it will return an empty string.
+func checkChartCommonPrefixes(lastChart, currentChart string) string {
+	minLength := 0
+	minChart := ""
+	// compare which chart is shorter in name (last or current)
+	if len(currentChart) < len(lastChart) {
+		minLength = len(currentChart)
+		minChart = currentChart
+	} else {
+		minLength = len(lastChart)
+		minChart = lastChart
+	}
+
+	// Find the length of the common prefix if any
+	commonPrefixLength := 0
+	for i := 0; i < minLength; i++ {
+		if lastChart[i] != currentChart[i] {
+			break
+		}
+		commonPrefixLength++
+	}
+
+	// If there's no common prefix, return empty strings
+	if commonPrefixLength == 0 {
+		return ""
+	}
+
+	// Subtract the common prefix removing "-" if it exists
+	commonPrefix := removeSuffixIfExists(minChart[:commonPrefixLength], "-")
+	// if the only common prefix is rancher, return empty string
+	if commonPrefix == "rancher" {
+		return ""
+	}
+	// return the common prefix
+	return commonPrefix
+}
+
+// removeSuffixIfExists will remove the suffix from the string if it exists
+func removeSuffixIfExists(s, suffix string) string {
+	if strings.HasSuffix(s, suffix) {
+		return strings.TrimSuffix(s, suffix)
+	}
+	return s
+}

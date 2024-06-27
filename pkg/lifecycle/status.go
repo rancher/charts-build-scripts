@@ -21,7 +21,7 @@ type Status struct {
 	assetsNotReleasedInLifecycle    map[string][]Asset // WARN if not empty
 	assetsReleasedOutLifecycle      map[string][]Asset // ERROR if not empty
 	assetsToBeReleased              map[string][]Asset
-	assetsToBeForwardPorted         map[string][]Asset
+	AssetsToBeForwardPorted         map[string][]Asset
 }
 
 // getStatus will create the Status object inheriting the Dependencies object and return it after:
@@ -91,18 +91,18 @@ func createLogFiles(chart string) (*logs, *logs, *logs, error) {
 
 // CheckLifecycleStatusAndSave checks the lifecycle status of the assets
 // at 3 different levels prints to the console and saves to log files at 'logs/' folder.
-func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) error {
+func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) (*Status, error) {
 
 	// Get the status of the assets versions
 	status, err := ld.getStatus()
 	if err != nil {
 		logrus.Errorf("Error while getting the status: %s", err)
-		return err
+		return nil, err
 	}
 	// Create the logs infrastructure in the filesystem and close them once the function ends
 	cbLogs, pdLogs, rfLogs, err := createLogFiles(chart)
 	if err != nil {
-		return err
+		return status, err
 	}
 	defer cbLogs.file.Close()
 	defer pdLogs.file.Close()
@@ -156,9 +156,9 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) error {
 	rfLogs.writeVersions(status.assetsToBeReleased, "INFO")
 	rfLogs.write("", "END")
 	rfLogs.write("Assets to be FORWARD-PORTED", "INFO")
-	rfLogs.writeVersions(status.assetsToBeForwardPorted, "INFO")
+	rfLogs.writeVersions(status.AssetsToBeForwardPorted, "INFO")
 
-	return nil
+	return status, nil
 }
 
 // listCurrentAssetsVersionsOnTheCurrentBranch returns the Status struct by reference
@@ -373,7 +373,7 @@ func (s *Status) separateReleaseFromForwardPort() error {
 	}
 
 	s.assetsToBeReleased = assetsToBeReleased
-	s.assetsToBeForwardPorted = assetsToBeForwardPorted
+	s.AssetsToBeForwardPorted = assetsToBeForwardPorted
 
 	return nil
 }

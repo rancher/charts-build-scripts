@@ -630,7 +630,7 @@ func lifecycleStatus(c *cli.Context) {
 
 	// Execute lifecycle status check and save the logs
 	logrus.Info("Checking lifecycle status and saving logs")
-	err = lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
+	_, err = lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
 	if err != nil {
 		logrus.Fatalf("Failed to check lifecycle status: %s", err)
 	}
@@ -647,11 +647,12 @@ func autoForwardPort(c *cli.Context) {
 
 	// Execute lifecycle status check and save the logs
 	logrus.Info("Checking lifecycle status and saving logs")
-	err = lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
+	status, err := lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
 	if err != nil {
 		logrus.Fatalf("Failed to check lifecycle status: %v", err)
 	}
 
 	// Execute forward port with loaded information from status
+	_ = status // this will be removed when forward port is implemented
 
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/rancher/charts-build-scripts/pkg/auto"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
@@ -653,6 +654,12 @@ func autoForwardPort(c *cli.Context) {
 	}
 
 	// Execute forward port with loaded information from status
-	_ = status // this will be removed when forward port is implemented
+	logrus.Info("Preparing forward port data")
+	fp, err := auto.CreateForwardPortStructure(lifeCycleDep, status.AssetsToBeForwardPorted)
+	if err != nil {
+		logrus.Fatalf("Failed to prepare forward port: %v", err)
+	}
+
+	_ = fp // TODO: Implement forward port
 
 }

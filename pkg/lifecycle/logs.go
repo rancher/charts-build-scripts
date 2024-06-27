@@ -110,7 +110,7 @@ func (l *Logs) writeVersions(assetsVersions map[string][]Asset, logType string) 
 		l.write("", "SEPARATE")
 		l.write(asset, logType)
 		for _, version := range versions {
-			l.write(version.version, "")
+			l.write(version.Version, "")
 		}
 	}
 }

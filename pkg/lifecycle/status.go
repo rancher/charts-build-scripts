@@ -160,7 +160,7 @@ func (s *Status) listCurrentAssetsVersionsOnTheCurrentBranch() {
 
 	for asset, versions := range s.ld.assetsVersionsMap {
 		for _, version := range versions {
-			inLifecycle := s.ld.VR.CheckChartVersionForLifecycle(version.version)
+			inLifecycle := s.ld.VR.CheckChartVersionForLifecycle(version.Version)
 			if inLifecycle {
 				insideLifecycle[asset] = append(insideLifecycle[asset], version)
 			} else {
@@ -308,9 +308,9 @@ func (s *Status) compareReleasedAndDevAssets(releasedAssets, developmentAssets m
 
 		for _, devVersion := range devVersions {
 			// check if the version is already released
-			released := checkIfVersionIsReleased(devVersion.version, releasedVersions)
+			released := checkIfVersionIsReleased(devVersion.Version, releasedVersions)
 			// check if the version is in the lifecycle
-			inLifecycle := s.ld.VR.CheckChartVersionForLifecycle(devVersion.version)
+			inLifecycle := s.ld.VR.CheckChartVersionForLifecycle(devVersion.Version)
 
 			switch {
 			case released && inLifecycle:
@@ -336,7 +336,7 @@ func (s *Status) compareReleasedAndDevAssets(releasedAssets, developmentAssets m
 // and returns true if the version is found in the list of released versions.
 func checkIfVersionIsReleased(version string, releasedVersions []Asset) bool {
 	for _, releasedVersion := range releasedVersions {
-		if version == releasedVersion.version {
+		if version == releasedVersion.Version {
 			return true
 		}
 	}
@@ -350,7 +350,7 @@ func (s *Status) separateReleaseFromForwardPort() error {
 
 	for asset, versions := range s.assetsNotReleasedInLifecycle {
 		for _, version := range versions {
-			toRelease, err := s.ld.VR.CheckChartVersionToRelease(version.version)
+			toRelease, err := s.ld.VR.CheckChartVersionToRelease(version.Version)
 			if err != nil {
 				return err
 			}

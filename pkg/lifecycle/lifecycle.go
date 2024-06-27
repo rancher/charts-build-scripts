@@ -13,7 +13,7 @@ import (
 
 // Asset represents an asset with its version and path in the repository
 type Asset struct {
-	version string
+	Version string
 	path    string
 }
 
@@ -172,14 +172,14 @@ func (ld *Dependencies) removeAssetsVersions(debug bool) (map[string][]Asset, er
 
 		// Loop through the versions of the asset and remove the ones that are not in the lifecycle
 		for _, asset := range assetsVersionsMap {
-			isVersionInLifecycle := ld.VR.CheckChartVersionForLifecycle(asset.version)
+			isVersionInLifecycle := ld.VR.CheckChartVersionForLifecycle(asset.Version)
 			if isVersionInLifecycle {
-				logrus.Debugf("Version %s is in lifecycle for %s", asset.version, chartName)
+				logrus.Debugf("Version %s is in lifecycle for %s", asset.Version, chartName)
 				continue // Skipping version in lifecycle
 			} else {
-				err := ld.makeRemoveWrapper(chartName, asset.version, debug)
+				err := ld.makeRemoveWrapper(chartName, asset.Version, debug)
 				if err != nil {
-					logrus.Errorf("Error while removing %s version %s: %s", chartName, asset.version, err)
+					logrus.Errorf("Error while removing %s version %s: %s", chartName, asset.Version, err)
 					return nil, err // Abort and return error if the removal fails
 				}
 				// Saving removed asset version

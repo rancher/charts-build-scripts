@@ -602,17 +602,17 @@ func checkRCTagsAndVersions(c *cli.Context) {
 }
 
 func enforceLifecycle(c *cli.Context) {
-
 	// Initialize dependencies with branch-version, current chart and debug mode
+	logrus.Info("Initializing dependencies for enforce-lifecycle")
 	repoRoot := getRepoRoot()
 	rootFs := filesystem.GetFilesystem(repoRoot)
-
 	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, DebugMode)
 	if err != nil {
-		logrus.Fatalf("encountered error while initializing dependencies for lifecycle-assets-clean: %s", err)
+		logrus.Fatalf("encountered error while initializing dependencies: %s", err)
 	}
 
 	// Apply versioning rules
+	logrus.Info("Starting to enforce lifecycle rules for assets")
 	err = lifeCycleDep.ApplyRules(CurrentChart, DebugMode)
 	if err != nil {
 		logrus.Fatalf("Failed to apply versioning rules for lifecycle-assets-clean: %s", err)
@@ -620,16 +620,16 @@ func enforceLifecycle(c *cli.Context) {
 }
 
 func lifecycleStatus(c *cli.Context) {
-
 	// Initialize dependencies with branch-version and current chart
+	logrus.Info("Initializing dependencies for lifecycle-status")
 	rootFs := filesystem.GetFilesystem(getRepoRoot())
-
 	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, false)
 	if err != nil {
-		logrus.Fatalf("encountered error while initializing dependencies for lifecycle-assets-clean: %s", err)
+		logrus.Fatalf("encountered error while initializing dependencies: %s", err)
 	}
 
 	// Execute lifecycle status check and save the logs
+	logrus.Info("Checking lifecycle status and saving logs")
 	err = lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
 	if err != nil {
 		logrus.Fatalf("Failed to check lifecycle status: %s", err)

@@ -170,3 +170,60 @@ func removeSuffixIfExists(s, suffix string) string {
 	}
 	return s
 }
+
+// createNewBranchToForwardPort will create a new branch to forward-port the assets
+func (fp *ForwardPort) createNewBranchToForwardPort(branch string) error {
+	// check if git is clean and branch is up-to-date
+	err := fp.git.IsClean()
+	if err != nil {
+		return err
+	}
+	// create new branch and checkout
+	err = fp.git.CreateAndCheckoutBranch(branch)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// prepareReleaseYaml will prepare the release.yaml file by erasing its content,
+// this is a good practice before releasing or forward-porting any charts with it.
+func prepareReleaseYaml() error {
+	// Check if the file exists
+	_, err := os.Stat("release.yaml")
+	if os.IsNotExist(err) {
+		logrus.Error("release.yaml does not exist.")
+		return fmt.Errorf("release.yaml does not exist")
+	} else if err != nil {
+		return err // return any other error encountered
+	}
+
+	// File exists, open it with O_TRUNC to erase its content
+	file, err := os.OpenFile("release.yaml", os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	logrus.Info("Content of release.yaml erased successfully.")
+	return nil
+}
+
+// executeCommand will execute the given command using the yqPath if needed
+func executeCommand(command []string, yqPath string) error {
+	// Prepare the command
+	cmd := exec.Command(command[0], command[1:]...)
+	cmd.Env = append(os.Environ(), "PATH="+yqPath)
+
+	// Set the command's stdout and stderr to the current process's stdout and stderr
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	// Execute it
+	if err := cmd.Run(); err != nil {
+		logrus.Errorf("error while executing command: %s; err: %v", command, err)
+		return fmt.Errorf("error while executing command: %s", err)
+	}
+	return nil
+}

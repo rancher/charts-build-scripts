@@ -40,7 +40,8 @@ func (fp *ForwardPort) ExecuteForwardPort(chart string) error {
 	}
 	// Organize the commands into pull requests grouping by chart with it's dependencies
 	fp.organizePullRequestsByChart(commands)
-	return nil
+	// Execute the forward port commands
+	return fp.executeForwardPorts()
 }
 
 // organizePullRequests will organize the commands into pull requests
@@ -68,4 +69,78 @@ func (fp *ForwardPort) organizePullRequestsByChart(commands []Command) {
 			lastChart = command.Chart
 		}
 	}
+}
+
+// executeForwardPorts will execute the forward-port commands.
+// It will create a new branch to forward-port the assets, clean the release.yaml file and commit.
+// After each forward-port execution it will add and commit the changes to the git repository.
+// It will push the branch to the remote repository and delete the local branch before moving,
+// to the next Pull Request.
+func (fp *ForwardPort) executeForwardPorts() error {
+	// save the original branch to change back after forward-port
+	originalBranch := fp.git.Branch
+
+	// create log file
+	fpLogs, err := lifecycle.CreateLogs("forward-ported", "")
+	defer fpLogs.File.Close()
+	if err != nil {
+		return err
+	}
+
+	// write log title and header
+	fpLogs.WriteHEAD(fp.VR, "Forward-Ported Assets")
+
+	for asset, pr := range fp.pullRequests {
+		fpLogs.Write(asset, "INFO")
+
+		// open and check if it is clean the git repo
+		err := fp.createNewBranchToForwardPort(pr.branch)
+		if err != nil {
+			return err
+		}
+
+		// clean release.yaml in the new branch
+		if err = prepareReleaseYaml(); err != nil {
+			return err
+		}
+		// git add && commit cleaned release.yaml
+		if err = fp.git.AddAndCommit("cleaning release.yaml"); err != nil {
+			return err
+		}
+
+		fpLogs.Write(fmt.Sprintf("Branch: %s", pr.branch), "INFO")
+
+		for _, command := range pr.commands {
+			// execute make forward-port
+			err := executeCommand(command.Command, fp.yqPath)
+			if err != nil {
+				return err
+			}
+			// git add && commit the changes
+			msg := fmt.Sprintf("forward-port %s %s", command.Chart, command.Version)
+			if err = fp.git.AddAndCommit(msg); err != nil {
+				return err
+			}
+			// Log this so later we can merge the PRs
+			fpLogs.Write(msg, "")
+		}
+		// push branch
+		err = fp.git.PushBranch(fp.git.Remotes["https://github.com/rancher/charts"], pr.branch)
+		if err != nil {
+			return err
+		}
+		// save to log file branch
+		fpLogs.Write("PUSHED", "INFO")
+		// Change back to the original branch to avoid conflicts
+		err = fp.git.CheckoutBranch(originalBranch)
+		if err != nil {
+			return err
+		}
+		// delete local created and pushed branch
+		err = fp.git.DeleteBranch(pr.branch)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

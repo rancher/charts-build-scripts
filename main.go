@@ -290,6 +290,18 @@ func main() {
 			Action: lifecycleStatus,
 			Flags:  []cli.Flag{branchVersionFlag, chartFlag},
 		},
+		{
+			Name: "auto-forward-port",
+			Usage: `Execute the forward-port script to forward port a chart or all to the production branch.
+				The charts to be forward ported are listed in the result of lifecycle-status command.
+				It is advised to run make lifecycle-status before running this command.
+				At the end of the execution, the script will create a PR with the changes to each chart.
+				At the end of the execution, the script will save the logs in the logs directory,
+				with all assets versions and branches that were pushed to the upstream repository.
+			`,
+			Action: autoForwardPort,
+			Flags:  []cli.Flag{branchVersionFlag, chartFlag},
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -622,4 +634,24 @@ func lifecycleStatus(c *cli.Context) {
 	if err != nil {
 		logrus.Fatalf("Failed to check lifecycle status: %s", err)
 	}
+}
+
+func autoForwardPort(c *cli.Context) {
+	// Initialize dependencies with branch-version and current chart
+	logrus.Info("Initializing dependencies for auto-forward-port")
+	rootFs := filesystem.GetFilesystem(getRepoRoot())
+	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, false)
+	if err != nil {
+		logrus.Fatalf("encountered error while initializing dependencies: %v", err)
+	}
+
+	// Execute lifecycle status check and save the logs
+	logrus.Info("Checking lifecycle status and saving logs")
+	err = lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
+	if err != nil {
+		logrus.Fatalf("Failed to check lifecycle status: %v", err)
+	}
+
+	// Execute forward port with loaded information from status
+
 }

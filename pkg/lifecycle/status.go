@@ -121,22 +121,22 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) (*Status, erro
 	// Save the logs for the comparison between production and development branches
 	pdLogs.writeHEAD(status.ld.VR, "Released assets vs development assets with lifecycle rules")
 	pdLogs.write("Assets RELEASED and Inside the lifecycle", "INFO")
-	pdLogs.write(fmt.Sprintf("At the production branch: %s", status.ld.VR.prodBranch), "INFO")
+	pdLogs.write(fmt.Sprintf("At the production branch: %s", status.ld.VR.ProdBranch), "INFO")
 	pdLogs.writeVersions(status.assetsReleasedInLifecycle, "INFO")
 	pdLogs.write("", "END")
 
 	pdLogs.write("Assets NOT released and Out of the lifecycle", "INFO")
-	pdLogs.write(fmt.Sprintf("At the development branch: %s", status.ld.VR.devBranch), "INFO")
+	pdLogs.write(fmt.Sprintf("At the development branch: %s", status.ld.VR.DevBranch), "INFO")
 	pdLogs.writeVersions(status.assetsNotReleasedOutLifecycle, "INFO")
 	pdLogs.write("", "END")
 
 	pdLogs.write("Assets NOT released and Inside the lifecycle", "WARN")
-	pdLogs.write(fmt.Sprintf("At the development branch: %s", status.ld.VR.devBranch), "WARN")
+	pdLogs.write(fmt.Sprintf("At the development branch: %s", status.ld.VR.DevBranch), "WARN")
 	pdLogs.writeVersions(status.assetsNotReleasedInLifecycle, "WARN")
 	pdLogs.write("", "END")
 
 	pdLogs.write("Assets released and Out of the lifecycle", "ERROR")
-	pdLogs.write(fmt.Sprintf("At the production branch: %s", status.ld.VR.prodBranch), "ERROR")
+	pdLogs.write(fmt.Sprintf("At the production branch: %s", status.ld.VR.ProdBranch), "ERROR")
 	pdLogs.writeVersions(status.assetsReleasedOutLifecycle, "ERROR")
 	pdLogs.write("", "END")
 	// ##############################################################################
@@ -257,7 +257,7 @@ func (s *Status) getProdAndDevAssetsFromGit(git *Git, tempDir string) (map[strin
 	tempHelmIndexPath := filesystem.GetAbsPath(tempDirRootFs, path.RepositoryHelmIndexFile)
 
 	// Fetch and checkout to the production branch
-	err := git.fetchAndCheckoutBranch(s.ld.VR.prodBranch)
+	err := git.fetchAndCheckoutBranch(s.ld.VR.ProdBranch)
 	if err != nil {
 		logrus.Errorf("Error while fetching and checking out the production branch at: %s", err)
 		return nil, nil, err
@@ -271,7 +271,7 @@ func (s *Status) getProdAndDevAssetsFromGit(git *Git, tempDir string) (map[strin
 	}
 
 	// Fetch and checkout to the development branch
-	err = git.fetchAndCheckoutBranch(s.ld.VR.devBranch)
+	err = git.fetchAndCheckoutBranch(s.ld.VR.DevBranch)
 	if err != nil {
 		logrus.Errorf("Error while fetching and checking out the development branch at: %s", err)
 		return nil, nil, err

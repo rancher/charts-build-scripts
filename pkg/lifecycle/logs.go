@@ -47,21 +47,21 @@ func (l *Logs) writeHEAD(versionRules *VersionRules, title string) {
 	l.write(title, "INFO")
 	currentTime := time.Now()
 	l.write(currentTime.Format("2006-01-02 15:04:05"), "INFO")
-	l.write(fmt.Sprintf("Branch Version: %.1f", versionRules.branchVersion), "INFO")
-	l.write(fmt.Sprintf("minimal version: %d", versionRules.minVersion), "INFO")
-	l.write(fmt.Sprintf("max version: %d", versionRules.maxVersion), "INFO")
-	l.write(fmt.Sprintf("development branch: %s", versionRules.devBranch), "INFO")
-	l.write(fmt.Sprintf("production branch: %s", versionRules.prodBranch), "INFO")
+	l.write(fmt.Sprintf("Branch Version: %.1f", versionRules.BranchVersion), "INFO")
+	l.write(fmt.Sprintf("minimal version: %d", versionRules.MinVersion), "INFO")
+	l.write(fmt.Sprintf("max version: %d", versionRules.MaxVersion), "INFO")
+	l.write(fmt.Sprintf("development branch: %s", versionRules.DevBranch), "INFO")
+	l.write(fmt.Sprintf("production branch: %s", versionRules.ProdBranch), "INFO")
 
-	rules := make(map[string]string, len(versionRules.rules))
-	for k, v := range versionRules.rules {
+	rules := make(map[string]string, len(versionRules.Rules))
+	for k, v := range versionRules.Rules {
 		rules[fmt.Sprintf("%.1f", k)] = fmt.Sprintf("min: %s, max: %s", v.min, v.max)
 	}
 
 	rulesJSON, err := json.MarshalIndent(rules, "", "    ")
 	if err != nil {
 		logrus.Errorf("JSON marshaling failed: %s", err)
-		l.write(fmt.Sprintf("rules: %v\n", versionRules.rules), "INFO")
+		l.write(fmt.Sprintf("rules: %v\n", versionRules.Rules), "INFO")
 	} else {
 		l.write(fmt.Sprintf("rules: %s\n", rulesJSON), "INFO")
 	}

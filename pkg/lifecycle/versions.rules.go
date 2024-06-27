@@ -21,12 +21,12 @@ type version struct {
 
 // VersionRules will hold all the necessary information to check which assets versions are allowed to be in the repository
 type VersionRules struct {
-	rules         map[float32]version
-	branchVersion float32
-	minVersion    int
-	maxVersion    int
-	devBranch     string
-	prodBranch    string
+	Rules         map[float32]version
+	BranchVersion float32
+	MinVersion    int
+	MaxVersion    int
+	DevBranch     string
+	ProdBranch    string
 }
 
 func (vr *VersionRules) log(debug bool) {
@@ -34,14 +34,14 @@ func (vr *VersionRules) log(debug bool) {
 		return
 	}
 
-	for key, val := range vr.rules {
+	for key, val := range vr.Rules {
 		cycleLog(debug, "Branch version", key)
 		cycleLog(debug, "|- min version", val.min)
 		cycleLog(debug, "|- max version", val.max)
 	}
 	cycleLog(debug, "Applied rules for branch version", nil)
-	cycleLog(debug, "|-- min version", vr.minVersion)
-	cycleLog(debug, "|-- max version", vr.maxVersion)
+	cycleLog(debug, "|-- min version", vr.MinVersion)
+	cycleLog(debug, "|-- max version", vr.MaxVersion)
 }
 
 // GetVersionRules will check and convert the provided branch version,
@@ -69,15 +69,15 @@ func GetVersionRules(branchVersion string, debug bool) (*VersionRules, error) {
 	}
 
 	vr := &VersionRules{
-		rules:         VersionRulesMap,
-		branchVersion: floatBranchVersion,
+		Rules:         VersionRulesMap,
+		BranchVersion: floatBranchVersion,
 	}
 
 	// Calculate the min and maximum versions allowed for the current branch version lifecycle
 	vr.getMinMaxVersionInts()
 
-	vr.prodBranch = fmt.Sprintf("%s%.1f", ProductionBranchPrefix, vr.branchVersion)
-	vr.devBranch = fmt.Sprintf("%s%.1f", DevBranchPrefix, vr.branchVersion)
+	vr.ProdBranch = fmt.Sprintf("%s%.1f", ProductionBranchPrefix, vr.BranchVersion)
+	vr.DevBranch = fmt.Sprintf("%s%.1f", DevBranchPrefix, vr.BranchVersion)
 
 	vr.log(debug)
 
@@ -92,15 +92,15 @@ func GetVersionRules(branchVersion string, debug bool) (*VersionRules, error) {
 // See CheckChartVersionForLifecycle() for more details.
 func (vr *VersionRules) getMinMaxVersionInts() {
 	// e.g: 2.9 - 0.2 = 2.7
-	minVersionStr := vr.rules[(vr.branchVersion - 0.2)].min
-	maxVersionStr := vr.rules[vr.branchVersion].max
+	minVersionStr := vr.Rules[(vr.BranchVersion - 0.2)].min
+	maxVersionStr := vr.Rules[vr.BranchVersion].max
 
 	// Don't check for errors here, these are hard-coded values
 	min, _ := strconv.Atoi(strings.Split(minVersionStr, ".")[0])
 	max, _ := strconv.Atoi(strings.Split(maxVersionStr, ".")[0])
 
-	vr.minVersion = min
-	vr.maxVersion = max
+	vr.MinVersion = min
+	vr.MaxVersion = max
 	return
 }
 
@@ -133,7 +133,7 @@ func (vr *VersionRules) CheckChartVersionForLifecycle(chartVersion string) bool 
 	Therefore, the chart version must be >= (104 - 2) and < 105
 	i.e: 102 <= chartVersion < 105
 	*/
-	if chartVersionInt >= vr.minVersion && chartVersionInt < vr.maxVersion {
+	if chartVersionInt >= vr.MinVersion && chartVersionInt < vr.MaxVersion {
 		return true
 	}
 	return false
@@ -146,5 +146,5 @@ func (vr *VersionRules) CheckChartVersionToRelease(chartVersion string) (bool, e
 		logrus.Errorf("failed to check version to release for chartVersion:%s with error:%v", chartVersion, err)
 		return false, err
 	}
-	return chartVersionInt == (vr.maxVersion - 1), nil
+	return chartVersionInt == (vr.MaxVersion - 1), nil
 }

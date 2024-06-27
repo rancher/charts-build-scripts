@@ -28,3 +28,14 @@ func CreateForwardPortStructure(ld *lifecycle.Dependencies, assetsToPort map[str
 		pullRequests:            make(map[string]PullRequest),
 	}, err
 }
+
+// ExecuteForwardPort will execute all steps to organize and create the forward-port PRs
+func (fp *ForwardPort) ExecuteForwardPort(chart string) error {
+	// Get the forward port script commands
+	commands, err := fp.createForwardPortCommands(chart)
+	if err != nil {
+		return err
+	}
+	_ = commands // to be removed later
+	return nil
+}

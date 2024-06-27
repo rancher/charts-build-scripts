@@ -5,8 +5,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	"github.com/Masterminds/semver"
 	"github.com/sirupsen/logrus"
 )
 
@@ -34,4 +36,71 @@ func whichYQCommand() (string, error) {
 	currentPath := os.Getenv("PATH")
 	newPath := fmt.Sprintf("%s:%s", yqDirPath, currentPath)
 	return newPath, nil
+}
+
+// createForwardPortCommands will create the forward port script commands for each asset and version,
+// and return a sorted slice of commands
+func (fp *ForwardPort) createForwardPortCommands(chart string) ([]Command, error) {
+
+	commands := make([]Command, 0)
+	for asset, versions := range fp.assetsToBeForwardPorted {
+		if chart != "" && !strings.HasPrefix(asset, chart) {
+			continue
+		}
+		for _, version := range versions {
+			command, err := fp.writeMakeCommand(asset, version.Version)
+			if err != nil {
+				return nil, err
+			}
+			commands = append(commands, command)
+		}
+	}
+	// Sorting the commands slice by the Chart field in alphabetical order
+	// and then by the Version field using semver
+	sort.Slice(commands, func(i, j int) bool {
+		if commands[i].Chart == commands[j].Chart {
+			vi, err := semver.NewVersion(commands[i].Version)
+			if err != nil {
+				logrus.Errorf("Error parsing version '%s': %v", commands[i].Version, err)
+				return false
+			}
+			vj, err := semver.NewVersion(commands[j].Version)
+			if err != nil {
+				logrus.Errorf("Error parsing version '%s': %v", commands[j].Version, err)
+				return false
+			}
+			return vi.LessThan(vj)
+		}
+		return commands[i].Chart < commands[j].Chart
+	})
+
+	return commands, nil
+}
+
+// writeMakeCommand will write the forward-port command for the given asset and version
+func (fp *ForwardPort) writeMakeCommand(asset, version string) (Command, error) {
+	/**
+	* make forward-port
+	* CHART=rancher-provisioning-capi
+	* VERSION=100.0.0+up0.0.1
+	* BRANCH=dev-v2.9
+	* UPSTREAM=upstream
+	 */
+
+	upstreamRemote, ok := fp.git.Remotes["https://github.com/rancher/charts"]
+	if !ok {
+		logrus.Error("upstream remote not found; you need to have the upstream remote configured in your git repository (https://github.com/rancher/charts)")
+
+		return Command{}, fmt.Errorf("upstream remote not found; you need to have the upstream remote configured in your git repository (https://github.com/rancher/charts)")
+	}
+	commands := []string{
+		"make",
+		"forward-port",
+		"CHART=" + asset,
+		"VERSION=" + version,
+		"BRANCH=" + fp.VR.DevBranch,
+		"UPSTREAM=" + upstreamRemote,
+	}
+
+	return Command{Chart: asset, Command: commands, Version: version}, nil
 }

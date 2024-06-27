@@ -660,6 +660,10 @@ func autoForwardPort(c *cli.Context) {
 		logrus.Fatalf("Failed to prepare forward port: %v", err)
 	}
 
-	_ = fp // TODO: Implement forward port
+	logrus.Info("Starting forward port execution")
+	err = fp.ExecuteForwardPort(CurrentChart)
+	if err != nil {
+		logrus.Fatalf("Failed to execute forward port: %v", err)
+	}
 
 }

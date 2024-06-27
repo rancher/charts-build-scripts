@@ -3,7 +3,6 @@ package lifecycle
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/path"
@@ -54,33 +53,24 @@ func (ld *Dependencies) getStatus() (*Status, error) {
 
 // createLogFiles will create the log files for the current branch, production and development branches
 // and the assets to be released and forward ported, returning the logs objects for each file.
-func createLogFiles(chart string) (*logs, *logs, *logs, error) {
-	// get a timestamp
-	currentTime := time.Now()
-	now := currentTime.Format("2006-01-02T15:04")
-
-	// create the log file names with the timestamp and chart name if any
-	cbLogFile := fmt.Sprintf("%s_%s_current-branch.log", now, chart)
-	pdLogFile := fmt.Sprintf("%s_%s_production-compare-development.log", now, chart)
-	rfLogFile := fmt.Sprintf("%s_%s_released-forward-ported.log", now, chart)
-
+func createLogFiles(chart string) (*Logs, *Logs, *Logs, error) {
 	// Create the logs infrastructure in the filesystem for:
 	// current branch logs
-	cbLogs, err := createLogs(cbLogFile)
+	cbLogs, err := CreateLogs("current-branch.log", chart)
 	if err != nil {
 		logrus.Errorf("Error while creating logs: %s", err)
 		return nil, nil, nil, err
 	}
 
 	// production and development branches logs
-	pdLogs, err := createLogs(pdLogFile)
+	pdLogs, err := CreateLogs("production-x-development.log", chart)
 	if err != nil {
 		logrus.Errorf("Error while creating logs: %s", err)
 		return nil, nil, nil, err
 	}
 
 	// released and forward ported logs
-	rfLogs, err := createLogs(rfLogFile)
+	rfLogs, err := CreateLogs("released-x-forward-ported.log", chart)
 	if err != nil {
 		logrus.Errorf("Error while creating logs: %s", err)
 		return nil, nil, nil, err
@@ -104,9 +94,9 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) (*Status, erro
 	if err != nil {
 		return status, err
 	}
-	defer cbLogs.file.Close()
-	defer pdLogs.file.Close()
-	defer rfLogs.file.Close()
+	defer cbLogs.File.Close()
+	defer pdLogs.File.Close()
+	defer rfLogs.File.Close()
 
 	// optional filter logs by specific chart
 	if chart != "" {

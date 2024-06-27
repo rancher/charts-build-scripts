@@ -360,3 +360,268 @@ func Test_writeMakeCommands(t *testing.T) {
 		})
 	}
 }
+
+func Test_checkIfChartChanged(t *testing.T) {
+
+	type args struct {
+		lastChart string
+		chart     string
+	}
+
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "#1 Same Charts",
+			args: args{
+				lastChart: "rancher-istio",
+				chart:     "rancher-istio",
+			},
+			want: false,
+		},
+		{
+			name: "#1.1 Same Charts but CRD",
+			args: args{
+				lastChart: "rancher-istio",
+				chart:     "rancher-istio-crd",
+			},
+			want: false,
+		},
+		{
+			name: "#2.1 Different Charts",
+			args: args{
+				lastChart: "rancher-istio",
+				chart:     "rancher-kiali",
+			},
+			want: true,
+		},
+		{
+			name: "#2.2 Different Charts but CRD",
+			args: args{
+				lastChart: "rancher-istio",
+				chart:     "rancher-kiali-crd",
+			},
+			want: true,
+		},
+		{
+			name: "#3.1 Special Case: fleet - same charts",
+			args: args{
+				lastChart: "fleet",
+				chart:     "fleet",
+			},
+			want: false,
+		},
+		{
+			name: "#3.2 Special Case: fleet - same charts but CRD",
+			args: args{
+				lastChart: "fleet",
+				chart:     "fleet-crd",
+			},
+			want: false,
+		},
+		{
+			name: "#3.3 Special Case: fleet - same charts but agent",
+			args: args{
+				lastChart: "fleet",
+				chart:     "fleet-agent",
+			},
+			want: false,
+		},
+		{
+			name: "#3.4 Special Case: fleet - CRD and agent",
+			args: args{
+				lastChart: "fleet",
+				chart:     "fleet-agent",
+			},
+			want: false,
+		},
+		{
+			name: "#4.1 Special Case: neuvector - same charts",
+			args: args{
+				lastChart: "neuvector",
+				chart:     "neuvector",
+			},
+			want: false,
+		},
+		{
+			name: "#4.2 Special Case: neuvector - same charts but CRD",
+			args: args{
+				lastChart: "neuvector",
+				chart:     "neuvector-crd",
+			},
+			want: false,
+		},
+		{
+			name: "#4.3 Special Case: neuvector - same charts but monitor",
+			args: args{
+				lastChart: "neuvector",
+				chart:     "neuvector-monitor",
+			},
+			want: false,
+		},
+		{
+			name: "#4.4 Special Case: neuvector - CRD and monitor",
+			args: args{
+				lastChart: "neuvector",
+				chart:     "neuvector-monitor",
+			},
+			want: false,
+		},
+		{
+			name: "#5.1 Special Edge Cases: fleet and neuvector",
+			args: args{
+				lastChart: "fleet",
+				chart:     "neuvector",
+			},
+			want: true,
+		},
+		{
+			name: "#5.2 Special Edge Cases: fleet-crd and neuvector",
+			args: args{
+				lastChart: "fleet-crd",
+				chart:     "neuvector",
+			},
+			want: true,
+		},
+		{
+			name: "#5.3 Special Edge Cases: fleet-crd and neuvector-monitor",
+			args: args{
+				lastChart: "fleet-crd",
+				chart:     "neuvector-monitor",
+			},
+			want: true,
+		},
+	}
+
+	// Execute tests
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := checkIfChartChanged(tt.args.lastChart, tt.args.chart); got != tt.want {
+				t.Errorf("checkForChangeType() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_checkSpecialChartNamingCases(t *testing.T) {
+
+	type args struct {
+		lastChart string
+		chart     string
+	}
+
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "#1.0 Special Edge Cases",
+			args: args{
+				lastChart: "fleet-crd",
+				chart:     "fleet",
+			},
+			want: "fleet",
+		},
+		{
+			name: "#1.1 Special Edge Cases",
+			args: args{
+				lastChart: "fleet",
+				chart:     "fleet-crd",
+			},
+			want: "fleet",
+		},
+		{
+			name: "#1.2 Special Edge Cases",
+			args: args{
+				lastChart: "fleet-agent",
+				chart:     "fleet-crd",
+			},
+			want: "fleet",
+		},
+		{
+			name: "#1.3 Special Edge Cases",
+			args: args{
+				lastChart: "fleet-crd",
+				chart:     "fleet-agent",
+			},
+			want: "fleet",
+		},
+		{
+			name: "#2.0 Special Edge Cases",
+			args: args{
+				lastChart: "neuvector",
+				chart:     "neuvector-crd",
+			},
+			want: "neuvector",
+		},
+		{
+			name: "#2.1 Special Edge Cases",
+			args: args{
+				lastChart: "neuvector-monitor",
+				chart:     "neuvector",
+			},
+			want: "neuvector",
+		},
+		{
+			name: "#2.2 Special Edge Cases",
+			args: args{
+				lastChart: "neuvector-monitor",
+				chart:     "neuvector-crd",
+			},
+			want: "neuvector",
+		},
+		{
+			name: "#2.3 Special Edge Cases",
+			args: args{
+				lastChart: "neuvector-crd",
+				chart:     "neuvector-monitor",
+			},
+			want: "neuvector",
+		},
+		{
+			name: "#3.0 Special Edge Cases",
+			args: args{
+				lastChart: "rancher-aks-operator",
+				chart:     "rancher-eks-operator",
+			},
+			want: "",
+		},
+		{
+			name: "#3.1 Special Edge Cases",
+			args: args{
+				lastChart: "rancher-aks-operator",
+				chart:     "rancher-aks-operator-crd",
+			},
+			want: "rancher-aks-operator",
+		},
+		{
+			name: "#3.2 Special Edge Cases",
+			args: args{
+				lastChart: "rancher-gke-operator-crd",
+				chart:     "rancher-gke-operator",
+			},
+			want: "rancher-gke-operator",
+		},
+		{
+			name: "#4.0 Special Edge Cases",
+			args: args{
+				lastChart: "rancher-neuvector",
+				chart:     "neuvector-rancher",
+			},
+			want: "",
+		},
+	}
+
+	// Execute tests
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := checkChartCommonPrefixes(tt.args.lastChart, tt.args.chart)
+			if got != tt.want {
+				t.Errorf("checkChartCommonPrefixes() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

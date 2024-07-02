@@ -148,3 +148,11 @@ func (vr *VersionRules) CheckChartVersionToRelease(chartVersion string) (bool, e
 	}
 	return chartVersionInt == (vr.MaxVersion - 1), nil
 }
+
+// CheckForRCVersion checks if the chart version contains the "-rc" string indicating a release candidate version.
+func (vr *VersionRules) CheckForRCVersion(chartVersion string) bool {
+	if strings.Contains(strings.ToLower(chartVersion), "-rc") {
+		return true
+	}
+	return false
+}

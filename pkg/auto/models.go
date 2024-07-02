@@ -17,6 +17,7 @@ type ForwardPort struct {
 	VR                      *lifecycle.VersionRules
 	assetsToBeForwardPorted map[string][]lifecycle.Asset
 	pullRequests            map[string]PullRequest
+	forkRemoteURL           string
 }
 
 // PullRequest represents a pull request to be created for each chart separately
@@ -31,3 +32,8 @@ type Command struct {
 	Version string   // The version to forward-port
 	Command []string // The command to run to forward-port
 }
+
+const (
+	chartsRepoURL  = "https://github.com/rancher/charts"
+	chartsRepoName = "charts"
+)

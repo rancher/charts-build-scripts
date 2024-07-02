@@ -228,7 +228,7 @@ func (g *Git) AddAndCommit(message string) error {
 
 // PushBranch pushes the current branch to a given remote name
 func (g *Git) PushBranch(remote, branch string) error {
-	cmd := exec.Command("git", "-C", g.Dir, "push", g.Remotes[remote], branch)
+	cmd := exec.Command("git", "-C", g.Dir, "push", remote, branch)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

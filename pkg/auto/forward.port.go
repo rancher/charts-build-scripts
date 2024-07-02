@@ -24,24 +24,17 @@ func CreateForwardPortStructure(ld *lifecycle.Dependencies, assetsToPort map[str
 		logrus.Error("go install github.com/mikefarah/yq/v4@latest")
 	}
 
-	forkRemote, ok := ld.Git.Remotes[forkURL]
+	_, ok := ld.Git.Remotes[forkURL]
 	if !ok {
 		logrus.Errorf("Remote %s not found in git remotes, you need to configure your fork on your git remote references", forkURL)
-
 		return nil, fmt.Errorf("Remote %s not found in git remotes, you need to configure your fork on your git remote references", forkURL)
 	}
 
-	isForkRemoteConfigured := git.CheckForValidForkRemote(
-		"https://github.com/rancher/charts",
-		forkURL,
-		"charts")
-
+	isForkRemoteConfigured := git.CheckForValidForkRemote(chartsRepoURL, forkURL, chartsRepoName)
 	if !isForkRemoteConfigured {
 		logrus.Errorf("Remote %s not configured correctly, you need to configure your fork on your git remote references", forkURL)
 		return nil, fmt.Errorf("Remote %s not configured correctly, you need to configure your fork on your git remote references", forkURL)
 	}
-
-	_ = forkRemote // to be removed when implemented
 
 	return &ForwardPort{
 		yqPath:                  yqPath,
@@ -49,6 +42,7 @@ func CreateForwardPortStructure(ld *lifecycle.Dependencies, assetsToPort map[str
 		VR:                      ld.VR,
 		assetsToBeForwardPorted: assetsToPort,
 		pullRequests:            make(map[string]PullRequest),
+		forkRemoteURL:           forkURL,
 	}, err
 }
 
@@ -146,7 +140,7 @@ func (fp *ForwardPort) executeForwardPorts() error {
 			fpLogs.Write(msg, "")
 		}
 		// push branch
-		err = fp.git.PushBranch(fp.git.Remotes["https://github.com/rancher/charts"], pr.branch)
+		err = fp.git.PushBranch(fp.git.Remotes[fp.forkRemoteURL], pr.branch)
 		if err != nil {
 			return err
 		}

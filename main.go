@@ -28,20 +28,20 @@ import (
 )
 
 const (
-	// DefaultChartsScriptOptionsFile is the default path to look a file containing options for the charts scripts to use for this branch
-	DefaultChartsScriptOptionsFile = "configuration.yaml"
-	// DefaultPackageEnvironmentVariable is the default environment variable for picking a specific package
-	DefaultPackageEnvironmentVariable = "PACKAGE"
-	// DefaultChartEnvironmentVariable is the default environment variable for picking a specific chart
-	DefaultChartEnvironmentVariable = "CHART"
-	// DefaultAssetEnvironmentVariable is the default environment variable for picking a specific asset
-	DefaultAssetEnvironmentVariable = "ASSET"
-	// DefaultPorcelainEnvironmentVariable is the default environment variable that indicates whether we should run on porcelain mode
-	DefaultPorcelainEnvironmentVariable = "PORCELAIN"
-	// DefaultCacheEnvironmentVariable is the default environment variable that indicates that a cache should be used on pulls to remotes
-	DefaultCacheEnvironmentVariable = "USE_CACHE"
-	// DefaultDebugEnvironmentVariable is the default environment variable that indicates that debug mode should be enabled
-	DefaultDebugEnvironmentVariable = "DEBUG"
+	// defaultChartsScriptOptionsFile is the default path to look a file containing options for the charts scripts to use for this branch
+	defaultChartsScriptOptionsFile = "configuration.yaml"
+	// defaultPackageEnvironmentVariable is the default environment variable for picking a specific package
+	defaultPackageEnvironmentVariable = "PACKAGE"
+	// defaultChartEnvironmentVariable is the default environment variable for picking a specific chart
+	defaultChartEnvironmentVariable = "CHART"
+	// defaultAssetEnvironmentVariable is the default environment variable for picking a specific asset
+	defaultAssetEnvironmentVariable = "ASSET"
+	// defaultPorcelainEnvironmentVariable is the default environment variable that indicates whether we should run on porcelain mode
+	defaultPorcelainEnvironmentVariable = "PORCELAIN"
+	// defaultCacheEnvironmentVariable is the default environment variable that indicates that a cache should be used on pulls to remotes
+	defaultCacheEnvironmentVariable = "USE_CACHE"
+	// defaultDebugEnvironmentVariable is the default environment variable that indicates that debug mode should be enabled
+	defaultDebugEnvironmentVariable = "DEBUG"
 	// defaultBranchVersionEnvironmentVariable is the default environment variable that indicates the branch version to compare against
 	defaultBranchVersionEnvironmentVariable = "BRANCH_VERSION"
 	// defaultForkEnvironmentVariable is the default environment variable that indicates the fork URL
@@ -91,14 +91,14 @@ func main() {
 		Usage:       "A configuration file with additional options for allowing this branch to interact with other branches",
 		TakesFile:   true,
 		Destination: &ChartsScriptOptionsFile,
-		Value:       DefaultChartsScriptOptionsFile,
+		Value:       defaultChartsScriptOptionsFile,
 	}
 	packageFlag := cli.StringFlag{
 		Name:        "package,p",
 		Usage:       "A package you would like to run the scripts on",
 		Required:    false,
 		Destination: &CurrentPackage,
-		EnvVar:      DefaultPackageEnvironmentVariable,
+		EnvVar:      defaultPackageEnvironmentVariable,
 	}
 	chartFlag := cli.StringFlag{
 		Name: "chart,c",
@@ -111,28 +111,28 @@ func main() {
 		`,
 		Required:    false,
 		Destination: &CurrentChart,
-		EnvVar:      DefaultChartEnvironmentVariable,
+		EnvVar:      defaultChartEnvironmentVariable,
 	}
 	assetFlag := cli.StringFlag{
 		Name:        "asset,a",
 		Usage:       "An asset you would like to run the scripts on. Can directly point to archive.",
 		Required:    false,
 		Destination: &CurrentAsset,
-		EnvVar:      DefaultAssetEnvironmentVariable,
+		EnvVar:      defaultAssetEnvironmentVariable,
 	}
 	porcelainFlag := cli.BoolFlag{
 		Name:        "porcelain",
 		Usage:       "Print the output of the command in a easy-to-parse format for scripts",
 		Required:    false,
 		Destination: &PorcelainMode,
-		EnvVar:      DefaultPorcelainEnvironmentVariable,
+		EnvVar:      defaultPorcelainEnvironmentVariable,
 	}
 	cacheFlag := cli.BoolFlag{
 		Name:        "useCache",
 		Usage:       "Experimental: use a cache to speed up scripts",
 		Required:    false,
 		Destination: &CacheMode,
-		EnvVar:      DefaultCacheEnvironmentVariable,
+		EnvVar:      defaultCacheEnvironmentVariable,
 	}
 	branchVersionFlag := cli.StringFlag{
 		Name: "branch-version",
@@ -157,7 +157,7 @@ func main() {
 		Default Environment Variable:
 		`,
 		Destination: &DebugMode,
-		EnvVar:      DefaultDebugEnvironmentVariable,
+		EnvVar:      defaultDebugEnvironmentVariable,
 	}
 	forkFlag := cli.StringFlag{
 		Name: "fork",

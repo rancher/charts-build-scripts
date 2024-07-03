@@ -2,7 +2,6 @@ package lifecycle
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -14,7 +13,7 @@ import (
 // getAssetsMapFromIndex returns a map of assets with their version and
 // an empty path that will be populated later by populateAssetsVersionsPath()
 func getAssetsMapFromIndex(absRepositoryHelmIndexFile, currentChart string, debug bool) (map[string][]Asset, error) {
-	fmt.Println(os.Getwd())
+	// Load the index file
 	helmIndexFile, err := helmRepo.LoadIndexFile(absRepositoryHelmIndexFile)
 	if err != nil {
 		return nil, fmt.Errorf("encountered error while trying to load existing index file: %s", err)
@@ -78,8 +77,7 @@ func (ld *Dependencies) populateAssetsVersionsPath(debug bool) error {
 		dirPath := fmt.Sprintf("assets/%s", chart)
 		cycleLog(debug, "Getting assets at path", dirPath)
 
-		err := ld.walkDirWrapper(ld.rootFs, dirPath, doFunc)
-		if err != nil {
+		if err := ld.walkDirWrapper(ld.rootFs, dirPath, doFunc); err != nil {
 			return fmt.Errorf("encountered error while walking through the assets directory: %w", err)
 		}
 

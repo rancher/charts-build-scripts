@@ -6,12 +6,11 @@ import (
 
 // CheckForValidForkRemote checks if the remote URL is a valid remote fork for the upstream URL.
 func CheckForValidForkRemote(upstreamURL, remoteURL, repo string) bool {
-	urlPart1, urlPart2 := extractCommonParts(upstreamURL, remoteURL)
-	if urlPart1 == "https://github.com" && urlPart2 == repo {
-		return true
+	if remoteURL == "" {
+		return false // Remote URL is empty
 	}
-
-	return false
+	urlPart1, urlPart2 := extractCommonParts(upstreamURL, remoteURL)
+	return (urlPart1 == "https://github.com" && urlPart2 == repo)
 }
 
 // extractCommonParts takes two Git URLs and returns the common prefix and suffix.
@@ -23,21 +22,19 @@ func extractCommonParts(url1, url2 string) (string, string) {
 	// Find the common prefix
 	prefixLength := 0
 	for i := 0; i < len(segments1) && i < len(segments2); i++ {
-		if segments1[i] == segments2[i] {
-			prefixLength++
-		} else {
+		if segments1[i] != segments2[i] {
 			break
 		}
+		prefixLength++
 	}
 
 	// Find the common suffix
 	suffixLength := 0
 	for i := 0; i < len(segments1)-prefixLength && i < len(segments2)-prefixLength; i++ {
-		if segments1[len(segments1)-1-i] == segments2[len(segments2)-1-i] {
-			suffixLength++
-		} else {
+		if segments1[len(segments1)-1-i] != segments2[len(segments2)-1-i] {
 			break
 		}
+		suffixLength++
 	}
 
 	// Reconstruct the common prefix and suffix

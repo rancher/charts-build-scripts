@@ -58,6 +58,15 @@ func Test_CheckForValidForkRemote(t *testing.T) {
 			},
 			want: false,
 		},
+		{
+			name: "#6 - Fail",
+			args: args{
+				upstreamURL: "https://github.com/rancher/charts",
+				remoteURL:   "",
+				repo:        "rancher",
+			},
+			want: false,
+		},
 	}
 
 	for _, tt := range tests {

@@ -38,15 +38,17 @@ func (ld *Dependencies) getStatus() (*Status, error) {
 	// List the production and development assets versions comparisons from the default branches
 	err := status.listProdAndDevAssets()
 	if err != nil {
-		logrus.Errorf("Error while comparing production and development branches: %s", err)
-		return status, err
+		errList := fmt.Errorf("Error while comparing production and development branches: %s", err)
+		logrus.Error(errList)
+		return status, errList
 	}
 
 	// Separate the assets to be released from the assets to be forward ported after the comparison
 	err = status.separateReleaseFromForwardPort()
 	if err != nil {
-		logrus.Errorf("failed to separate releases from forward-ports: %v", err)
-		return status, fmt.Errorf("failed to separate releases from forward-ports: %v", err)
+		errSeparating := fmt.Errorf("failed to separate releases from forward-ports: %v", err)
+		logrus.Error(errSeparating)
+		return status, errSeparating
 	}
 
 	return status, nil
@@ -122,22 +124,22 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) (*Status, erro
 	// Save the logs for the comparison between production and development branches
 	pdLogs.WriteHEAD(status.ld.VR, "Released assets vs development assets with lifecycle rules")
 	pdLogs.Write("Assets RELEASED and Inside the lifecycle", "INFO")
-	pdLogs.Write(fmt.Sprintf("At the production branch: %s", status.ld.VR.ProdBranch), "INFO")
+	pdLogs.Write("At the production branch: "+status.ld.VR.ProdBranch, "INFO")
 	pdLogs.WriteVersions(status.assetsReleasedInLifecycle, "INFO")
 	pdLogs.Write("", "END")
 
 	pdLogs.Write("Assets NOT released and Out of the lifecycle", "INFO")
-	pdLogs.Write(fmt.Sprintf("At the development branch: %s", status.ld.VR.DevBranch), "INFO")
+	pdLogs.Write("At the development branch: "+status.ld.VR.DevBranch, "INFO")
 	pdLogs.WriteVersions(status.assetsNotReleasedOutLifecycle, "INFO")
 	pdLogs.Write("", "END")
 
 	pdLogs.Write("Assets NOT released and Inside the lifecycle", "WARN")
-	pdLogs.Write(fmt.Sprintf("At the development branch: %s", status.ld.VR.DevBranch), "WARN")
+	pdLogs.Write("At the development branch: "+status.ld.VR.DevBranch, "WARN")
 	pdLogs.WriteVersions(status.assetsNotReleasedInLifecycle, "WARN")
 	pdLogs.Write("", "END")
 
 	pdLogs.Write("Assets released and Out of the lifecycle", "ERROR")
-	pdLogs.Write(fmt.Sprintf("At the production branch: %s", status.ld.VR.ProdBranch), "ERROR")
+	pdLogs.Write("At the production branch: "+status.ld.VR.ProdBranch, "ERROR")
 	pdLogs.WriteVersions(status.assetsReleasedOutLifecycle, "ERROR")
 	pdLogs.Write("", "END")
 	// ##############################################################################

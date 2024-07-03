@@ -10,6 +10,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Git struct holds necessary data to work with the current git repository
+type Git struct {
+	Dir     string
+	Branch  string
+	Remotes map[string]string
+}
+
 // CloneAtDir clones a repository at a given directory.
 // Equivalent to: git clone <url> <dir>
 // It will return a Git struct with the repository's branch and remotes populated.

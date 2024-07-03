@@ -1,6 +1,7 @@
 package auto
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,7 +10,42 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver"
+	"github.com/rancher/charts-build-scripts/pkg/git"
+	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/sirupsen/logrus"
+)
+
+/**
+* Shared data modeling for automating the,
+* forward-port and release process of charts.
+**/
+
+// ForwardPort holds the data and methods to forward-port charts
+type ForwardPort struct {
+	yqPath                  string
+	git                     *git.Git
+	VR                      *lifecycle.VersionRules
+	assetsToBeForwardPorted map[string][]lifecycle.Asset
+	pullRequests            map[string]PullRequest
+	forkRemoteURL           string
+}
+
+// PullRequest represents a pull request to be created for each chart separately
+type PullRequest struct {
+	branch   string
+	commands []Command
+}
+
+// Command holds the necessary information to forward-port a chart
+type Command struct {
+	Chart   string   // The chart to forward-port
+	Version string   // The version to forward-port
+	Command []string // The command to run to forward-port
+}
+
+const (
+	chartsRepoURL  = "https://github.com/rancher/charts"
+	chartsRepoName = "charts"
 )
 
 /**
@@ -23,32 +59,34 @@ func whichYQCommand() (string, error) {
 	cmd := exec.Command("which", "yq")
 	output, err := cmd.Output() // Capture the output instead of printing it
 	if err != nil {
-		logrus.Errorf("error while getting yq path; err: %v", err)
-		return "", fmt.Errorf("error while executing command: %s", err)
+		errYqPath := fmt.Errorf("error while getting yq path; err: %w", err)
+		logrus.Error(errYqPath)
+		return "", errYqPath
 	}
 	yqPath := strings.TrimSpace(string(output)) // Convert output to string and trim whitespace
 	if yqPath == "" {
-		return "", fmt.Errorf("yq command not found")
+		errYq := errors.New("yq command not found")
+		logrus.Error(errYq)
+		return "", errYq
 	}
-	// Extract the directory from the yqPath
+	// Extract the directory from the yqPath and append the yq directory to the PATH
 	yqDirPath := filepath.Dir(yqPath)
-	// Append the yq directory to the PATH
 	currentPath := os.Getenv("PATH")
-	newPath := fmt.Sprintf("%s:%s", yqDirPath, currentPath)
+	newPath := yqDirPath + ":" + currentPath
 	return newPath, nil
 }
 
 // createForwardPortCommands will create the forward port script commands for each asset and version,
 // and return a sorted slice of commands
-func (fp *ForwardPort) createForwardPortCommands(chart string) ([]Command, error) {
+func (f *ForwardPort) createForwardPortCommands(chart string) ([]Command, error) {
 
 	commands := make([]Command, 0)
-	for asset, versions := range fp.assetsToBeForwardPorted {
+	for asset, versions := range f.assetsToBeForwardPorted {
 		if chart != "" && !strings.HasPrefix(asset, chart) {
 			continue
 		}
 		for _, version := range versions {
-			command, err := fp.writeMakeCommand(asset, version.Version)
+			command, err := f.writeMakeCommand(asset, version.Version)
 			if err != nil {
 				return nil, err
 			}
@@ -78,7 +116,7 @@ func (fp *ForwardPort) createForwardPortCommands(chart string) ([]Command, error
 }
 
 // writeMakeCommand will write the forward-port command for the given asset and version
-func (fp *ForwardPort) writeMakeCommand(asset, version string) (Command, error) {
+func (f *ForwardPort) writeMakeCommand(asset, version string) (Command, error) {
 	/**
 	* make forward-port
 	* CHART=rancher-provisioning-capi
@@ -87,18 +125,18 @@ func (fp *ForwardPort) writeMakeCommand(asset, version string) (Command, error) 
 	* UPSTREAM=upstream
 	 */
 
-	upstreamRemote, ok := fp.git.Remotes["https://github.com/rancher/charts"]
+	upstreamRemote, ok := f.git.Remotes["https://github.com/rancher/charts"]
 	if !ok {
-		logrus.Error("upstream remote not found; you need to have the upstream remote configured in your git repository (https://github.com/rancher/charts)")
-
-		return Command{}, fmt.Errorf("upstream remote not found; you need to have the upstream remote configured in your git repository (https://github.com/rancher/charts)")
+		errNoUpstreamRemote := errors.New("upstream remote not found; you need to have the upstream remote configured in your git repository (https://github.com/rancher/charts)")
+		logrus.Error(errNoUpstreamRemote)
+		return Command{}, errNoUpstreamRemote
 	}
 	commands := []string{
 		"make",
 		"forward-port",
 		"CHART=" + asset,
 		"VERSION=" + version,
-		"BRANCH=" + fp.VR.DevBranch,
+		"BRANCH=" + f.VR.DevBranch,
 		"UPSTREAM=" + upstreamRemote,
 	}
 
@@ -110,18 +148,12 @@ func (fp *ForwardPort) writeMakeCommand(asset, version string) (Command, error) 
 // If the chart has changed, it will check for special cases like (fleet and neuvector), and CRD dependencies.
 func checkIfChartChanged(lastChart, currentChart string) bool {
 	// Check if the current chart is different from the last chart
-	sameCharts := (lastChart == currentChart)
-	if sameCharts {
+	if lastChart == currentChart {
 		return false
 	}
 
 	// Check for special edge cases
-	edgeCase := checkEdgeCasesIfChartChanged(lastChart, currentChart)
-	if !edgeCase {
-		return false
-	}
-
-	return true
+	return checkEdgeCasesIfChartChanged(lastChart, currentChart)
 }
 
 // checkEdgeCasesIfChartChanged will check for special cases like:
@@ -154,13 +186,9 @@ func checkEdgeCasesIfChartChanged(lastChart, currentChart string) bool {
 
 	if equalCounter == 0 {
 		return true
-	}
-	if equalCounter == 1 && strings.HasPrefix("rancher-", lastParts[0]) &&
-		minLength < 3 {
+	} else if equalCounter == 1 && strings.HasPrefix("rancher-", lastParts[0]) && minLength < 3 {
 		return true
-	}
-
-	if equalCounter == 1 && minLength >= 3 {
+	} else if equalCounter == 1 && minLength >= 3 {
 		return true
 	}
 
@@ -180,19 +208,14 @@ func checkEdgeCasesIfChartChanged(lastChart, currentChart string) bool {
 }
 
 // createNewBranchToForwardPort will create a new branch to forward-port the assets
-func (fp *ForwardPort) createNewBranchToForwardPort(branch string) error {
+func (f *ForwardPort) createNewBranchToForwardPort(branch string) error {
 	// check if git is clean and branch is up-to-date
-	err := fp.git.IsClean()
+	err := f.git.IsClean()
 	if err != nil {
 		return err
 	}
 	// create new branch and checkout
-	err = fp.git.CreateAndCheckoutBranch(branch)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return f.git.CreateAndCheckoutBranch(branch)
 }
 
 // prepareReleaseYaml will prepare the release.yaml file by erasing its content,
@@ -201,18 +224,21 @@ func prepareReleaseYaml() error {
 	// Check if the file exists
 	_, err := os.Stat("release.yaml")
 	if os.IsNotExist(err) {
-		logrus.Error("release.yaml does not exist.")
-		return fmt.Errorf("release.yaml does not exist")
+		errNoReleaseYaml := fmt.Errorf("release.yaml does not exist; err: %w", err)
+		logrus.Error(errNoReleaseYaml)
+		return errNoReleaseYaml
 	} else if err != nil {
-		return err // return any other error encountered
+		errReleaseYaml := fmt.Errorf("release.yaml failure; err: %w", err)
+		logrus.Error(errReleaseYaml)
+		return errReleaseYaml
 	}
 
-	// File exists, open it with O_TRUNC to erase its content
-	file, err := os.OpenFile("release.yaml", os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		return err
+	// File exists, truncate the file to erase its content
+	if err := os.Truncate("release.yaml", 0); err != nil {
+		errTruncate := fmt.Errorf("release.yaml failure while truncating it; err: %w", err)
+		logrus.Error(errTruncate)
+		return errTruncate
 	}
-	defer file.Close()
 
 	logrus.Info("Content of release.yaml erased successfully.")
 	return nil
@@ -230,8 +256,9 @@ func executeCommand(command []string, yqPath string) error {
 
 	// Execute it
 	if err := cmd.Run(); err != nil {
-		logrus.Errorf("error while executing command: %s; err: %v", command, err)
-		return fmt.Errorf("error while executing command: %s", err)
+		errCommand := fmt.Errorf("error while executing command: %s; err: %w", command, err)
+		logrus.Error(errCommand)
+		return errCommand
 	}
 	return nil
 }

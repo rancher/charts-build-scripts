@@ -23,13 +23,13 @@ func CreateLogs(fileName, detail string) (*Logs, error) {
 	// get a timestamp
 	currentTime := time.Now()
 	now := currentTime.Format("2006-01-02T15:04")
-
 	filePath := fmt.Sprintf("logs/%s_%s_%s", now, detail, fileName)
 
 	// Create the logs directory if it doesn't exist
 	err := os.MkdirAll("logs", 0755)
 	if err != nil {
 		logrus.Errorf("Error while creating logs directory: %s", err)
+		return nil, err
 	}
 
 	// Open the file in append mode
@@ -53,7 +53,7 @@ func (l *Logs) WriteHEAD(versionRules *VersionRules, title string) {
 	l.Write(fmt.Sprintf("development branch: %s", versionRules.DevBranch), "INFO")
 	l.Write(fmt.Sprintf("production branch: %s", versionRules.ProdBranch), "INFO")
 
-	rules := make(map[string]string)
+	rules := make(map[string]string, len(versionRules.Rules))
 	for k, v := range versionRules.Rules {
 		rules[fmt.Sprintf("%.1f", k)] = fmt.Sprintf("min: %s, max: %s", v.min, v.max)
 	}

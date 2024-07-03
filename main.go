@@ -656,7 +656,7 @@ func lifecycleStatus(c *cli.Context) {
 func autoForwardPort(c *cli.Context) {
 
 	if ForkURL == "" {
-		logrus.Fatalf("FORK environment variable must be set to run auto-forward-port")
+		logrus.Fatal("FORK environment variable must be set to run auto-forward-port")
 	}
 
 	// Initialize dependencies with branch-version and current chart

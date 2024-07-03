@@ -1,6 +1,7 @@
 package lifecycle
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -66,7 +67,11 @@ func InitDependencies(rootFs billy.Filesystem, branchVersion string, currentChar
 	})
 	var err error
 
-	workDir, _ := os.Getwd()
+	workDir, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
 	git, err := git.OpenGitRepo(workDir)
 	if err != nil {
 		return nil, err
@@ -87,7 +92,7 @@ func InitDependencies(rootFs billy.Filesystem, branchVersion string, currentChar
 		return nil, err
 	}
 	if !clean {
-		return nil, fmt.Errorf("git repo should be clean")
+		return nil, errors.New("git repo should be clean")
 	}
 
 	cycleLog(debug, "Getting branch version rules for: ", branchVersion)

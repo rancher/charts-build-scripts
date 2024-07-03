@@ -221,13 +221,17 @@ func (g *Git) AddAndCommit(message string) error {
 	// Stage all changes, including deletions
 	cmd := exec.Command("git", "-C", g.Dir, "add", "-A")
 	if err := cmd.Run(); err != nil {
-		return err
+		errAdd := fmt.Errorf("error while adding changes: %w", err)
+		logrus.Error(errAdd)
+		return errAdd
 	}
 
 	// Commit the staged changes
 	cmd = exec.Command("git", "commit", "-m", message)
 	if err := cmd.Run(); err != nil {
-		return err
+		errCommit := fmt.Errorf("error while committing changes: %w", err)
+		logrus.Error(errCommit)
+		return errCommit
 	}
 
 	return nil

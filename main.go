@@ -42,10 +42,10 @@ const (
 	DefaultCacheEnvironmentVariable = "USE_CACHE"
 	// DefaultDebugEnvironmentVariable is the default environment variable that indicates that debug mode should be enabled
 	DefaultDebugEnvironmentVariable = "DEBUG"
-	// DefaultBranchVersionEnvironmentVariable is the default environment variable that indicates the branch version to compare against
-	DefaultBranchVersionEnvironmentVariable = "BRANCH_VERSION"
-	// DefaultForkEnvironmentVariable is the default environment variable that indicates the fork URL
-	DefaultForkEnvironmentVariable = "FORK"
+	// defaultBranchVersionEnvironmentVariable is the default environment variable that indicates the branch version to compare against
+	defaultBranchVersionEnvironmentVariable = "BRANCH_VERSION"
+	// defaultForkEnvironmentVariable is the default environment variable that indicates the fork URL
+	defaultForkEnvironmentVariable = "FORK"
 )
 
 var (
@@ -145,7 +145,7 @@ func main() {
 		Default Environment Variable:
 		`,
 		Required: true,
-		EnvVar:   DefaultBranchVersionEnvironmentVariable,
+		EnvVar:   defaultBranchVersionEnvironmentVariable,
 	}
 	debugFlag := cli.BoolFlag{
 		Name: "debug",
@@ -169,7 +169,7 @@ func main() {
 		`,
 		Required:    true,
 		Destination: &ForkURL,
-		EnvVar:      DefaultForkEnvironmentVariable,
+		EnvVar:      defaultForkEnvironmentVariable,
 	}
 	app.Commands = []cli.Command{
 		{

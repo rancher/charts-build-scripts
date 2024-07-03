@@ -112,14 +112,17 @@ func (f *ForwardPort) executeForwardPorts() error {
 
 		// open and check if it is clean the git repo
 		if err := f.createNewBranchToForwardPort(pr.branch); err != nil {
+			logrus.Errorf("failure at createNewBranchToForwardPort; err: %v", err)
 			return err
 		}
 		// clean release.yaml in the new branch
 		if err := prepareReleaseYaml(); err != nil {
+			logrus.Errorf("failure at prepareReleaseYaml; err: %v", err)
 			return err
 		}
 		// git add && commit cleaned release.yaml
 		if err := f.git.AddAndCommit("cleaning release.yaml"); err != nil {
+			logrus.Errorf("failure at AddAndCommit; err: %v", err)
 			return err
 		}
 
@@ -128,11 +131,13 @@ func (f *ForwardPort) executeForwardPorts() error {
 		for _, command := range pr.commands {
 			// execute make forward-port
 			if err := executeCommand(command.Command, f.yqPath); err != nil {
+				logrus.Errorf("failure at executeCommand; err: %v", err)
 				return err
 			}
 			// git add && commit the changes
 			msg := "forward-port " + command.Chart + " " + command.Version
 			if err := f.git.AddAndCommit(msg); err != nil {
+				logrus.Errorf("failure at AddAndCommit; err: %v", err)
 				return err
 			}
 			// Log this so later we can merge the PRs
@@ -140,16 +145,19 @@ func (f *ForwardPort) executeForwardPorts() error {
 		}
 		// push branch
 		if err := f.git.PushBranch(f.git.Remotes[f.forkRemoteURL], pr.branch); err != nil {
+			logrus.Errorf("failure at PushBranch; err: %v", err)
 			return err
 		}
 		// save to log file branch
 		fpLogs.Write("PUSHED", "INFO")
 		// Change back to the original branch to avoid conflicts
 		if err := f.git.CheckoutBranch(originalBranch); err != nil {
+			logrus.Errorf("failure at CheckoutBranch; err: %v", err)
 			return err
 		}
 		// delete local created and pushed branch
 		if err := f.git.DeleteBranch(pr.branch); err != nil {
+			logrus.Errorf("failure at DeleteBranch; err: %v", err)
 			return err
 		}
 	}

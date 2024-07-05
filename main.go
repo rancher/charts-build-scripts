@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/rancher/charts-build-scripts/pkg/auto"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
@@ -27,22 +28,24 @@ import (
 )
 
 const (
-	// DefaultChartsScriptOptionsFile is the default path to look a file containing options for the charts scripts to use for this branch
-	DefaultChartsScriptOptionsFile = "configuration.yaml"
-	// DefaultPackageEnvironmentVariable is the default environment variable for picking a specific package
-	DefaultPackageEnvironmentVariable = "PACKAGE"
-	// DefaultChartEnvironmentVariable is the default environment variable for picking a specific chart
-	DefaultChartEnvironmentVariable = "CHART"
-	// DefaultAssetEnvironmentVariable is the default environment variable for picking a specific asset
-	DefaultAssetEnvironmentVariable = "ASSET"
-	// DefaultPorcelainEnvironmentVariable is the default environment variable that indicates whether we should run on porcelain mode
-	DefaultPorcelainEnvironmentVariable = "PORCELAIN"
-	// DefaultCacheEnvironmentVariable is the default environment variable that indicates that a cache should be used on pulls to remotes
-	DefaultCacheEnvironmentVariable = "USE_CACHE"
-	// DefaultDebugEnvironmentVariable is the default environment variable that indicates that debug mode should be enabled
-	DefaultDebugEnvironmentVariable = "DEBUG"
-	// DefaultBranchVersionEnvironmentVariable is the default environment variable that indicates the branch version to compare against
-	DefaultBranchVersionEnvironmentVariable = "BRANCH_VERSION"
+	// defaultChartsScriptOptionsFile is the default path to look a file containing options for the charts scripts to use for this branch
+	defaultChartsScriptOptionsFile = "configuration.yaml"
+	// defaultPackageEnvironmentVariable is the default environment variable for picking a specific package
+	defaultPackageEnvironmentVariable = "PACKAGE"
+	// defaultChartEnvironmentVariable is the default environment variable for picking a specific chart
+	defaultChartEnvironmentVariable = "CHART"
+	// defaultAssetEnvironmentVariable is the default environment variable for picking a specific asset
+	defaultAssetEnvironmentVariable = "ASSET"
+	// defaultPorcelainEnvironmentVariable is the default environment variable that indicates whether we should run on porcelain mode
+	defaultPorcelainEnvironmentVariable = "PORCELAIN"
+	// defaultCacheEnvironmentVariable is the default environment variable that indicates that a cache should be used on pulls to remotes
+	defaultCacheEnvironmentVariable = "USE_CACHE"
+	// defaultDebugEnvironmentVariable is the default environment variable that indicates that debug mode should be enabled
+	defaultDebugEnvironmentVariable = "DEBUG"
+	// defaultBranchVersionEnvironmentVariable is the default environment variable that indicates the branch version to compare against
+	defaultBranchVersionEnvironmentVariable = "BRANCH_VERSION"
+	// defaultForkEnvironmentVariable is the default environment variable that indicates the fork URL
+	defaultForkEnvironmentVariable = "FORK"
 )
 
 var (
@@ -71,6 +74,8 @@ var (
 	CacheMode = false
 	// DebugMode indicates that debug mode should be enabled
 	DebugMode = false
+	// ForkURL represents the fork URL configured as a remote in your local git repository
+	ForkURL = ""
 )
 
 func main() {
@@ -86,14 +91,14 @@ func main() {
 		Usage:       "A configuration file with additional options for allowing this branch to interact with other branches",
 		TakesFile:   true,
 		Destination: &ChartsScriptOptionsFile,
-		Value:       DefaultChartsScriptOptionsFile,
+		Value:       defaultChartsScriptOptionsFile,
 	}
 	packageFlag := cli.StringFlag{
 		Name:        "package,p",
 		Usage:       "A package you would like to run the scripts on",
 		Required:    false,
 		Destination: &CurrentPackage,
-		EnvVar:      DefaultPackageEnvironmentVariable,
+		EnvVar:      defaultPackageEnvironmentVariable,
 	}
 	chartFlag := cli.StringFlag{
 		Name: "chart,c",
@@ -106,28 +111,28 @@ func main() {
 		`,
 		Required:    false,
 		Destination: &CurrentChart,
-		EnvVar:      DefaultChartEnvironmentVariable,
+		EnvVar:      defaultChartEnvironmentVariable,
 	}
 	assetFlag := cli.StringFlag{
 		Name:        "asset,a",
 		Usage:       "An asset you would like to run the scripts on. Can directly point to archive.",
 		Required:    false,
 		Destination: &CurrentAsset,
-		EnvVar:      DefaultAssetEnvironmentVariable,
+		EnvVar:      defaultAssetEnvironmentVariable,
 	}
 	porcelainFlag := cli.BoolFlag{
 		Name:        "porcelain",
 		Usage:       "Print the output of the command in a easy-to-parse format for scripts",
 		Required:    false,
 		Destination: &PorcelainMode,
-		EnvVar:      DefaultPorcelainEnvironmentVariable,
+		EnvVar:      defaultPorcelainEnvironmentVariable,
 	}
 	cacheFlag := cli.BoolFlag{
 		Name:        "useCache",
 		Usage:       "Experimental: use a cache to speed up scripts",
 		Required:    false,
 		Destination: &CacheMode,
-		EnvVar:      DefaultCacheEnvironmentVariable,
+		EnvVar:      defaultCacheEnvironmentVariable,
 	}
 	branchVersionFlag := cli.StringFlag{
 		Name: "branch-version",
@@ -140,7 +145,7 @@ func main() {
 		Default Environment Variable:
 		`,
 		Required: true,
-		EnvVar:   DefaultBranchVersionEnvironmentVariable,
+		EnvVar:   defaultBranchVersionEnvironmentVariable,
 	}
 	debugFlag := cli.BoolFlag{
 		Name: "debug",
@@ -152,7 +157,19 @@ func main() {
 		Default Environment Variable:
 		`,
 		Destination: &DebugMode,
-		EnvVar:      DefaultDebugEnvironmentVariable,
+		EnvVar:      defaultDebugEnvironmentVariable,
+	}
+	forkFlag := cli.StringFlag{
+		Name: "fork",
+		Usage: `Usage:
+			./bin/charts-build-scripts <command> --fork="<fork-URL>"
+			FORK="<fork-URL>" make <command>
+
+		Your fork URL configured as a remote in your local git repository.
+		`,
+		Required:    true,
+		Destination: &ForkURL,
+		EnvVar:      defaultForkEnvironmentVariable,
 	}
 	app.Commands = []cli.Command{
 		{
@@ -289,6 +306,18 @@ func main() {
 			Saves the logs in the logs/ directory.`,
 			Action: lifecycleStatus,
 			Flags:  []cli.Flag{branchVersionFlag, chartFlag},
+		},
+		{
+			Name: "auto-forward-port",
+			Usage: `Execute the forward-port script to forward port a chart or all to the production branch.
+				The charts to be forward ported are listed in the result of lifecycle-status command.
+				It is advised to run make lifecycle-status before running this command.
+				At the end of the execution, the script will create a PR with the changes to each chart.
+				At the end of the execution, the script will save the logs in the logs directory,
+				with all assets versions and branches that were pushed to the upstream repository.
+			`,
+			Action: autoForwardPort,
+			Flags:  []cli.Flag{branchVersionFlag, chartFlag, forkFlag},
 		},
 	}
 
@@ -590,17 +619,17 @@ func checkRCTagsAndVersions(c *cli.Context) {
 }
 
 func enforceLifecycle(c *cli.Context) {
-
 	// Initialize dependencies with branch-version, current chart and debug mode
+	logrus.Info("Initializing dependencies for enforce-lifecycle")
 	repoRoot := getRepoRoot()
 	rootFs := filesystem.GetFilesystem(repoRoot)
-
 	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, DebugMode)
 	if err != nil {
-		logrus.Fatalf("encountered error while initializing dependencies for lifecycle-assets-clean: %s", err)
+		logrus.Fatalf("encountered error while initializing dependencies: %s", err)
 	}
 
 	// Apply versioning rules
+	logrus.Info("Starting to enforce lifecycle rules for assets")
 	err = lifeCycleDep.ApplyRules(CurrentChart, DebugMode)
 	if err != nil {
 		logrus.Fatalf("Failed to apply versioning rules for lifecycle-assets-clean: %s", err)
@@ -608,18 +637,54 @@ func enforceLifecycle(c *cli.Context) {
 }
 
 func lifecycleStatus(c *cli.Context) {
-
 	// Initialize dependencies with branch-version and current chart
+	logrus.Info("Initializing dependencies for lifecycle-status")
 	rootFs := filesystem.GetFilesystem(getRepoRoot())
-
 	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, false)
 	if err != nil {
-		logrus.Fatalf("encountered error while initializing dependencies for lifecycle-assets-clean: %s", err)
+		logrus.Fatalf("encountered error while initializing dependencies: %s", err)
 	}
 
 	// Execute lifecycle status check and save the logs
-	err = lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
+	logrus.Info("Checking lifecycle status and saving logs")
+	_, err = lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
 	if err != nil {
 		logrus.Fatalf("Failed to check lifecycle status: %s", err)
 	}
+}
+
+func autoForwardPort(c *cli.Context) {
+
+	if ForkURL == "" {
+		logrus.Fatal("FORK environment variable must be set to run auto-forward-port")
+	}
+
+	// Initialize dependencies with branch-version and current chart
+	logrus.Info("Initializing dependencies for auto-forward-port")
+	rootFs := filesystem.GetFilesystem(getRepoRoot())
+	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, false)
+	if err != nil {
+		logrus.Fatalf("encountered error while initializing dependencies: %v", err)
+	}
+
+	// Execute lifecycle status check and save the logs
+	logrus.Info("Checking lifecycle status and saving logs")
+	status, err := lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
+	if err != nil {
+		logrus.Fatalf("Failed to check lifecycle status: %v", err)
+	}
+
+	// Execute forward port with loaded information from status
+	logrus.Info("Preparing forward port data")
+	fp, err := auto.CreateForwardPortStructure(lifeCycleDep, status.AssetsToBeForwardPorted, ForkURL)
+	if err != nil {
+		logrus.Fatalf("Failed to prepare forward port: %v", err)
+	}
+
+	logrus.Info("Starting forward port execution")
+	err = fp.ExecuteForwardPort(CurrentChart)
+	if err != nil {
+		logrus.Fatalf("Failed to execute forward port: %v", err)
+	}
+
 }

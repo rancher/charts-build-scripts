@@ -3,9 +3,9 @@ package lifecycle
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/sirupsen/logrus"
 )
@@ -21,7 +21,7 @@ type Status struct {
 	assetsNotReleasedInLifecycle    map[string][]Asset // WARN if not empty
 	assetsReleasedOutLifecycle      map[string][]Asset // ERROR if not empty
 	assetsToBeReleased              map[string][]Asset
-	assetsToBeForwardPorted         map[string][]Asset
+	AssetsToBeForwardPorted         map[string][]Asset
 }
 
 // getStatus will create the Status object inheriting the Dependencies object and return it after:
@@ -38,15 +38,17 @@ func (ld *Dependencies) getStatus() (*Status, error) {
 	// List the production and development assets versions comparisons from the default branches
 	err := status.listProdAndDevAssets()
 	if err != nil {
-		logrus.Errorf("Error while comparing production and development branches: %s", err)
-		return status, err
+		errList := fmt.Errorf("Error while comparing production and development branches: %s", err)
+		logrus.Error(errList)
+		return status, errList
 	}
 
 	// Separate the assets to be released from the assets to be forward ported after the comparison
 	err = status.separateReleaseFromForwardPort()
 	if err != nil {
-		logrus.Errorf("failed to separate releases from forward-ports: %v", err)
-		return status, fmt.Errorf("failed to separate releases from forward-ports: %v", err)
+		errSeparating := fmt.Errorf("failed to separate releases from forward-ports: %v", err)
+		logrus.Error(errSeparating)
+		return status, errSeparating
 	}
 
 	return status, nil
@@ -54,33 +56,24 @@ func (ld *Dependencies) getStatus() (*Status, error) {
 
 // createLogFiles will create the log files for the current branch, production and development branches
 // and the assets to be released and forward ported, returning the logs objects for each file.
-func createLogFiles(chart string) (*logs, *logs, *logs, error) {
-	// get a timestamp
-	currentTime := time.Now()
-	now := currentTime.Format("2006-01-02T15:04")
-
-	// create the log file names with the timestamp and chart name if any
-	cbLogFile := fmt.Sprintf("%s_%s_current-branch.log", now, chart)
-	pdLogFile := fmt.Sprintf("%s_%s_production-compare-development.log", now, chart)
-	rfLogFile := fmt.Sprintf("%s_%s_released-forward-ported.log", now, chart)
-
+func createLogFiles(chart string) (*Logs, *Logs, *Logs, error) {
 	// Create the logs infrastructure in the filesystem for:
 	// current branch logs
-	cbLogs, err := createLogs(cbLogFile)
+	cbLogs, err := CreateLogs("current-branch.log", chart)
 	if err != nil {
 		logrus.Errorf("Error while creating logs: %s", err)
 		return nil, nil, nil, err
 	}
 
 	// production and development branches logs
-	pdLogs, err := createLogs(pdLogFile)
+	pdLogs, err := CreateLogs("production-x-development.log", chart)
 	if err != nil {
 		logrus.Errorf("Error while creating logs: %s", err)
 		return nil, nil, nil, err
 	}
 
 	// released and forward ported logs
-	rfLogs, err := createLogs(rfLogFile)
+	rfLogs, err := CreateLogs("released-x-forward-ported.log", chart)
 	if err != nil {
 		logrus.Errorf("Error while creating logs: %s", err)
 		return nil, nil, nil, err
@@ -91,22 +84,22 @@ func createLogFiles(chart string) (*logs, *logs, *logs, error) {
 
 // CheckLifecycleStatusAndSave checks the lifecycle status of the assets
 // at 3 different levels prints to the console and saves to log files at 'logs/' folder.
-func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) error {
+func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) (*Status, error) {
 
 	// Get the status of the assets versions
 	status, err := ld.getStatus()
 	if err != nil {
 		logrus.Errorf("Error while getting the status: %s", err)
-		return err
+		return nil, err
 	}
 	// Create the logs infrastructure in the filesystem and close them once the function ends
 	cbLogs, pdLogs, rfLogs, err := createLogFiles(chart)
 	if err != nil {
-		return err
+		return status, err
 	}
-	defer cbLogs.file.Close()
-	defer pdLogs.file.Close()
-	defer rfLogs.file.Close()
+	defer cbLogs.File.Close()
+	defer pdLogs.File.Close()
+	defer rfLogs.File.Close()
 
 	// optional filter logs by specific chart
 	if chart != "" {
@@ -120,45 +113,45 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) error {
 
 	// ##############################################################################
 	// Save the logs for the current branch
-	cbLogs.writeHEAD(status.ld.VR, "Assets versions vs the lifecycle rules in the current branch")
-	cbLogs.write("Versions INSIDE the lifecycle in the current branch", "INFO")
-	cbLogs.writeVersions(status.assetsInLifecycleCurrentBranch, "INFO")
-	cbLogs.write("", "END")
-	cbLogs.write("Versions OUTSIDE the lifecycle in the current branch", "WARN")
-	cbLogs.writeVersions(status.assetsOutLifecycleCurrentBranch, "WARN")
-	cbLogs.write("", "END")
+	cbLogs.WriteHEAD(status.ld.VR, "Assets versions vs the lifecycle rules in the current branch")
+	cbLogs.Write("Versions INSIDE the lifecycle in the current branch", "INFO")
+	cbLogs.WriteVersions(status.assetsInLifecycleCurrentBranch, "INFO")
+	cbLogs.Write("", "END")
+	cbLogs.Write("Versions OUTSIDE the lifecycle in the current branch", "WARN")
+	cbLogs.WriteVersions(status.assetsOutLifecycleCurrentBranch, "WARN")
+	cbLogs.Write("", "END")
 	// ##############################################################################
 	// Save the logs for the comparison between production and development branches
-	pdLogs.writeHEAD(status.ld.VR, "Released assets vs development assets with lifecycle rules")
-	pdLogs.write("Assets RELEASED and Inside the lifecycle", "INFO")
-	pdLogs.write(fmt.Sprintf("At the production branch: %s", status.ld.VR.prodBranch), "INFO")
-	pdLogs.writeVersions(status.assetsReleasedInLifecycle, "INFO")
-	pdLogs.write("", "END")
+	pdLogs.WriteHEAD(status.ld.VR, "Released assets vs development assets with lifecycle rules")
+	pdLogs.Write("Assets RELEASED and Inside the lifecycle", "INFO")
+	pdLogs.Write("At the production branch: "+status.ld.VR.ProdBranch, "INFO")
+	pdLogs.WriteVersions(status.assetsReleasedInLifecycle, "INFO")
+	pdLogs.Write("", "END")
 
-	pdLogs.write("Assets NOT released and Out of the lifecycle", "INFO")
-	pdLogs.write(fmt.Sprintf("At the development branch: %s", status.ld.VR.devBranch), "INFO")
-	pdLogs.writeVersions(status.assetsNotReleasedOutLifecycle, "INFO")
-	pdLogs.write("", "END")
+	pdLogs.Write("Assets NOT released and Out of the lifecycle", "INFO")
+	pdLogs.Write("At the development branch: "+status.ld.VR.DevBranch, "INFO")
+	pdLogs.WriteVersions(status.assetsNotReleasedOutLifecycle, "INFO")
+	pdLogs.Write("", "END")
 
-	pdLogs.write("Assets NOT released and Inside the lifecycle", "WARN")
-	pdLogs.write(fmt.Sprintf("At the development branch: %s", status.ld.VR.devBranch), "WARN")
-	pdLogs.writeVersions(status.assetsNotReleasedInLifecycle, "WARN")
-	pdLogs.write("", "END")
+	pdLogs.Write("Assets NOT released and Inside the lifecycle", "WARN")
+	pdLogs.Write("At the development branch: "+status.ld.VR.DevBranch, "WARN")
+	pdLogs.WriteVersions(status.assetsNotReleasedInLifecycle, "WARN")
+	pdLogs.Write("", "END")
 
-	pdLogs.write("Assets released and Out of the lifecycle", "ERROR")
-	pdLogs.write(fmt.Sprintf("At the production branch: %s", status.ld.VR.prodBranch), "ERROR")
-	pdLogs.writeVersions(status.assetsReleasedOutLifecycle, "ERROR")
-	pdLogs.write("", "END")
+	pdLogs.Write("Assets released and Out of the lifecycle", "ERROR")
+	pdLogs.Write("At the production branch: "+status.ld.VR.ProdBranch, "ERROR")
+	pdLogs.WriteVersions(status.assetsReleasedOutLifecycle, "ERROR")
+	pdLogs.Write("", "END")
 	// ##############################################################################
 	// Save the logs for the separations of assets to be released and forward ported
-	rfLogs.writeHEAD(status.ld.VR, "Assets to be released vs forward ported")
-	rfLogs.write("Assets to be RELEASED", "INFO")
-	rfLogs.writeVersions(status.assetsToBeReleased, "INFO")
-	rfLogs.write("", "END")
-	rfLogs.write("Assets to be FORWARD-PORTED", "INFO")
-	rfLogs.writeVersions(status.assetsToBeForwardPorted, "INFO")
+	rfLogs.WriteHEAD(status.ld.VR, "Assets to be released vs forward ported")
+	rfLogs.Write("Assets to be RELEASED", "INFO")
+	rfLogs.WriteVersions(status.assetsToBeReleased, "INFO")
+	rfLogs.Write("", "END")
+	rfLogs.Write("Assets to be FORWARD-PORTED", "INFO")
+	rfLogs.WriteVersions(status.AssetsToBeForwardPorted, "INFO")
 
-	return nil
+	return status, nil
 }
 
 // listCurrentAssetsVersionsOnTheCurrentBranch returns the Status struct by reference
@@ -170,7 +163,7 @@ func (s *Status) listCurrentAssetsVersionsOnTheCurrentBranch() {
 
 	for asset, versions := range s.ld.assetsVersionsMap {
 		for _, version := range versions {
-			inLifecycle := s.ld.VR.CheckChartVersionForLifecycle(version.version)
+			inLifecycle := s.ld.VR.CheckChartVersionForLifecycle(version.Version)
 			if inLifecycle {
 				insideLifecycle[asset] = append(insideLifecycle[asset], version)
 			} else {
@@ -199,7 +192,7 @@ func (s *Status) listProdAndDevAssets() error {
 	defer destroyTemporaryDirStructure(defaultWorkingDir, tempDir)
 
 	// Clone the repository at the temporary directory
-	git, err := cloneAtDir("https://github.com/rancher/charts", tempDir)
+	git, err := git.CloneAtDir("https://github.com/rancher/charts", tempDir)
 	if err != nil {
 		return err
 	}
@@ -261,13 +254,13 @@ func destroyTemporaryDirStructure(defaultWorkingDir, tempDir string) error {
 
 // getProdAndDevAssetsFromGit will fetch and checkout the production and development branches,
 // get the assets versions from the index.yaml file and return the maps for the assets versions.
-func (s *Status) getProdAndDevAssetsFromGit(git *Git, tempDir string) (map[string][]Asset, map[string][]Asset, error) {
+func (s *Status) getProdAndDevAssetsFromGit(git *git.Git, tempDir string) (map[string][]Asset, map[string][]Asset, error) {
 	// get filesystem and index file at the temporary directory
 	tempDirRootFs := filesystem.GetFilesystem(tempDir)
 	tempHelmIndexPath := filesystem.GetAbsPath(tempDirRootFs, path.RepositoryHelmIndexFile)
 
 	// Fetch and checkout to the production branch
-	err := git.fetchAndCheckoutBranch(s.ld.VR.prodBranch)
+	err := git.FetchAndCheckoutBranch(s.ld.VR.ProdBranch)
 	if err != nil {
 		logrus.Errorf("Error while fetching and checking out the production branch at: %s", err)
 		return nil, nil, err
@@ -281,7 +274,7 @@ func (s *Status) getProdAndDevAssetsFromGit(git *Git, tempDir string) (map[strin
 	}
 
 	// Fetch and checkout to the development branch
-	err = git.fetchAndCheckoutBranch(s.ld.VR.devBranch)
+	err = git.FetchAndCheckoutBranch(s.ld.VR.DevBranch)
 	if err != nil {
 		logrus.Errorf("Error while fetching and checking out the development branch at: %s", err)
 		return nil, nil, err
@@ -318,9 +311,9 @@ func (s *Status) compareReleasedAndDevAssets(releasedAssets, developmentAssets m
 
 		for _, devVersion := range devVersions {
 			// check if the version is already released
-			released := checkIfVersionIsReleased(devVersion.version, releasedVersions)
+			released := checkIfVersionIsReleased(devVersion.Version, releasedVersions)
 			// check if the version is in the lifecycle
-			inLifecycle := s.ld.VR.CheckChartVersionForLifecycle(devVersion.version)
+			inLifecycle := s.ld.VR.CheckChartVersionForLifecycle(devVersion.Version)
 
 			switch {
 			case released && inLifecycle:
@@ -346,7 +339,7 @@ func (s *Status) compareReleasedAndDevAssets(releasedAssets, developmentAssets m
 // and returns true if the version is found in the list of released versions.
 func checkIfVersionIsReleased(version string, releasedVersions []Asset) bool {
 	for _, releasedVersion := range releasedVersions {
-		if version == releasedVersion.version {
+		if version == releasedVersion.Version {
 			return true
 		}
 	}
@@ -360,7 +353,7 @@ func (s *Status) separateReleaseFromForwardPort() error {
 
 	for asset, versions := range s.assetsNotReleasedInLifecycle {
 		for _, version := range versions {
-			toRelease, err := s.ld.VR.CheckChartVersionToRelease(version.version)
+			toRelease, err := s.ld.VR.CheckChartVersionToRelease(version.Version)
 			if err != nil {
 				return err
 			}
@@ -373,7 +366,7 @@ func (s *Status) separateReleaseFromForwardPort() error {
 	}
 
 	s.assetsToBeReleased = assetsToBeReleased
-	s.assetsToBeForwardPorted = assetsToBeForwardPorted
+	s.AssetsToBeForwardPorted = assetsToBeForwardPorted
 
 	return nil
 }

@@ -223,11 +223,12 @@ func (f *ForwardPort) createNewBranchToForwardPort(branch string) error {
 func prepareReleaseYaml() error {
 	// Check if the file exists
 	_, err := os.Stat("release.yaml")
-	if os.IsNotExist(err) {
-		errNoReleaseYaml := fmt.Errorf("release.yaml does not exist; err: %w", err)
-		logrus.Error(errNoReleaseYaml)
-		return errNoReleaseYaml
-	} else if err != nil {
+	if err != nil {
+		if os.IsNotExist(err) {
+			errNoReleaseYaml := fmt.Errorf("release.yaml does not exist; err: %w", err)
+			logrus.Error(errNoReleaseYaml)
+			return errNoReleaseYaml
+		}
 		errReleaseYaml := fmt.Errorf("release.yaml failure; err: %w", err)
 		logrus.Error(errReleaseYaml)
 		return errReleaseYaml

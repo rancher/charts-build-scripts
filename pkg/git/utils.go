@@ -10,7 +10,7 @@ func CheckForValidForkRemote(upstreamURL, remoteURL, repo string) bool {
 		return false // Remote URL is empty
 	}
 	urlPart1, urlPart2 := extractCommonParts(upstreamURL, remoteURL)
-	return (urlPart1 == "https://github.com" && urlPart2 == repo)
+	return urlPart1 == "https://github.com" && urlPart2 == repo
 }
 
 // extractCommonParts takes two Git URLs and returns the common prefix and suffix.

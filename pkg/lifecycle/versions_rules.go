@@ -29,19 +29,19 @@ type VersionRules struct {
 	ProdBranch    string
 }
 
-func (vr *VersionRules) log(debug bool) {
+func (v *VersionRules) log(debug bool) {
 	if !debug {
 		return
 	}
 
-	for key, val := range vr.Rules {
+	for key, val := range v.Rules {
 		cycleLog(debug, "Branch version", key)
 		cycleLog(debug, "|- min version", val.min)
 		cycleLog(debug, "|- max version", val.max)
 	}
 	cycleLog(debug, "Applied rules for branch version", nil)
-	cycleLog(debug, "|-- min version", vr.MinVersion)
-	cycleLog(debug, "|-- max version", vr.MaxVersion)
+	cycleLog(debug, "|-- min version", v.MinVersion)
+	cycleLog(debug, "|-- max version", v.MaxVersion)
 }
 
 // GetVersionRules will check and convert the provided branch version,
@@ -68,20 +68,20 @@ func GetVersionRules(branchVersion string, debug bool) (*VersionRules, error) {
 		return nil, fmt.Errorf("branch version %v is not defined in the rules", floatBranchVersion)
 	}
 
-	vr := &VersionRules{
+	v := &VersionRules{
 		Rules:         VersionRulesMap,
 		BranchVersion: floatBranchVersion,
 	}
 
 	// Calculate the min and maximum versions allowed for the current branch version lifecycle
-	vr.getMinMaxVersionInts()
+	v.getMinMaxVersionInts()
 
-	vr.ProdBranch = fmt.Sprintf("%s%.1f", ProductionBranchPrefix, vr.BranchVersion)
-	vr.DevBranch = fmt.Sprintf("%s%.1f", DevBranchPrefix, vr.BranchVersion)
+	v.ProdBranch = fmt.Sprintf("%s%.1f", ProductionBranchPrefix, v.BranchVersion)
+	v.DevBranch = fmt.Sprintf("%s%.1f", DevBranchPrefix, v.BranchVersion)
 
-	vr.log(debug)
+	v.log(debug)
 
-	return vr, err
+	return v, err
 }
 
 // Current lifecycle rules are:
@@ -90,17 +90,17 @@ func GetVersionRules(branchVersion string, debug bool) (*VersionRules, error) {
 //	Branch cannot hold versions from newer branches, only older ones.
 //
 // See CheckChartVersionForLifecycle() for more details.
-func (vr *VersionRules) getMinMaxVersionInts() {
+func (v *VersionRules) getMinMaxVersionInts() {
 	// e.g: 2.9 - 0.2 = 2.7
-	minVersionStr := vr.Rules[(vr.BranchVersion - 0.2)].min
-	maxVersionStr := vr.Rules[vr.BranchVersion].max
+	minVersionStr := v.Rules[(v.BranchVersion - 0.2)].min
+	maxVersionStr := v.Rules[v.BranchVersion].max
 
 	// Don't check for errors here, these are hard-coded values
 	min, _ := strconv.Atoi(strings.Split(minVersionStr, ".")[0])
 	max, _ := strconv.Atoi(strings.Split(maxVersionStr, ".")[0])
 
-	vr.MinVersion = min
-	vr.MaxVersion = max
+	v.MinVersion = min
+	v.MaxVersion = max
 	return
 }
 
@@ -123,7 +123,7 @@ func ExtractBranchVersion(branch string) string {
 // Check if the chart version is within the range of the current version:
 //
 //	If the chart version is within the range, return true, otherwise return false
-func (vr *VersionRules) CheckChartVersionForLifecycle(chartVersion string) bool {
+func (v *VersionRules) CheckChartVersionForLifecycle(chartVersion string) bool {
 	chartVersionInt, _ := strconv.Atoi(strings.Split(chartVersion, ".")[0])
 	/**
 	Rule Example:
@@ -133,18 +133,26 @@ func (vr *VersionRules) CheckChartVersionForLifecycle(chartVersion string) bool 
 	Therefore, the chart version must be >= (104 - 2) and < 105
 	i.e: 102 <= chartVersion < 105
 	*/
-	if chartVersionInt >= vr.MinVersion && chartVersionInt < vr.MaxVersion {
+	if chartVersionInt >= v.MinVersion && chartVersionInt < v.MaxVersion {
 		return true
 	}
 	return false
 }
 
 // CheckChartVersionToRelease will return if the current versyion being analyzed is the one to be released or not
-func (vr *VersionRules) CheckChartVersionToRelease(chartVersion string) (bool, error) {
+func (v *VersionRules) CheckChartVersionToRelease(chartVersion string) (bool, error) {
 	chartVersionInt, err := strconv.Atoi(strings.Split(chartVersion, ".")[0])
 	if err != nil {
 		logrus.Errorf("failed to check version to release for chartVersion:%s with error:%v", chartVersion, err)
 		return false, err
 	}
-	return chartVersionInt == (vr.MaxVersion - 1), nil
+	return chartVersionInt == (v.MaxVersion - 1), nil
+}
+
+// CheckForRCVersion checks if the chart version contains the "-rc" string indicating a release candidate version.
+func (v *VersionRules) CheckForRCVersion(chartVersion string) bool {
+	if strings.Contains(strings.ToLower(chartVersion), "-rc") {
+		return true
+	}
+	return false
 }

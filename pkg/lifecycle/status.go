@@ -109,6 +109,8 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) (*Status, erro
 		status.assetsNotReleasedOutLifecycle = map[string][]Asset{chart: status.assetsNotReleasedOutLifecycle[chart]}
 		status.assetsNotReleasedInLifecycle = map[string][]Asset{chart: status.assetsNotReleasedInLifecycle[chart]}
 		status.assetsReleasedOutLifecycle = map[string][]Asset{chart: status.assetsReleasedOutLifecycle[chart]}
+		status.assetsToBeReleased = map[string][]Asset{chart: status.assetsToBeReleased[chart]}
+		status.AssetsToBeForwardPorted = map[string][]Asset{chart: status.AssetsToBeForwardPorted[chart]}
 	}
 
 	// ##############################################################################
@@ -356,6 +358,10 @@ func (s *Status) separateReleaseFromForwardPort() error {
 			toRelease, err := s.ld.VR.CheckChartVersionToRelease(version.Version)
 			if err != nil {
 				return err
+			}
+			isRCVersion := s.ld.VR.CheckForRCVersion(version.Version)
+			if isRCVersion {
+				continue
 			}
 			if toRelease {
 				assetsToBeReleased[asset] = append(assetsToBeReleased[asset], version)

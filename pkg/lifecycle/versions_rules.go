@@ -9,7 +9,7 @@ import (
 )
 
 // ProductionBranchPrefix is the official prefix for the production branch
-const ProductionBranchPrefix = "prod-v"
+const ProductionBranchPrefix = "release-v"
 
 // DevBranchPrefix is the official prefix for the development branch
 const DevBranchPrefix = "dev-v"

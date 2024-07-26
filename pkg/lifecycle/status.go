@@ -2,7 +2,6 @@ package lifecycle
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/git"
@@ -185,22 +184,17 @@ func (s *Status) listCurrentAssetsVersionsOnTheCurrentBranch() {
 // get the assets versions from the index.yaml file and compare the assets versions,
 // separating into 4 different maps for further analysis.
 func (s *Status) listProdAndDevAssets() error {
-	// Create and destroy a temporary directory structure
-	defaultWorkingDir, tempDir, err := createTemporaryDirStructure()
-	if err != nil {
-		logrus.Errorf("Error while creating temporary dir structure: %s", err)
-		return err
-	}
-	defer destroyTemporaryDirStructure(defaultWorkingDir, tempDir)
 
-	// Clone the repository at the temporary directory
-	git, err := git.CloneAtDir("https://github.com/rancher/charts", tempDir)
+	// Open current charts git repository
+	git, err := git.OpenGitRepo(s.ld.Git.Dir)
 	if err != nil {
 		return err
 	}
+
+	oldCurrentBranch := git.Branch
 
 	// Fetch, checkout and map assets versions in the production and development branches
-	releasedAssets, devAssets, err := s.getProdAndDevAssetsFromGit(git, tempDir)
+	releasedAssets, devAssets, err := s.getProdAndDevAssetsFromGit(git)
 	if err != nil {
 		logrus.Errorf("Error while getting assets from production and development branches: %s", err)
 		return err
@@ -209,57 +203,16 @@ func (s *Status) listProdAndDevAssets() error {
 	// Compare the assets versions between the production and development branches
 	s.compareReleasedAndDevAssets(releasedAssets, devAssets)
 	logrus.Info("Comparison ended and logs saved in the logs directory")
-	return nil
-}
 
-// createTemporaryDirStructure creates a temporary directory structure and changes the working directory to it returning the path for both folders.
-func createTemporaryDirStructure() (string, string, error) {
-	// Save the current working directory for changing back to it later
-	defaultWorkingDir, err := os.Getwd()
-	if err != nil {
-		logrus.Errorf("Error while getting the current working directory: %s", err)
-		return "", "", err
-	}
-
-	// Create the temporary directory
-	tempDir, err := os.MkdirTemp("", "temporaryDir")
-	if err != nil {
-		return "", "", err
-	}
-
-	// change the workind directory to the temporary one
-	err = os.Chdir(tempDir)
-	if err != nil {
-		logrus.Errorf("Error while changing working directory to temporary directory: %v", err)
-		return defaultWorkingDir, tempDir, err
-	}
-	return defaultWorkingDir, tempDir, nil
-}
-
-// destroyTemporaryDirStructure destroys the temporary directory and changes the working directory back to the default one.
-func destroyTemporaryDirStructure(defaultWorkingDir, tempDir string) error {
-	// Change the directory back to the default working directory
-	err := os.Chdir(defaultWorkingDir)
-	if err != nil {
-		logrus.Errorf("Error while changing back to default working directory: %v", err)
-		return err
-	}
-
-	// Remove the temporary directory
-	err = os.RemoveAll(tempDir)
-	if err != nil {
-		logrus.Errorf("Error while removing temporary directory: %v", err)
-		return err
-	}
-	return nil
+	return git.CheckoutBranch(oldCurrentBranch)
 }
 
 // getProdAndDevAssetsFromGit will fetch and checkout the production and development branches,
 // get the assets versions from the index.yaml file and return the maps for the assets versions.
-func (s *Status) getProdAndDevAssetsFromGit(git *git.Git, tempDir string) (map[string][]Asset, map[string][]Asset, error) {
+func (s *Status) getProdAndDevAssetsFromGit(git *git.Git) (map[string][]Asset, map[string][]Asset, error) {
 	// get filesystem and index file at the temporary directory
-	tempDirRootFs := filesystem.GetFilesystem(tempDir)
-	tempHelmIndexPath := filesystem.GetAbsPath(tempDirRootFs, path.RepositoryHelmIndexFile)
+	rootFs := filesystem.GetFilesystem(s.ld.Git.Dir)
+	helmIndexPath := filesystem.GetAbsPath(rootFs, path.RepositoryHelmIndexFile)
 
 	// Fetch and checkout to the production branch
 	err := git.FetchAndCheckoutBranch(s.ld.VR.ProdBranch)
@@ -269,7 +222,7 @@ func (s *Status) getProdAndDevAssetsFromGit(git *git.Git, tempDir string) (map[s
 	}
 
 	// Get the map for the released assets versions on the production branch
-	releasedAssets, err := getAssetsMapFromIndex(tempHelmIndexPath, "", false)
+	releasedAssets, err := getAssetsMapFromIndex(helmIndexPath, "", false)
 	if err != nil {
 		logrus.Errorf("Error while getting assets map from index: %s", err)
 		return nil, nil, err
@@ -283,7 +236,7 @@ func (s *Status) getProdAndDevAssetsFromGit(git *git.Git, tempDir string) (map[s
 	}
 
 	// Get the map for the development assets versions on the development branch
-	devAssets, err := getAssetsMapFromIndex(tempHelmIndexPath, "", false)
+	devAssets, err := getAssetsMapFromIndex(helmIndexPath, "", false)
 	if err != nil {
 		logrus.Errorf("Error while getting assets map from index: %s", err)
 		return nil, nil, err

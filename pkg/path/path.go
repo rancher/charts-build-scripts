@@ -49,4 +49,7 @@ const (
 
 	// RepositoryLogosDir is a directory on your Staging/Live branch that contains the files with the logos of each chart
 	RepositoryLogosDir = "assets/logos"
+
+	// RepositoryStAte file is a file to hold the current status of the released and developed assets versions
+	RepositoryStateFile = "state.json"
 )

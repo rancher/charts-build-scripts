@@ -54,29 +54,15 @@ func (c *AdditionalChart) ApplyMainChanges(pkgFs billy.Filesystem) error {
 		}
 	}
 	if c.CRDChartOptions.UseTarArchive {
-		exists, err := filesystem.PathExists(pkgFs, filepath.Join(c.WorkingDir, path.ChartExtraFileDir, path.ChartCRDTgzFilename))
-		if err != nil {
-			return fmt.Errorf("encountered error while trying to check if %s exists: %s", filepath.Join(c.WorkingDir, path.ChartExtraFileDir, path.ChartCRDTgzFilename), err)
+		logrus.Info("CRDs already archived, need to unarchive to apply to the main chart")
+		if err := filesystem.UnarchiveTgz(pkgFs, filepath.Join(c.WorkingDir, path.ChartExtraFileDir, path.ChartCRDTgzFilename), "crds", filepath.Join(c.WorkingDir, c.CRDChartOptions.CRDDirectory), false); err != nil {
+			return fmt.Errorf("encountered error while trying to unarchive CRD files from %s: %s", filepath.Join(c.WorkingDir, "files", path.ChartCRDTgzFilename), err)
 		}
-		if exists {
-			logrus.Info("CRDs already archived, need to unarchive to apply to the main chart")
-			if err := filesystem.UnarchiveTgz(pkgFs, filepath.Join(c.WorkingDir, path.ChartExtraFileDir, path.ChartCRDTgzFilename), "crds", filepath.Join(c.WorkingDir, c.CRDChartOptions.CRDDirectory), false); err != nil {
-				return fmt.Errorf("encountered error while trying to unarchive CRD files from %s: %s", filepath.Join(c.WorkingDir, "files", path.ChartCRDTgzFilename), err)
-			}
-		}
+		defer helm.DeleteCRDsFromChart(pkgFs, c.WorkingDir)
 	}
 	if c.CRDChartOptions.AddCRDValidationToMainChart {
 		if err := AddCRDValidationToChart(pkgFs, mainChartWorkingDir, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
 			return fmt.Errorf("encountered error while trying to add CRD validation to %s based on CRDs in %s: %s", mainChartWorkingDir, c.WorkingDir, err)
-		}
-	}
-	if c.CRDChartOptions.UseTarArchive {
-		if err := helm.ArchiveCRDs(pkgFs, c.WorkingDir, c.CRDChartOptions.CRDDirectory, c.WorkingDir, path.ChartExtraFileDir); err != nil {
-			return fmt.Errorf("encountered error while trying to bundle and compress CRD files from the main chart: %s", err)
-		}
-
-		if err := helm.DeleteCRDsFromChart(pkgFs, c.WorkingDir); err != nil {
-			return fmt.Errorf("encountered error while trying to delete CRDs from crd chart: %s", err)
 		}
 	}
 
@@ -121,6 +107,49 @@ func (c *AdditionalChart) RevertMainChanges(pkgFs billy.Filesystem) error {
 	return nil
 }
 
+func (c *AdditionalChart) prepareCrdChart(rootFs, pkgFs billy.Filesystem, mainChartUpstreamVersion *string) error {
+	if err := GenerateCRDChartFromTemplate(pkgFs, c.WorkingDir, filepath.Join(path.PackageTemplatesDir, c.CRDChartOptions.TemplateDirectory), c.CRDChartOptions.CRDDirectory); err != nil {
+		return fmt.Errorf("encountered error while trying to generate CRD chart from template at %s: %s", c.CRDChartOptions.TemplateDirectory, err)
+	}
+
+	c.upstreamChartVersion = mainChartUpstreamVersion
+	mainChartWorkingDir, err := c.getMainChartWorkingDir(pkgFs)
+	if err != nil {
+		return fmt.Errorf("encountered error while trying to get the main chart's working directory: %s", err)
+	}
+
+	if c.Upstream != nil {
+		logrus.Infof("pulling CRD upstream")
+		u := *c.Upstream
+		if err := u.Pull(rootFs, pkgFs, filepath.Join(c.WorkingDir, c.CRDChartOptions.CRDDirectory)); err != nil {
+			return fmt.Errorf("encountered error while trying to pull upstream into %s: %s", mainChartWorkingDir, err)
+		}
+	} else {
+		exists, err := filesystem.PathExists(pkgFs, filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
+		if err != nil {
+			return fmt.Errorf("encountered error while trying to check if %s exists: %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir), err)
+		}
+		if !exists {
+			return fmt.Errorf("unable to prepare a CRD chart since there are no CRDs at %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
+		}
+		if err := helm.CopyCRDsFromChart(pkgFs, mainChartWorkingDir, path.ChartCRDDir, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
+			return fmt.Errorf("encountered error while trying to copy CRDs from %s to %s: %s", mainChartWorkingDir, c.WorkingDir, err)
+		}
+	}
+
+	if c.CRDChartOptions.UseTarArchive {
+		if err := helm.ArchiveCRDs(pkgFs, c.WorkingDir, c.CRDChartOptions.CRDDirectory, c.WorkingDir, path.ChartExtraFileDir); err != nil {
+			return fmt.Errorf("encountered error while trying to bundle and compress CRD files from the main chart: %s", err)
+		}
+
+		if err := helm.DeleteCRDsFromChart(pkgFs, c.WorkingDir); err != nil {
+			return fmt.Errorf("encountered error while trying to delete CRDs from crd chart: %s", err)
+		}
+	}
+
+	return nil
+}
+
 // Prepare pulls in a package based on the spec to the local git repository
 func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem, mainChartUpstreamVersion *string) error {
 	if c.CRDChartOptions == nil && c.Upstream == nil {
@@ -139,33 +168,8 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem, mainChartUpstr
 		return fmt.Errorf("encountered error while trying to clean up %s before preparing: %s", c.WorkingDir, err)
 	}
 	if c.CRDChartOptions != nil {
-		if err := GenerateCRDChartFromTemplate(pkgFs, c.WorkingDir, filepath.Join(path.PackageTemplatesDir, c.CRDChartOptions.TemplateDirectory), c.CRDChartOptions.CRDDirectory); err != nil {
-			return fmt.Errorf("encountered error while trying to generate CRD chart from template at %s: %s", c.CRDChartOptions.TemplateDirectory, err)
-		}
-
-		c.upstreamChartVersion = mainChartUpstreamVersion
-		mainChartWorkingDir, err := c.getMainChartWorkingDir(pkgFs)
-		if err != nil {
-			return fmt.Errorf("encountered error while trying to get the main chart's working directory: %s", err)
-		}
-
-		if c.Upstream != nil {
-			logrus.Infof("pulling CRD upstream")
-			u := *c.Upstream
-			if err := u.Pull(rootFs, pkgFs, filepath.Join(c.WorkingDir, c.CRDChartOptions.CRDDirectory)); err != nil {
-				return fmt.Errorf("encountered error while trying to pull upstream into %s: %s", mainChartWorkingDir, err)
-			}
-		} else {
-			exists, err := filesystem.PathExists(pkgFs, filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
-			if err != nil {
-				return fmt.Errorf("encountered error while trying to check if %s exists: %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir), err)
-			}
-			if !exists {
-				return fmt.Errorf("unable to prepare a CRD chart since there are no CRDs at %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
-			}
-			if err := helm.CopyCRDsFromChart(pkgFs, mainChartWorkingDir, path.ChartCRDDir, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
-				return fmt.Errorf("encountered error while trying to copy CRDs from %s to %s: %s", mainChartWorkingDir, c.WorkingDir, err)
-			}
+		if err := c.prepareCrdChart(rootFs, pkgFs, mainChartUpstreamVersion); err != nil {
+			return fmt.Errorf("encountered error while trying to prepare CRD chart: %s", err)
 		}
 	} else {
 		u := *c.Upstream

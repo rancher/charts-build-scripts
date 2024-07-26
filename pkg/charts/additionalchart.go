@@ -53,6 +53,18 @@ func (c *AdditionalChart) ApplyMainChanges(pkgFs billy.Filesystem) error {
 			return fmt.Errorf("encountered error while trying to delete CRDs from main chart: %s", err)
 		}
 	}
+	if c.CRDChartOptions.UseTarArchive {
+		exists, err := filesystem.PathExists(pkgFs, filepath.Join(c.WorkingDir, path.ChartExtraFileDir, path.ChartCRDTgzFilename))
+		if err != nil {
+			return fmt.Errorf("encountered error while trying to check if %s exists: %s", filepath.Join(c.WorkingDir, path.ChartExtraFileDir, path.ChartCRDTgzFilename), err)
+		}
+		if exists {
+			logrus.Info("CRDs already archived, need to unarchive to apply to the main chart")
+			if err := filesystem.UnarchiveTgz(pkgFs, filepath.Join(c.WorkingDir, path.ChartExtraFileDir, path.ChartCRDTgzFilename), "crds", filepath.Join(c.WorkingDir, c.CRDChartOptions.CRDDirectory), false); err != nil {
+				return fmt.Errorf("encountered error while trying to unarchive CRD files from %s: %s", filepath.Join(c.WorkingDir, "files", path.ChartCRDTgzFilename), err)
+			}
+		}
+	}
 	if c.CRDChartOptions.AddCRDValidationToMainChart {
 		if err := AddCRDValidationToChart(pkgFs, mainChartWorkingDir, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
 			return fmt.Errorf("encountered error while trying to add CRD validation to %s based on CRDs in %s: %s", mainChartWorkingDir, c.WorkingDir, err)
@@ -67,6 +79,7 @@ func (c *AdditionalChart) ApplyMainChanges(pkgFs billy.Filesystem) error {
 			return fmt.Errorf("encountered error while trying to delete CRDs from crd chart: %s", err)
 		}
 	}
+
 	if err := helm.DeleteCRDsFromChart(pkgFs, mainChartWorkingDir); err != nil {
 		return fmt.Errorf("encountered error while trying to delete CRDs from main chart: %s", err)
 	}
@@ -139,7 +152,7 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem, mainChartUpstr
 		if c.Upstream != nil {
 			logrus.Infof("pulling CRD upstream")
 			u := *c.Upstream
-			if err := u.Pull(rootFs, pkgFs, filepath.Join(c.WorkingDir, path.ChartCRDDir)); err != nil {
+			if err := u.Pull(rootFs, pkgFs, filepath.Join(c.WorkingDir, c.CRDChartOptions.CRDDirectory)); err != nil {
 				return fmt.Errorf("encountered error while trying to pull upstream into %s: %s", mainChartWorkingDir, err)
 			}
 		} else {

@@ -12,15 +12,16 @@ import (
 // Status struct hold the results of the assets versions comparison,
 // this data will all be logged and saves into log files for further analysis
 type Status struct {
-	ld                              *Dependencies
-	assetsInLifecycleCurrentBranch  map[string][]Asset
-	assetsOutLifecycleCurrentBranch map[string][]Asset
-	assetsReleasedInLifecycle       map[string][]Asset // OK if not empty
-	assetsNotReleasedOutLifecycle   map[string][]Asset // OK if not empty
-	assetsNotReleasedInLifecycle    map[string][]Asset // WARN if not empty
-	assetsReleasedOutLifecycle      map[string][]Asset // ERROR if not empty
-	assetsToBeReleased              map[string][]Asset
-	AssetsToBeForwardPorted         map[string][]Asset
+	ld                              *Dependencies      `json:"-"`
+	StateFile                       string             `json:"state_file"`
+	AssetsInLifecycleCurrentBranch  map[string][]Asset `json:"in_lifecycle_current_branch"`
+	AssetsOutLifecycleCurrentBranch map[string][]Asset `json:"out_lifecycle_current_branch"`
+	AssetsReleasedInLifecycle       map[string][]Asset `json:"released_in_lifecycle"`      // OK if not empty
+	AssetsNotReleasedOutLifecycle   map[string][]Asset `json:"not_released_out_lifecycle"` // OK if not empty
+	AssetsNotReleasedInLifecycle    map[string][]Asset `json:"not_released_in_lifecycle"`  // WARN if not empty
+	AssetsReleasedOutLifecycle      map[string][]Asset `json:"released_out_lifecycle"`     // ERROR if not empty
+	AssetsToBeReleased              map[string][]Asset `json:"to_be_released"`
+	AssetsToBeForwardPorted         map[string][]Asset `json:"to_be_forward_ported"`
 }
 
 // getStatus will create the Status object inheriting the Dependencies object and return it after:
@@ -102,13 +103,13 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) (*Status, erro
 
 	// optional filter logs by specific chart
 	if chart != "" {
-		status.assetsInLifecycleCurrentBranch = map[string][]Asset{chart: status.assetsInLifecycleCurrentBranch[chart]}
-		status.assetsOutLifecycleCurrentBranch = map[string][]Asset{chart: status.assetsOutLifecycleCurrentBranch[chart]}
-		status.assetsReleasedInLifecycle = map[string][]Asset{chart: status.assetsReleasedInLifecycle[chart]}
-		status.assetsNotReleasedOutLifecycle = map[string][]Asset{chart: status.assetsNotReleasedOutLifecycle[chart]}
-		status.assetsNotReleasedInLifecycle = map[string][]Asset{chart: status.assetsNotReleasedInLifecycle[chart]}
-		status.assetsReleasedOutLifecycle = map[string][]Asset{chart: status.assetsReleasedOutLifecycle[chart]}
-		status.assetsToBeReleased = map[string][]Asset{chart: status.assetsToBeReleased[chart]}
+		status.AssetsInLifecycleCurrentBranch = map[string][]Asset{chart: status.AssetsInLifecycleCurrentBranch[chart]}
+		status.AssetsOutLifecycleCurrentBranch = map[string][]Asset{chart: status.AssetsOutLifecycleCurrentBranch[chart]}
+		status.AssetsReleasedInLifecycle = map[string][]Asset{chart: status.AssetsReleasedInLifecycle[chart]}
+		status.AssetsNotReleasedOutLifecycle = map[string][]Asset{chart: status.AssetsNotReleasedOutLifecycle[chart]}
+		status.AssetsNotReleasedInLifecycle = map[string][]Asset{chart: status.AssetsNotReleasedInLifecycle[chart]}
+		status.AssetsReleasedOutLifecycle = map[string][]Asset{chart: status.AssetsReleasedOutLifecycle[chart]}
+		status.AssetsToBeReleased = map[string][]Asset{chart: status.AssetsToBeReleased[chart]}
 		status.AssetsToBeForwardPorted = map[string][]Asset{chart: status.AssetsToBeForwardPorted[chart]}
 	}
 
@@ -116,41 +117,49 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) (*Status, erro
 	// Save the logs for the current branch
 	cbLogs.WriteHEAD(status.ld.VR, "Assets versions vs the lifecycle rules in the current branch")
 	cbLogs.Write("Versions INSIDE the lifecycle in the current branch", "INFO")
-	cbLogs.WriteVersions(status.assetsInLifecycleCurrentBranch, "INFO")
+	cbLogs.WriteVersions(status.AssetsInLifecycleCurrentBranch, "INFO")
 	cbLogs.Write("", "END")
 	cbLogs.Write("Versions OUTSIDE the lifecycle in the current branch", "WARN")
-	cbLogs.WriteVersions(status.assetsOutLifecycleCurrentBranch, "WARN")
+	cbLogs.WriteVersions(status.AssetsOutLifecycleCurrentBranch, "WARN")
 	cbLogs.Write("", "END")
+
 	// ##############################################################################
 	// Save the logs for the comparison between production and development branches
 	pdLogs.WriteHEAD(status.ld.VR, "Released assets vs development assets with lifecycle rules")
 	pdLogs.Write("Assets RELEASED and Inside the lifecycle", "INFO")
 	pdLogs.Write("At the production branch: "+status.ld.VR.ProdBranch, "INFO")
-	pdLogs.WriteVersions(status.assetsReleasedInLifecycle, "INFO")
+	pdLogs.WriteVersions(status.AssetsReleasedInLifecycle, "INFO")
 	pdLogs.Write("", "END")
 
 	pdLogs.Write("Assets NOT released and Out of the lifecycle", "INFO")
 	pdLogs.Write("At the development branch: "+status.ld.VR.DevBranch, "INFO")
-	pdLogs.WriteVersions(status.assetsNotReleasedOutLifecycle, "INFO")
+	pdLogs.WriteVersions(status.AssetsNotReleasedOutLifecycle, "INFO")
 	pdLogs.Write("", "END")
 
 	pdLogs.Write("Assets NOT released and Inside the lifecycle", "WARN")
 	pdLogs.Write("At the development branch: "+status.ld.VR.DevBranch, "WARN")
-	pdLogs.WriteVersions(status.assetsNotReleasedInLifecycle, "WARN")
+	pdLogs.WriteVersions(status.AssetsNotReleasedInLifecycle, "WARN")
 	pdLogs.Write("", "END")
 
 	pdLogs.Write("Assets released and Out of the lifecycle", "ERROR")
 	pdLogs.Write("At the production branch: "+status.ld.VR.ProdBranch, "ERROR")
-	pdLogs.WriteVersions(status.assetsReleasedOutLifecycle, "ERROR")
+	pdLogs.WriteVersions(status.AssetsReleasedOutLifecycle, "ERROR")
 	pdLogs.Write("", "END")
+
 	// ##############################################################################
 	// Save the logs for the separations of assets to be released and forward ported
 	rfLogs.WriteHEAD(status.ld.VR, "Assets to be released vs forward ported")
 	rfLogs.Write("Assets to be RELEASED", "INFO")
-	rfLogs.WriteVersions(status.assetsToBeReleased, "INFO")
+	rfLogs.WriteVersions(status.AssetsToBeReleased, "INFO")
 	rfLogs.Write("", "END")
 	rfLogs.Write("Assets to be FORWARD-PORTED", "INFO")
 	rfLogs.WriteVersions(status.AssetsToBeForwardPorted, "INFO")
+
+	err = status.initState()
+	if err != nil {
+		logrus.Errorf("Error while initializing the state: %s", err)
+		return status, err
+	}
 
 	return status, nil
 }
@@ -173,8 +182,8 @@ func (s *Status) listCurrentAssetsVersionsOnTheCurrentBranch() {
 		}
 	}
 
-	s.assetsInLifecycleCurrentBranch = insideLifecycle
-	s.assetsOutLifecycleCurrentBranch = outsideLifecycle
+	s.AssetsInLifecycleCurrentBranch = insideLifecycle
+	s.AssetsOutLifecycleCurrentBranch = outsideLifecycle
 
 	return
 }
@@ -283,10 +292,10 @@ func (s *Status) compareReleasedAndDevAssets(releasedAssets, developmentAssets m
 		}
 	}
 
-	s.assetsReleasedInLifecycle = releaseInLifecycle
-	s.assetsNotReleasedOutLifecycle = noReleaseOutLifecycle
-	s.assetsNotReleasedInLifecycle = noReleaseInLifecycle
-	s.assetsReleasedOutLifecycle = releasedOutLifecycle
+	s.AssetsReleasedInLifecycle = releaseInLifecycle
+	s.AssetsNotReleasedOutLifecycle = noReleaseOutLifecycle
+	s.AssetsNotReleasedInLifecycle = noReleaseInLifecycle
+	s.AssetsReleasedOutLifecycle = releasedOutLifecycle
 	return
 }
 
@@ -306,7 +315,7 @@ func (s *Status) separateReleaseFromForwardPort() error {
 	assetsToBeReleased := make(map[string][]Asset)
 	assetsToBeForwardPorted := make(map[string][]Asset)
 
-	for asset, versions := range s.assetsNotReleasedInLifecycle {
+	for asset, versions := range s.AssetsNotReleasedInLifecycle {
 		for _, version := range versions {
 			toRelease, err := s.ld.VR.CheckChartVersionToRelease(version.Version)
 			if err != nil {
@@ -324,7 +333,7 @@ func (s *Status) separateReleaseFromForwardPort() error {
 		}
 	}
 
-	s.assetsToBeReleased = assetsToBeReleased
+	s.AssetsToBeReleased = assetsToBeReleased
 	s.AssetsToBeForwardPorted = assetsToBeForwardPorted
 
 	return nil

@@ -1,12 +1,9 @@
 package lifecycle
 
 import (
-	"fmt"
-
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/sirupsen/logrus"
 )
 
 // Status struct hold the results of the assets versions comparison,
@@ -36,19 +33,13 @@ func (ld *Dependencies) getStatus() (*Status, error) {
 	status.listCurrentAssetsVersionsOnTheCurrentBranch()
 
 	// List the production and development assets versions comparisons from the default branches
-	err := status.listProdAndDevAssets()
-	if err != nil {
-		errList := fmt.Errorf("Error while comparing production and development branches: %s", err)
-		logrus.Error(errList)
-		return status, errList
+	if err := status.listProdAndDevAssets(); err != nil {
+		return status, err
 	}
 
 	// Separate the assets to be released from the assets to be forward ported after the comparison
-	err = status.separateReleaseFromForwardPort()
-	if err != nil {
-		errSeparating := fmt.Errorf("failed to separate releases from forward-ports: %v", err)
-		logrus.Error(errSeparating)
-		return status, errSeparating
+	if err := status.separateReleaseFromForwardPort(); err != nil {
+		return status, err
 	}
 
 	return status, nil
@@ -61,21 +52,18 @@ func createLogFiles(chart string) (*Logs, *Logs, *Logs, error) {
 	// current branch logs
 	cbLogs, err := CreateLogs("current-branch.log", chart)
 	if err != nil {
-		logrus.Errorf("Error while creating logs: %s", err)
 		return nil, nil, nil, err
 	}
 
 	// production and development branches logs
 	pdLogs, err := CreateLogs("production-x-development.log", chart)
 	if err != nil {
-		logrus.Errorf("Error while creating logs: %s", err)
 		return nil, nil, nil, err
 	}
 
 	// released and forward ported logs
 	rfLogs, err := CreateLogs("released-x-forward-ported.log", chart)
 	if err != nil {
-		logrus.Errorf("Error while creating logs: %s", err)
 		return nil, nil, nil, err
 	}
 
@@ -89,7 +77,6 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) (*Status, erro
 	// Get the status of the assets versions
 	status, err := ld.getStatus()
 	if err != nil {
-		logrus.Errorf("Error while getting the status: %s", err)
 		return nil, err
 	}
 	// Create the logs infrastructure in the filesystem and close them once the function ends
@@ -155,9 +142,7 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) (*Status, erro
 	rfLogs.Write("Assets to be FORWARD-PORTED", "INFO")
 	rfLogs.WriteVersions(status.AssetsToBeForwardPorted, "INFO")
 
-	err = status.initState()
-	if err != nil {
-		logrus.Errorf("Error while initializing the state: %s", err)
+	if err := status.initState(); err != nil {
 		return status, err
 	}
 
@@ -205,13 +190,11 @@ func (s *Status) listProdAndDevAssets() error {
 	// Fetch, checkout and map assets versions in the production and development branches
 	releasedAssets, devAssets, err := s.getProdAndDevAssetsFromGit(git)
 	if err != nil {
-		logrus.Errorf("Error while getting assets from production and development branches: %s", err)
 		return err
 	}
 
 	// Compare the assets versions between the production and development branches
 	s.compareReleasedAndDevAssets(releasedAssets, devAssets)
-	logrus.Info("Comparison ended and logs saved in the logs directory")
 
 	return git.CheckoutBranch(oldCurrentBranch)
 }
@@ -226,30 +209,27 @@ func (s *Status) getProdAndDevAssetsFromGit(git *git.Git) (map[string][]Asset, m
 	// Fetch and checkout to the production branch
 	err := git.FetchAndCheckoutBranch(s.ld.VR.ProdBranch)
 	if err != nil {
-		logrus.Errorf("Error while fetching and checking out the production branch at: %s", err)
 		return nil, nil, err
 	}
 
 	// Get the map for the released assets versions on the production branch
 	releasedAssets, err := getAssetsMapFromIndex(helmIndexPath, "", false)
 	if err != nil {
-		logrus.Errorf("Error while getting assets map from index: %s", err)
 		return nil, nil, err
 	}
 
 	// Fetch and checkout to the development branch
 	err = git.FetchAndCheckoutBranch(s.ld.VR.DevBranch)
 	if err != nil {
-		logrus.Errorf("Error while fetching and checking out the development branch at: %s", err)
 		return nil, nil, err
 	}
 
 	// Get the map for the development assets versions on the development branch
 	devAssets, err := getAssetsMapFromIndex(helmIndexPath, "", false)
 	if err != nil {
-		logrus.Errorf("Error while getting assets map from index: %s", err)
 		return nil, nil, err
 	}
+
 	return releasedAssets, devAssets, nil
 }
 
@@ -269,7 +249,6 @@ func (s *Status) compareReleasedAndDevAssets(releasedAssets, developmentAssets m
 	**/
 
 	for devAsset, devVersions := range developmentAssets {
-
 		// released assets versions to compare with
 		releasedVersions := releasedAssets[devAsset]
 

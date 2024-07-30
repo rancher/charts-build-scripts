@@ -1,27 +1,24 @@
 package lifecycle
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/sirupsen/logrus"
 )
 
 // Status struct hold the results of the assets versions comparison,
 // this data will all be logged and saves into log files for further analysis
 type Status struct {
-	ld                              *Dependencies
-	assetsInLifecycleCurrentBranch  map[string][]Asset
-	assetsOutLifecycleCurrentBranch map[string][]Asset
-	assetsReleasedInLifecycle       map[string][]Asset // OK if not empty
-	assetsNotReleasedOutLifecycle   map[string][]Asset // OK if not empty
-	assetsNotReleasedInLifecycle    map[string][]Asset // WARN if not empty
-	assetsReleasedOutLifecycle      map[string][]Asset // ERROR if not empty
-	assetsToBeReleased              map[string][]Asset
-	AssetsToBeForwardPorted         map[string][]Asset
+	ld                              *Dependencies      `json:"-"`
+	StateFile                       string             `json:"state_file"`
+	AssetsInLifecycleCurrentBranch  map[string][]Asset `json:"in_lifecycle_current_branch"`
+	AssetsOutLifecycleCurrentBranch map[string][]Asset `json:"out_lifecycle_current_branch"`
+	AssetsReleasedInLifecycle       map[string][]Asset `json:"released_in_lifecycle"`      // OK if not empty
+	AssetsNotReleasedOutLifecycle   map[string][]Asset `json:"not_released_out_lifecycle"` // OK if not empty
+	AssetsNotReleasedInLifecycle    map[string][]Asset `json:"not_released_in_lifecycle"`  // WARN if not empty
+	AssetsReleasedOutLifecycle      map[string][]Asset `json:"released_out_lifecycle"`     // ERROR if not empty
+	AssetsToBeReleased              map[string][]Asset `json:"to_be_released"`
+	AssetsToBeForwardPorted         map[string][]Asset `json:"to_be_forward_ported"`
 }
 
 // getStatus will create the Status object inheriting the Dependencies object and return it after:
@@ -36,19 +33,13 @@ func (ld *Dependencies) getStatus() (*Status, error) {
 	status.listCurrentAssetsVersionsOnTheCurrentBranch()
 
 	// List the production and development assets versions comparisons from the default branches
-	err := status.listProdAndDevAssets()
-	if err != nil {
-		errList := fmt.Errorf("Error while comparing production and development branches: %s", err)
-		logrus.Error(errList)
-		return status, errList
+	if err := status.listProdAndDevAssets(); err != nil {
+		return status, err
 	}
 
 	// Separate the assets to be released from the assets to be forward ported after the comparison
-	err = status.separateReleaseFromForwardPort()
-	if err != nil {
-		errSeparating := fmt.Errorf("failed to separate releases from forward-ports: %v", err)
-		logrus.Error(errSeparating)
-		return status, errSeparating
+	if err := status.separateReleaseFromForwardPort(); err != nil {
+		return status, err
 	}
 
 	return status, nil
@@ -61,21 +52,18 @@ func createLogFiles(chart string) (*Logs, *Logs, *Logs, error) {
 	// current branch logs
 	cbLogs, err := CreateLogs("current-branch.log", chart)
 	if err != nil {
-		logrus.Errorf("Error while creating logs: %s", err)
 		return nil, nil, nil, err
 	}
 
 	// production and development branches logs
 	pdLogs, err := CreateLogs("production-x-development.log", chart)
 	if err != nil {
-		logrus.Errorf("Error while creating logs: %s", err)
 		return nil, nil, nil, err
 	}
 
 	// released and forward ported logs
 	rfLogs, err := CreateLogs("released-x-forward-ported.log", chart)
 	if err != nil {
-		logrus.Errorf("Error while creating logs: %s", err)
 		return nil, nil, nil, err
 	}
 
@@ -89,7 +77,6 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) (*Status, erro
 	// Get the status of the assets versions
 	status, err := ld.getStatus()
 	if err != nil {
-		logrus.Errorf("Error while getting the status: %s", err)
 		return nil, err
 	}
 	// Create the logs infrastructure in the filesystem and close them once the function ends
@@ -103,13 +90,13 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) (*Status, erro
 
 	// optional filter logs by specific chart
 	if chart != "" {
-		status.assetsInLifecycleCurrentBranch = map[string][]Asset{chart: status.assetsInLifecycleCurrentBranch[chart]}
-		status.assetsOutLifecycleCurrentBranch = map[string][]Asset{chart: status.assetsOutLifecycleCurrentBranch[chart]}
-		status.assetsReleasedInLifecycle = map[string][]Asset{chart: status.assetsReleasedInLifecycle[chart]}
-		status.assetsNotReleasedOutLifecycle = map[string][]Asset{chart: status.assetsNotReleasedOutLifecycle[chart]}
-		status.assetsNotReleasedInLifecycle = map[string][]Asset{chart: status.assetsNotReleasedInLifecycle[chart]}
-		status.assetsReleasedOutLifecycle = map[string][]Asset{chart: status.assetsReleasedOutLifecycle[chart]}
-		status.assetsToBeReleased = map[string][]Asset{chart: status.assetsToBeReleased[chart]}
+		status.AssetsInLifecycleCurrentBranch = map[string][]Asset{chart: status.AssetsInLifecycleCurrentBranch[chart]}
+		status.AssetsOutLifecycleCurrentBranch = map[string][]Asset{chart: status.AssetsOutLifecycleCurrentBranch[chart]}
+		status.AssetsReleasedInLifecycle = map[string][]Asset{chart: status.AssetsReleasedInLifecycle[chart]}
+		status.AssetsNotReleasedOutLifecycle = map[string][]Asset{chart: status.AssetsNotReleasedOutLifecycle[chart]}
+		status.AssetsNotReleasedInLifecycle = map[string][]Asset{chart: status.AssetsNotReleasedInLifecycle[chart]}
+		status.AssetsReleasedOutLifecycle = map[string][]Asset{chart: status.AssetsReleasedOutLifecycle[chart]}
+		status.AssetsToBeReleased = map[string][]Asset{chart: status.AssetsToBeReleased[chart]}
 		status.AssetsToBeForwardPorted = map[string][]Asset{chart: status.AssetsToBeForwardPorted[chart]}
 	}
 
@@ -117,41 +104,47 @@ func (ld *Dependencies) CheckLifecycleStatusAndSave(chart string) (*Status, erro
 	// Save the logs for the current branch
 	cbLogs.WriteHEAD(status.ld.VR, "Assets versions vs the lifecycle rules in the current branch")
 	cbLogs.Write("Versions INSIDE the lifecycle in the current branch", "INFO")
-	cbLogs.WriteVersions(status.assetsInLifecycleCurrentBranch, "INFO")
+	cbLogs.WriteVersions(status.AssetsInLifecycleCurrentBranch, "INFO")
 	cbLogs.Write("", "END")
 	cbLogs.Write("Versions OUTSIDE the lifecycle in the current branch", "WARN")
-	cbLogs.WriteVersions(status.assetsOutLifecycleCurrentBranch, "WARN")
+	cbLogs.WriteVersions(status.AssetsOutLifecycleCurrentBranch, "WARN")
 	cbLogs.Write("", "END")
+
 	// ##############################################################################
 	// Save the logs for the comparison between production and development branches
 	pdLogs.WriteHEAD(status.ld.VR, "Released assets vs development assets with lifecycle rules")
 	pdLogs.Write("Assets RELEASED and Inside the lifecycle", "INFO")
 	pdLogs.Write("At the production branch: "+status.ld.VR.ProdBranch, "INFO")
-	pdLogs.WriteVersions(status.assetsReleasedInLifecycle, "INFO")
+	pdLogs.WriteVersions(status.AssetsReleasedInLifecycle, "INFO")
 	pdLogs.Write("", "END")
 
 	pdLogs.Write("Assets NOT released and Out of the lifecycle", "INFO")
 	pdLogs.Write("At the development branch: "+status.ld.VR.DevBranch, "INFO")
-	pdLogs.WriteVersions(status.assetsNotReleasedOutLifecycle, "INFO")
+	pdLogs.WriteVersions(status.AssetsNotReleasedOutLifecycle, "INFO")
 	pdLogs.Write("", "END")
 
 	pdLogs.Write("Assets NOT released and Inside the lifecycle", "WARN")
 	pdLogs.Write("At the development branch: "+status.ld.VR.DevBranch, "WARN")
-	pdLogs.WriteVersions(status.assetsNotReleasedInLifecycle, "WARN")
+	pdLogs.WriteVersions(status.AssetsNotReleasedInLifecycle, "WARN")
 	pdLogs.Write("", "END")
 
 	pdLogs.Write("Assets released and Out of the lifecycle", "ERROR")
 	pdLogs.Write("At the production branch: "+status.ld.VR.ProdBranch, "ERROR")
-	pdLogs.WriteVersions(status.assetsReleasedOutLifecycle, "ERROR")
+	pdLogs.WriteVersions(status.AssetsReleasedOutLifecycle, "ERROR")
 	pdLogs.Write("", "END")
+
 	// ##############################################################################
 	// Save the logs for the separations of assets to be released and forward ported
 	rfLogs.WriteHEAD(status.ld.VR, "Assets to be released vs forward ported")
 	rfLogs.Write("Assets to be RELEASED", "INFO")
-	rfLogs.WriteVersions(status.assetsToBeReleased, "INFO")
+	rfLogs.WriteVersions(status.AssetsToBeReleased, "INFO")
 	rfLogs.Write("", "END")
 	rfLogs.Write("Assets to be FORWARD-PORTED", "INFO")
 	rfLogs.WriteVersions(status.AssetsToBeForwardPorted, "INFO")
+
+	if err := status.initState(); err != nil {
+		return status, err
+	}
 
 	return status, nil
 }
@@ -174,8 +167,8 @@ func (s *Status) listCurrentAssetsVersionsOnTheCurrentBranch() {
 		}
 	}
 
-	s.assetsInLifecycleCurrentBranch = insideLifecycle
-	s.assetsOutLifecycleCurrentBranch = outsideLifecycle
+	s.AssetsInLifecycleCurrentBranch = insideLifecycle
+	s.AssetsOutLifecycleCurrentBranch = outsideLifecycle
 
 	return
 }
@@ -185,109 +178,58 @@ func (s *Status) listCurrentAssetsVersionsOnTheCurrentBranch() {
 // get the assets versions from the index.yaml file and compare the assets versions,
 // separating into 4 different maps for further analysis.
 func (s *Status) listProdAndDevAssets() error {
-	// Create and destroy a temporary directory structure
-	defaultWorkingDir, tempDir, err := createTemporaryDirStructure()
-	if err != nil {
-		logrus.Errorf("Error while creating temporary dir structure: %s", err)
-		return err
-	}
-	defer destroyTemporaryDirStructure(defaultWorkingDir, tempDir)
 
-	// Clone the repository at the temporary directory
-	git, err := git.CloneAtDir("https://github.com/rancher/charts", tempDir)
+	// Open current charts git repository
+	git, err := git.OpenGitRepo(s.ld.Git.Dir)
 	if err != nil {
 		return err
 	}
+
+	oldCurrentBranch := git.Branch
 
 	// Fetch, checkout and map assets versions in the production and development branches
-	releasedAssets, devAssets, err := s.getProdAndDevAssetsFromGit(git, tempDir)
+	releasedAssets, devAssets, err := s.getProdAndDevAssetsFromGit(git)
 	if err != nil {
-		logrus.Errorf("Error while getting assets from production and development branches: %s", err)
 		return err
 	}
 
 	// Compare the assets versions between the production and development branches
 	s.compareReleasedAndDevAssets(releasedAssets, devAssets)
-	logrus.Info("Comparison ended and logs saved in the logs directory")
-	return nil
-}
 
-// createTemporaryDirStructure creates a temporary directory structure and changes the working directory to it returning the path for both folders.
-func createTemporaryDirStructure() (string, string, error) {
-	// Save the current working directory for changing back to it later
-	defaultWorkingDir, err := os.Getwd()
-	if err != nil {
-		logrus.Errorf("Error while getting the current working directory: %s", err)
-		return "", "", err
-	}
-
-	// Create the temporary directory
-	tempDir, err := os.MkdirTemp("", "temporaryDir")
-	if err != nil {
-		return "", "", err
-	}
-
-	// change the workind directory to the temporary one
-	err = os.Chdir(tempDir)
-	if err != nil {
-		logrus.Errorf("Error while changing working directory to temporary directory: %v", err)
-		return defaultWorkingDir, tempDir, err
-	}
-	return defaultWorkingDir, tempDir, nil
-}
-
-// destroyTemporaryDirStructure destroys the temporary directory and changes the working directory back to the default one.
-func destroyTemporaryDirStructure(defaultWorkingDir, tempDir string) error {
-	// Change the directory back to the default working directory
-	err := os.Chdir(defaultWorkingDir)
-	if err != nil {
-		logrus.Errorf("Error while changing back to default working directory: %v", err)
-		return err
-	}
-
-	// Remove the temporary directory
-	err = os.RemoveAll(tempDir)
-	if err != nil {
-		logrus.Errorf("Error while removing temporary directory: %v", err)
-		return err
-	}
-	return nil
+	return git.CheckoutBranch(oldCurrentBranch)
 }
 
 // getProdAndDevAssetsFromGit will fetch and checkout the production and development branches,
 // get the assets versions from the index.yaml file and return the maps for the assets versions.
-func (s *Status) getProdAndDevAssetsFromGit(git *git.Git, tempDir string) (map[string][]Asset, map[string][]Asset, error) {
+func (s *Status) getProdAndDevAssetsFromGit(git *git.Git) (map[string][]Asset, map[string][]Asset, error) {
 	// get filesystem and index file at the temporary directory
-	tempDirRootFs := filesystem.GetFilesystem(tempDir)
-	tempHelmIndexPath := filesystem.GetAbsPath(tempDirRootFs, path.RepositoryHelmIndexFile)
+	rootFs := filesystem.GetFilesystem(s.ld.Git.Dir)
+	helmIndexPath := filesystem.GetAbsPath(rootFs, path.RepositoryHelmIndexFile)
 
 	// Fetch and checkout to the production branch
 	err := git.FetchAndCheckoutBranch(s.ld.VR.ProdBranch)
 	if err != nil {
-		logrus.Errorf("Error while fetching and checking out the production branch at: %s", err)
 		return nil, nil, err
 	}
 
 	// Get the map for the released assets versions on the production branch
-	releasedAssets, err := getAssetsMapFromIndex(tempHelmIndexPath, "", false)
+	releasedAssets, err := getAssetsMapFromIndex(helmIndexPath, "", false)
 	if err != nil {
-		logrus.Errorf("Error while getting assets map from index: %s", err)
 		return nil, nil, err
 	}
 
 	// Fetch and checkout to the development branch
 	err = git.FetchAndCheckoutBranch(s.ld.VR.DevBranch)
 	if err != nil {
-		logrus.Errorf("Error while fetching and checking out the development branch at: %s", err)
 		return nil, nil, err
 	}
 
 	// Get the map for the development assets versions on the development branch
-	devAssets, err := getAssetsMapFromIndex(tempHelmIndexPath, "", false)
+	devAssets, err := getAssetsMapFromIndex(helmIndexPath, "", false)
 	if err != nil {
-		logrus.Errorf("Error while getting assets map from index: %s", err)
 		return nil, nil, err
 	}
+
 	return releasedAssets, devAssets, nil
 }
 
@@ -307,7 +249,6 @@ func (s *Status) compareReleasedAndDevAssets(releasedAssets, developmentAssets m
 	**/
 
 	for devAsset, devVersions := range developmentAssets {
-
 		// released assets versions to compare with
 		releasedVersions := releasedAssets[devAsset]
 
@@ -330,10 +271,10 @@ func (s *Status) compareReleasedAndDevAssets(releasedAssets, developmentAssets m
 		}
 	}
 
-	s.assetsReleasedInLifecycle = releaseInLifecycle
-	s.assetsNotReleasedOutLifecycle = noReleaseOutLifecycle
-	s.assetsNotReleasedInLifecycle = noReleaseInLifecycle
-	s.assetsReleasedOutLifecycle = releasedOutLifecycle
+	s.AssetsReleasedInLifecycle = releaseInLifecycle
+	s.AssetsNotReleasedOutLifecycle = noReleaseOutLifecycle
+	s.AssetsNotReleasedInLifecycle = noReleaseInLifecycle
+	s.AssetsReleasedOutLifecycle = releasedOutLifecycle
 	return
 }
 
@@ -353,7 +294,7 @@ func (s *Status) separateReleaseFromForwardPort() error {
 	assetsToBeReleased := make(map[string][]Asset)
 	assetsToBeForwardPorted := make(map[string][]Asset)
 
-	for asset, versions := range s.assetsNotReleasedInLifecycle {
+	for asset, versions := range s.AssetsNotReleasedInLifecycle {
 		for _, version := range versions {
 			toRelease, err := s.ld.VR.CheckChartVersionToRelease(version.Version)
 			if err != nil {
@@ -371,7 +312,7 @@ func (s *Status) separateReleaseFromForwardPort() error {
 		}
 	}
 
-	s.assetsToBeReleased = assetsToBeReleased
+	s.AssetsToBeReleased = assetsToBeReleased
 	s.AssetsToBeForwardPorted = assetsToBeForwardPorted
 
 	return nil

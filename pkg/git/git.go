@@ -145,7 +145,10 @@ func (g *Git) FetchAndCheckoutBranch(branch string) error {
 
 // FetchBranch fetches a branch
 func (g *Git) FetchBranch(branch string) error {
-	cmd := exec.Command("git", "-C", g.Dir, "fetch", "origin", branch+":"+branch)
+
+	remote := g.Remotes["https://github.com/rancher/charts"]
+
+	cmd := exec.Command("git", "-C", g.Dir, "fetch", remote, branch+":"+branch)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

@@ -711,3 +711,46 @@ func autoForwardPort(c *cli.Context) {
 	}
 
 }
+
+func release(c *cli.Context) {
+	if ForkURL == "" {
+		logrus.Fatal("FORK environment variable must be set to run release cmd")
+	}
+
+	if CurrentChart == "" {
+		logrus.Fatal("CHART environment variable must be set to run release cmd")
+	}
+
+	rootFs := filesystem.GetFilesystem(getRepoRoot())
+
+	dependencies, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, false)
+	if err != nil {
+		logrus.Fatalf("encountered error while initializing dependencies: %v", err)
+	}
+
+	status, err := lifecycle.LoadState(rootFs)
+	if err != nil {
+		logrus.Fatalf("could not load state; please run lifecycle-status before this command: %v", err)
+	}
+
+	release, err := auto.InitRelease(dependencies, status, ChartVersion, CurrentChart, ForkURL)
+	if err != nil {
+		logrus.Fatalf("failed to initialize release: %v", err)
+	}
+
+	if err := release.PullAsset(); err != nil {
+		logrus.Fatalf("failed to execute release: %v", err)
+	}
+
+	// Unzip Assets: ASSET=<chart>/<chart>-<version.tgz make unzip
+	CurrentAsset = release.Chart + "/" + release.AssetTgz
+	unzipAssets(c)
+
+	// update release.yaml
+	if err := release.UpdateReleaseYaml(); err != nil {
+		logrus.Fatalf("failed to update release.yaml: %v", err)
+	}
+
+	// make index
+	createOrUpdateIndex(c)
+}

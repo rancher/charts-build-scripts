@@ -170,6 +170,20 @@ func (g *Git) CheckoutBranch(branch string) error {
 	return nil
 }
 
+// CheckoutFile checks out a file in a branch
+// ex: git checkout <remote>/<branch> -- <file>
+func (g *Git) CheckoutFile(branch, file string) error {
+	upstreamRemote := g.Remotes["https://github.com/rancher/charts"]
+	targetBranch := upstreamRemote + "/" + branch
+
+	cmd := exec.Command("git", "-C", g.Dir, "checkout", targetBranch, "--", file)
+	if err := cmd.Run(); err != nil {
+		return err // Return the error if the file does not exist or any other git error occurs
+	}
+
+	return nil
+}
+
 // CreateAndCheckoutBranch creates and checks out to a given branch.
 // Equivalent to: git checkout -b <branch>
 func (g *Git) CreateAndCheckoutBranch(branch string) error {
@@ -180,6 +194,7 @@ func (g *Git) CreateAndCheckoutBranch(branch string) error {
 		logrus.Errorf("error while creating and checking out branch: %s; err: %v", branch, err)
 		return fmt.Errorf("error while creating and checking out branch: %s", err)
 	}
+
 	return nil
 }
 
@@ -260,6 +275,29 @@ func (g *Git) DeleteBranch(branch string) error {
 	if err := cmd.Run(); err != nil {
 		logrus.Errorf("error while deleting branch: %s; err: %v", g.Branch, err)
 		return fmt.Errorf("error while deleting branch: %s", err)
+	}
+	return nil
+}
+
+// CheckFileExists checks if a file exists in the git repository for a specific branch
+func (g *Git) CheckFileExists(file, branch string) error {
+	upstreamRemote := g.Remotes["https://github.com/rancher/charts"]
+	target := upstreamRemote + "/" + branch + ":" + file
+
+	// Corrected command to only include the necessary arguments
+	cmd := exec.Command("git", "-C", g.Dir, "cat-file", "-e", target)
+	if err := cmd.Run(); err != nil {
+		return err // Return the error if the file does not exist or any other git error occurs
+	}
+	return nil // Return nil if the file exists
+}
+
+// ResetHEAD resets the HEAD of the git repository
+// ex: git reset HEAD
+func (g *Git) ResetHEAD() error {
+	cmd := exec.Command("git", "-C", g.Dir, "reset", "HEAD")
+	if err := cmd.Run(); err != nil {
+		return err
 	}
 	return nil
 }

@@ -73,7 +73,7 @@ func (s *Status) checkStateFileExist() (bool, error) {
 
 // createStateFile will create a new state file at the charts repo
 func (s *Status) createStateFile() error {
-	stateFilePath := filesystem.GetAbsPath(s.ld.rootFs, path.RepositoryStateFile)
+	stateFilePath := filesystem.GetAbsPath(s.ld.RootFs, path.RepositoryStateFile)
 
 	if _, err := os.Create(stateFilePath); err != nil {
 		return err

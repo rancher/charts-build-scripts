@@ -38,8 +38,8 @@ func InitRelease(d *lifecycle.Dependencies, s *lifecycle.Status, v, c, f string)
 		ForkRemoteURL: f,
 	}
 
-	var assetVersions []lifecycle.Asset = make([]lifecycle.Asset, 0)
 	var ok bool
+	var assetVersions []lifecycle.Asset
 
 	assetVersions, ok = s.AssetsToBeReleased[r.Chart]
 	if !ok {

@@ -46,6 +46,8 @@ const (
 	defaultBranchVersionEnvironmentVariable = "BRANCH_VERSION"
 	// defaultForkEnvironmentVariable is the default environment variable that indicates the fork URL
 	defaultForkEnvironmentVariable = "FORK"
+	// defaultChartVersionEnvironmentVariable is the default environment variable that indicates the version to release
+	defaultChartVersionEnvironmentVariable = ""
 )
 
 var (
@@ -76,6 +78,8 @@ var (
 	DebugMode = false
 	// ForkURL represents the fork URL configured as a remote in your local git repository
 	ForkURL = ""
+	// ChartVersion of the chart to release
+	ChartVersion = ""
 )
 
 func main() {
@@ -170,6 +174,18 @@ func main() {
 		Required:    true,
 		Destination: &ForkURL,
 		EnvVar:      defaultForkEnvironmentVariable,
+	}
+	chartVersionFlag := cli.StringFlag{
+		Name: "version",
+		Usage: `Usage:
+			./bin/charts-build-scripts <command> --version="<chart_version>"
+			VERSION="<chart_version>" make <command>
+
+		Target version of chart to release.
+		`,
+		Required:    true,
+		Destination: &ChartVersion,
+		EnvVar:      defaultChartVersionEnvironmentVariable,
 	}
 	app.Commands = []cli.Command{
 		{
@@ -318,6 +334,13 @@ func main() {
 			`,
 			Action: autoForwardPort,
 			Flags:  []cli.Flag{branchVersionFlag, chartFlag, forkFlag},
+		},
+		{
+			Name: "release",
+			Usage: `Execute the release script to release a chart to the production branch.
+			`,
+			Action: release,
+			Flags:  []cli.Flag{branchVersionFlag, chartFlag, chartVersionFlag, forkFlag},
 		},
 	}
 

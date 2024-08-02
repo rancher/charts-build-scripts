@@ -283,21 +283,11 @@ func (g *Git) DeleteBranch(branch string) error {
 func (g *Git) CheckFileExists(file, branch string) error {
 	upstreamRemote := g.Remotes["https://github.com/rancher/charts"]
 	target := upstreamRemote + "/" + branch + ":" + file
-
-	// Corrected command to only include the necessary arguments
-	cmd := exec.Command("git", "-C", g.Dir, "cat-file", "-e", target)
-	if err := cmd.Run(); err != nil {
-		return err // Return the error if the file does not exist or any other git error occurs
-	}
-	return nil // Return nil if the file exists
+	return exec.Command("git", "-C", g.Dir, "cat-file", "-e", target).Run()
 }
 
 // ResetHEAD resets the HEAD of the git repository
 // ex: git reset HEAD
 func (g *Git) ResetHEAD() error {
-	cmd := exec.Command("git", "-C", g.Dir, "reset", "HEAD")
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
+	return exec.Command("git", "-C", g.Dir, "reset", "HEAD").Run()
 }

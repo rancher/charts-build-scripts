@@ -145,17 +145,12 @@ func (g *Git) FetchAndCheckoutBranch(branch string) error {
 
 // FetchBranch fetches a branch
 func (g *Git) FetchBranch(branch string) error {
-
 	remote := g.Remotes["https://github.com/rancher/charts"]
 
 	cmd := exec.Command("git", "-C", g.Dir, "fetch", remote, branch+":"+branch)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		logrus.Errorf("error while fetching branch: %s; err: %v", branch, err)
-		return fmt.Errorf("error while fetching branch: %s", err)
-	}
-	return nil
+	return cmd.Run()
 }
 
 // CheckoutBranch checks out a branch
@@ -163,11 +158,7 @@ func (g *Git) CheckoutBranch(branch string) error {
 	cmd := exec.Command("git", "-C", g.Dir, "checkout", branch)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		logrus.Errorf("error while checking out branch: %s; err: %v", branch, err)
-		return fmt.Errorf("error while checking out branch: %s", err)
-	}
-	return nil
+	return cmd.Run()
 }
 
 // CheckoutFile checks out a file in a branch
@@ -175,13 +166,10 @@ func (g *Git) CheckoutBranch(branch string) error {
 func (g *Git) CheckoutFile(branch, file string) error {
 	upstreamRemote := g.Remotes["https://github.com/rancher/charts"]
 	targetBranch := upstreamRemote + "/" + branch
-
 	cmd := exec.Command("git", "-C", g.Dir, "checkout", targetBranch, "--", file)
-	if err := cmd.Run(); err != nil {
-		return err // Return the error if the file does not exist or any other git error occurs
-	}
-
-	return nil
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 // CreateAndCheckoutBranch creates and checks out to a given branch.
@@ -190,12 +178,7 @@ func (g *Git) CreateAndCheckoutBranch(branch string) error {
 	cmd := exec.Command("git", "-C", g.Dir, "checkout", "-b", branch)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		logrus.Errorf("error while creating and checking out branch: %s; err: %v", branch, err)
-		return fmt.Errorf("error while creating and checking out branch: %s", err)
-	}
-
-	return nil
+	return cmd.Run()
 }
 
 // IsClean checks if the git repository is clean and,
@@ -237,22 +220,12 @@ func (g *Git) StatusProcelain(debug bool) (bool, error) {
 // equivalent to: git add -A && git commit -m message
 func (g *Git) AddAndCommit(message string) error {
 	// Stage all changes, including deletions
-	cmd := exec.Command("git", "-C", g.Dir, "add", "-A")
-	if err := cmd.Run(); err != nil {
-		errAdd := fmt.Errorf("error while adding changes: %w", err)
-		logrus.Error(errAdd)
-		return errAdd
+	if err := exec.Command("git", "-C", g.Dir, "add", "-A").Run(); err != nil {
+		return err
 	}
 
 	// Commit the staged changes
-	cmd = exec.Command("git", "commit", "-m", message)
-	if err := cmd.Run(); err != nil {
-		errCommit := fmt.Errorf("error while committing changes: %w", err)
-		logrus.Error(errCommit)
-		return errCommit
-	}
-
-	return nil
+	return exec.Command("git", "commit", "-m", message).Run()
 }
 
 // PushBranch pushes the current branch to a given remote name
@@ -260,23 +233,12 @@ func (g *Git) PushBranch(remote, branch string) error {
 	cmd := exec.Command("git", "-C", g.Dir, "push", remote, branch)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		logrus.Errorf("error while pushing branch: %s; err: %v", branch, err)
-		return fmt.Errorf("error while pushing branch: %s", err)
-	}
-	return nil
+	return cmd.Run()
 }
 
 // DeleteBranch deletes the given branch
 func (g *Git) DeleteBranch(branch string) error {
-	cmd := exec.Command("git", "-C", g.Dir, "branch", "-D", branch)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		logrus.Errorf("error while deleting branch: %s; err: %v", g.Branch, err)
-		return fmt.Errorf("error while deleting branch: %s", err)
-	}
-	return nil
+	return exec.Command("git", "-C", g.Dir, "branch", "-D", branch).Run()
 }
 
 // CheckFileExists checks if a file exists in the git repository for a specific branch

@@ -147,7 +147,7 @@ func (r *Release) UpdateReleaseYaml() error {
 	defer outputFile.Close()
 
 	encoder := yaml.NewEncoder(outputFile)
-	encoder.SetIndent(2) // Assuming you want to set a specific indentation
+	encoder.SetIndent(2)
 	if err := encoder.Encode(releaseVersions); err != nil {
 		return err
 	}

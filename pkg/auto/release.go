@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // Release holds necessary metadata to release a chart version
@@ -24,9 +25,6 @@ type Release struct {
 	ReleaseYamlPath string
 	ForkRemoteURL   string
 }
-
-// ReleaseVersions represents the versions within the release.yaml file
-type ReleaseVersions map[string][]string
 
 // InitRelease will create the Release struct with access to the necessary dependencies.
 func InitRelease(d *lifecycle.Dependencies, s *lifecycle.Status, v, c, f string) (*Release, error) {
@@ -63,8 +61,8 @@ func InitRelease(d *lifecycle.Dependencies, s *lifecycle.Status, v, c, f string)
 	r.AssetPath, r.AssetTgz = mountAssetVersionPath(r.Chart, assetVersion)
 
 	// Check again if the asset was already released in the local repository
-	if exist := checkAssetReleased(r.AssetPath); exist {
-		return nil, errors.New("asset already released for chart:" + r.Chart + " version:" + r.ChartVersion)
+	if err := checkAssetReleased(r.AssetPath); err != nil {
+		return nil, fmt.Errorf("failed to check for chart:%s ; err: %w", r.Chart, err)
 	}
 
 	// Check if we have a release.yaml file in the expected path

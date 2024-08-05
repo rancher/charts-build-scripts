@@ -89,38 +89,50 @@ func (r *Release) PullAsset() error {
 		return err
 	}
 
-	if err := r.git.ResetHEAD(); err != nil {
+	return r.git.ResetHEAD()
+}
+
+func checkAssetReleased(chartVersion string) error {
+	if _, err := os.Stat(chartVersion); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func checkAssetReleased(chartVersion string) bool {
-	if _, err := os.Stat(chartVersion); err != nil {
-		return false
-	}
-
-	return true
+// mountAssetVersionPath returns the asset path and asset tgz name for a given chart and version.
+// example: assets/longhorn/longhorn-100.0.0+up0.0.0.tgz
+func mountAssetVersionPath(chart, version string) (string, string) {
+	assetTgz := chart + "-" + version + ".tgz"
+	assetPath := "assets/" + chart + "/" + assetTgz
+	return assetPath, assetTgz
 }
 
-func mountAssetVersionPath(chart, version string) (assetPath string, assetTgz string) {
-	// example: assets/longhorn/longhorn-100.0.0+up0.0.0.tgz
-	assetTgz = chart + "-" + version + ".tgz"
-	assetPath = "assets/" + chart + "/" + assetTgz
-	return
+func (r *Release) readReleaseYaml() (map[string][]string, error) {
+	var releaseVersions = make(map[string][]string, 0)
+
+	file, err := os.Open(r.ReleaseYamlPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	decoder := yaml.NewDecoder(file)
+	if err := decoder.Decode(&releaseVersions); err != nil {
+		if err == io.EOF {
+			// Handle EOF error gracefully
+			return releaseVersions, nil
+		}
+		return nil, err
+	}
+
+	return releaseVersions, nil
 }
 
 // UpdateReleaseYaml reads and parse the release.yaml file to a struct, appends the new version and writes it back to the file.
 func (r *Release) UpdateReleaseYaml() error {
-	var releaseVersions ReleaseVersions
-
-	rvBytes, err := os.ReadFile(r.ReleaseYamlPath)
+	releaseVersions, err := r.readReleaseYaml()
 	if err != nil {
-		return err
-	}
-
-	if err := yaml.Unmarshal(rvBytes, &releaseVersions); err != nil {
 		return err
 	}
 
@@ -128,17 +140,16 @@ func (r *Release) UpdateReleaseYaml() error {
 	releaseVersions[r.Chart] = append(releaseVersions[r.Chart], r.ChartVersion)
 	releaseVersions[r.Chart] = removeDuplicates(releaseVersions[r.Chart])
 
-	// Marshal the updated releaseVersions back to YAML
-	updatedYAML, err := yaml.Marshal(releaseVersions)
+	// Since we opened and read the file before we can truncate it.
+	outputFile, err := os.Create(r.ReleaseYamlPath)
 	if err != nil {
 		return err
 	}
+	defer outputFile.Close()
 
-	// Post-process YAML to adjust indentation for list items
-	updatedYAMLIndented := enforceYamlStandard(updatedYAML)
-
-	// Write the updated YAML back to the file
-	if err := os.WriteFile(r.ReleaseYamlPath, updatedYAMLIndented, 0644); err != nil {
+	encoder := yaml.NewEncoder(outputFile)
+	encoder.SetIndent(2) // Assuming you want to set a specific indentation
+	if err := encoder.Encode(releaseVersions); err != nil {
 		return err
 	}
 

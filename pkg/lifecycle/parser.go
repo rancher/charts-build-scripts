@@ -77,7 +77,7 @@ func (ld *Dependencies) populateAssetsVersionsPath(debug bool) error {
 		dirPath := fmt.Sprintf("assets/%s", chart)
 		cycleLog(debug, "Getting assets at path", dirPath)
 
-		if err := ld.walkDirWrapper(ld.rootFs, dirPath, doFunc); err != nil {
+		if err := ld.walkDirWrapper(ld.RootFs, dirPath, doFunc); err != nil {
 			return fmt.Errorf("encountered error while walking through the assets directory: %w", err)
 		}
 

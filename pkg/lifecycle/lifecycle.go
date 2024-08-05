@@ -22,7 +22,7 @@ type Asset struct {
 // Dependencies holds the necessary filesystem,
 // assets versions map, version rules and methods to apply the lifecycle rules in the target branch
 type Dependencies struct {
-	rootFs            billy.Filesystem
+	RootFs            billy.Filesystem
 	assetsVersionsMap map[string][]Asset
 	VR                *VersionRules
 	Git               *git.Git
@@ -103,17 +103,17 @@ func InitDependencies(rootFs billy.Filesystem, branchVersion string, currentChar
 	}
 
 	// Get the filesystem and index.yaml path for the repository
-	dep.rootFs = rootFs
+	dep.RootFs = rootFs
 
 	// Check if the assets folder and Helm index file exists in the repository
-	exists, err := filesystem.PathExists(dep.rootFs, path.RepositoryAssetsDir)
+	exists, err := filesystem.PathExists(dep.RootFs, path.RepositoryAssetsDir)
 	if err != nil {
 		return nil, fmt.Errorf("encountered error while checking if assets folder already exists in repository: %s", err)
 	}
 	if !exists {
 		return nil, fmt.Errorf("assets folder does not exist in the repository")
 	}
-	exists, err = filesystem.PathExists(dep.rootFs, path.RepositoryHelmIndexFile)
+	exists, err = filesystem.PathExists(dep.RootFs, path.RepositoryHelmIndexFile)
 	if err != nil {
 		return nil, fmt.Errorf("encountered error while checking if Helm index file already exists in repository: %s", err)
 	}
@@ -122,7 +122,7 @@ func InitDependencies(rootFs billy.Filesystem, branchVersion string, currentChar
 	}
 
 	// Get the absolute path of the Helm index file and assets versions map to apply rules
-	helmIndexPath := filesystem.GetAbsPath(dep.rootFs, path.RepositoryHelmIndexFile)
+	helmIndexPath := filesystem.GetAbsPath(dep.RootFs, path.RepositoryHelmIndexFile)
 	dep.assetsVersionsMap, err = getAssetsMapFromIndex(helmIndexPath, currentChart, debug)
 	if len(dep.assetsVersionsMap) == 0 {
 		return nil, fmt.Errorf("no assets found in the repository")

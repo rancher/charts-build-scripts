@@ -46,6 +46,8 @@ const (
 	defaultBranchVersionEnvironmentVariable = "BRANCH_VERSION"
 	// defaultForkEnvironmentVariable is the default environment variable that indicates the fork URL
 	defaultForkEnvironmentVariable = "FORK"
+	// defaultChartVersionEnvironmentVariable is the default environment variable that indicates the version to release
+	defaultChartVersionEnvironmentVariable = ""
 )
 
 var (
@@ -76,6 +78,8 @@ var (
 	DebugMode = false
 	// ForkURL represents the fork URL configured as a remote in your local git repository
 	ForkURL = ""
+	// ChartVersion of the chart to release
+	ChartVersion = ""
 )
 
 func main() {
@@ -170,6 +174,18 @@ func main() {
 		Required:    true,
 		Destination: &ForkURL,
 		EnvVar:      defaultForkEnvironmentVariable,
+	}
+	chartVersionFlag := cli.StringFlag{
+		Name: "version",
+		Usage: `Usage:
+			./bin/charts-build-scripts <command> --version="<chart_version>"
+			VERSION="<chart_version>" make <command>
+
+		Target version of chart to release.
+		`,
+		Required:    true,
+		Destination: &ChartVersion,
+		EnvVar:      defaultChartVersionEnvironmentVariable,
 	}
 	app.Commands = []cli.Command{
 		{
@@ -318,6 +334,13 @@ func main() {
 			`,
 			Action: autoForwardPort,
 			Flags:  []cli.Flag{branchVersionFlag, chartFlag, forkFlag},
+		},
+		{
+			Name: "release",
+			Usage: `Execute the release script to release a chart to the production branch.
+			`,
+			Action: release,
+			Flags:  []cli.Flag{branchVersionFlag, chartFlag, chartVersionFlag, forkFlag},
 		},
 	}
 
@@ -687,4 +710,47 @@ func autoForwardPort(c *cli.Context) {
 		logrus.Fatalf("Failed to execute forward port: %v", err)
 	}
 
+}
+
+func release(c *cli.Context) {
+	if ForkURL == "" {
+		logrus.Fatal("FORK environment variable must be set to run release cmd")
+	}
+
+	if CurrentChart == "" {
+		logrus.Fatal("CHART environment variable must be set to run release cmd")
+	}
+
+	rootFs := filesystem.GetFilesystem(getRepoRoot())
+
+	dependencies, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, false)
+	if err != nil {
+		logrus.Fatalf("encountered error while initializing dependencies: %v", err)
+	}
+
+	status, err := lifecycle.LoadState(rootFs)
+	if err != nil {
+		logrus.Fatalf("could not load state; please run lifecycle-status before this command: %v", err)
+	}
+
+	release, err := auto.InitRelease(dependencies, status, ChartVersion, CurrentChart, ForkURL)
+	if err != nil {
+		logrus.Fatalf("failed to initialize release: %v", err)
+	}
+
+	if err := release.PullAsset(); err != nil {
+		logrus.Fatalf("failed to execute release: %v", err)
+	}
+
+	// Unzip Assets: ASSET=<chart>/<chart>-<version.tgz make unzip
+	CurrentAsset = release.Chart + "/" + release.AssetTgz
+	unzipAssets(c)
+
+	// update release.yaml
+	if err := release.UpdateReleaseYaml(); err != nil {
+		logrus.Fatalf("failed to update release.yaml: %v", err)
+	}
+
+	// make index
+	createOrUpdateIndex(c)
 }

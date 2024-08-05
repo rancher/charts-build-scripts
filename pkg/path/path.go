@@ -52,4 +52,7 @@ const (
 
 	// RepositoryStAte file is a file to hold the current status of the released and developed assets versions
 	RepositoryStateFile = "state.json"
+
+	// RepositoryReleaseYaml is the file on your Staging/Live branch that contains the release information
+	RepositoryReleaseYaml = "release.yaml"
 )

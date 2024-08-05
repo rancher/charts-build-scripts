@@ -1,7 +1,6 @@
 package auto
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -169,22 +168,4 @@ func removeDuplicates(slice []string) []string {
 	}
 
 	return result
-}
-
-// enforceYamlStandard adds indentation to list items in a YAML string and a new line at the end of the file.
-func enforceYamlStandard(yamlBytes []byte) []byte {
-	var indentedBuffer bytes.Buffer
-	lines := bytes.Split(yamlBytes, []byte("\n"))
-	for i, line := range lines {
-		// Check if the line is not the last empty line after splitting
-		if i != len(lines)-1 {
-			if bytes.HasPrefix(line, []byte("- ")) {
-				indentedBuffer.Write([]byte("  ")) // Add two spaces of indentation
-			}
-			indentedBuffer.Write(line)
-			indentedBuffer.WriteByte('\n')
-		}
-	}
-	// Ensure only one newline at the end
-	return append(indentedBuffer.Bytes(), '\n')
 }

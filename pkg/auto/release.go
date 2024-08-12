@@ -92,7 +92,7 @@ func (r *Release) PullAsset() error {
 }
 
 func checkAssetReleased(chartVersion string) error {
-	if _, err := os.Stat(chartVersion); err != nil {
+	if _, err := os.Stat(chartVersion); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 

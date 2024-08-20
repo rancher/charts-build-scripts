@@ -74,7 +74,7 @@ func CompareGeneratedAssets(repoFs billy.Filesystem, u options.UpstreamOptions, 
 	// Initialize lifecycle package for validating with assets lifecycle rules
 	lifeCycleDep, err := lifecycle.InitDependencies(repoFs, lifecycle.ExtractBranchVersion(branch), "", false)
 	if err != nil {
-		logrus.Fatalf("encountered error while initializing dependencies for CompareGeneratedAssets: %s", err)
+		logrus.Fatalf("encountered error while initializing lifecycle dependencies: %s", err)
 	}
 
 	// Pull repository

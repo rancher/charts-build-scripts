@@ -52,11 +52,12 @@ func GetVersionRules(branchVersion string, debug bool) (*VersionRules, error) {
 	}
 	// The rules are defined by the minimum and maximum version that the assets can have
 	var VersionRulesMap = map[float32]version{
-		2.9: {min: "104.0.0", max: "105.0.0"},
-		2.8: {min: "103.0.0", max: "104.0.0"},
-		2.7: {min: "101.0.0", max: "103.0.0"}, // 101 and 102, this is the only case like it
-		2.6: {min: "100.0.0", max: "101.0.0"},
-		2.5: {max: "100.0.0"},
+		2.10: {min: "105.0.0", max: "106.0.0"},
+		2.9:  {min: "104.0.0", max: "105.0.0"},
+		2.8:  {min: "103.0.0", max: "104.0.0"},
+		2.7:  {min: "101.0.0", max: "103.0.0"}, // 101 and 102, this is the only case like it
+		2.6:  {min: "100.0.0", max: "101.0.0"},
+		2.5:  {max: "100.0.0"},
 	}
 	// Just convert the string provided branch version to a float32
 	floatBranchVersion, err := convertBranchVersion(branchVersion)

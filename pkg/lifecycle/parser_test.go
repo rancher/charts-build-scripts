@@ -2,71 +2,45 @@ package lifecycle
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_getAssetsMapFromIndex(t *testing.T) {
 	t.Run("Fail to load Index File", func(t *testing.T) {
 		_, err := getAssetsMapFromIndex("", "")
-		if err == nil {
-			t.Errorf("Expected error when failing to load Index file")
-		}
+		assert.Error(t, err, "Expected error when failing to load Index file")
 	})
 
 	t.Run("Load all charts successfully", func(t *testing.T) {
 		assetsVersionsMapTest1, err := getAssetsMapFromIndex("mocks/test.yaml", "")
+		assert.Nil(t, err, "Error not expected when failing to load Index file")
+		assert.Equal(t, len(assetsVersionsMapTest1), 2, "Expected to load 2 charts")
+		assert.Equal(t, len(assetsVersionsMapTest1["chart-one"]), 2, "Expected to load 2 versions for chart1")
+		assert.Equal(t, len(assetsVersionsMapTest1["chart-two"]), 1, "Expected to load 1 versions for chart1")
 
-		if err != nil {
-			t.Errorf("Error not expected when failing to load Index file %v", err)
-		}
-		if len(assetsVersionsMapTest1) != 2 {
-			t.Errorf("Expected to load 2 charts")
-		}
-		if len(assetsVersionsMapTest1["chart-one"]) != 2 {
-			t.Errorf("Expected to load 2 versions for chart1, got %v", len(assetsVersionsMapTest1["chart-one"]))
-		}
-		if len(assetsVersionsMapTest1["chart-two"]) != 1 {
-			t.Errorf("Expected to load 1 version for chart2, got %v", len(assetsVersionsMapTest1["chart-one"]))
-		}
 	})
 
 	t.Run("Fail to load target chart (chart-zero)", func(t *testing.T) {
 		_, err := getAssetsMapFromIndex("mocks/test.yaml", "chart-zero")
-		if err == nil {
-			t.Errorf("Expected error when failing to load Index file")
-		}
+		assert.Error(t, err, "Expected error when failing to load Index file")
 	})
 
 	t.Run("Load target chart (chart-one) successfully", func(t *testing.T) {
 		assetsVersionsMapTest, err := getAssetsMapFromIndex("mocks/test.yaml", "chart-one")
-
-		if err != nil {
-			t.Errorf("Error not expected when failing to load Index file %v", err)
-		}
-		if len(assetsVersionsMapTest) != 1 {
-			t.Errorf("Expected to load 1 chart")
-		}
-		if len(assetsVersionsMapTest["chart-one"]) != 2 {
-			t.Errorf("Expected to load 1 version for chart2, got %v", len(assetsVersionsMapTest["chart-one"]))
-		}
+		assert.Nil(t, err, "Error not expected when failing to load Index file")
+		assert.Equal(t, len(assetsVersionsMapTest), 1, "Expected to load 1 chart")
+		assert.Equal(t, len(assetsVersionsMapTest["chart-one"]), 2, "Expected to load 2 versions for chart2")
 	})
 
 	t.Run("Load target chart (chart-two) successfully", func(t *testing.T) {
 		assetsVersionsMapTest, err := getAssetsMapFromIndex("mocks/test.yaml", "chart-two")
-
-		if err != nil {
-			t.Errorf("Error not expected when failing to load Index file %v", err)
-		}
-		if len(assetsVersionsMapTest) != 1 {
-			t.Errorf("Expected to load 1 chart")
-		}
-		if len(assetsVersionsMapTest["chart-two"]) != 1 {
-			t.Errorf("Expected to load 1 version for chart2, got %v", len(assetsVersionsMapTest["chart-one"]))
-		}
+		assert.Nil(t, err, "Error not expected when failing to load Index file")
+		assert.Equal(t, len(assetsVersionsMapTest), 1, "Expected to load 1 chart")
+		assert.Equal(t, len(assetsVersionsMapTest["chart-two"]), 1, "Expected to load 1 version for chart2")
 	})
 }
 
@@ -97,9 +71,7 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 
 		// Call the function we're testing
 		err := ld.populateAssetsVersionsPath()
-		if err != nil {
-			t.Fatalf("populateAssetsVersionsPath returned an error: %v", err)
-		}
+		assert.Nil(t, err, "populateAssetsVersionsPath should not have returned an error")
 
 		// Check that the assetsVersionsMap was populated correctly
 		expected := map[string][]Asset{
@@ -110,15 +82,13 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 				{Version: "1.0.0", path: "assets/chart2/chart2-1.0.0.tgz"},
 			},
 		}
-		if !reflect.DeepEqual(ld.AssetsVersionsMap, expected) {
-			t.Errorf("assetsVersionsMap was not populated correctly, got: %v, want: %v", ld.AssetsVersionsMap, expected)
-		}
+
+		assert.EqualValues(t, ld.AssetsVersionsMap, expected, "assetsVersionsMap was not populated correctly")
 	})
 
 	t.Run("Fail to walk through the assets directory", func(t *testing.T) {
 		// Create a test instance of Dependencies with a pre-populated assetsVersionsMap
-		ld := &Dependencies{
-			// rootFs: fs,
+		dependency := &Dependencies{
 			AssetsVersionsMap: map[string][]Asset{
 				"chart1": {
 					{Version: "1.0.0"},
@@ -130,24 +100,21 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 			},
 		}
 
-		// Call the function we're testing
-		err := ld.populateAssetsVersionsPath()
-		if err == nil {
-			t.Fatalf("populateAssetsVersionsPath should have returned an error: %v", err)
-		}
+		err := dependency.populateAssetsVersionsPath()
+		assert.Error(t, err, "populateAssetsVersionsPath should have returned an error")
 	})
 }
 
 func Test_sortAssetsVersions(t *testing.T) {
 	// Arrange
-	dep := &Dependencies{
+	dependency := &Dependencies{
 		AssetsVersionsMap: map[string][]Asset{
-			"key1": {
+			"chart1": {
 				{Version: "1.0.0"},
 				{Version: "0.1.0"},
 				{Version: "0.0.1"},
 			},
-			"key2": {
+			"chart2": {
 				{Version: "2.0.0"},
 				{Version: "1.1.0"},
 				{Version: "1.0.1"},
@@ -156,18 +123,15 @@ func Test_sortAssetsVersions(t *testing.T) {
 	}
 
 	// Act
-	dep.sortAssetsVersions()
+	dependency.sortAssetsVersions()
 
-	// Assert
-	if dep.AssetsVersionsMap["key1"][0].Version != "0.0.1" ||
-		dep.AssetsVersionsMap["key1"][1].Version != "0.1.0" ||
-		dep.AssetsVersionsMap["key1"][2].Version != "1.0.0" {
-		t.Errorf("assetsVersionsMap was not sorted correctly for key1")
-	}
+	// Assertions
+	assert.Equal(t, len(dependency.AssetsVersionsMap), 2, "Expected 2 charts in the assetsVersionsMap")
+	assert.Equal(t, dependency.AssetsVersionsMap["chart1"][0].Version, "0.0.1", "Expected 0.0.1")
+	assert.Equal(t, dependency.AssetsVersionsMap["chart1"][1].Version, "0.1.0", "Expected 0.1.0")
+	assert.Equal(t, dependency.AssetsVersionsMap["chart1"][2].Version, "1.0.0", "Expected 1.0.0")
 
-	if dep.AssetsVersionsMap["key2"][0].Version != "1.0.1" ||
-		dep.AssetsVersionsMap["key2"][1].Version != "1.1.0" ||
-		dep.AssetsVersionsMap["key2"][2].Version != "2.0.0" {
-		t.Errorf("assetsVersionsMap was not sorted correctly for key2")
-	}
+	assert.Equal(t, dependency.AssetsVersionsMap["chart2"][0].Version, "1.0.1", "Expected 1.0.1")
+	assert.Equal(t, dependency.AssetsVersionsMap["chart2"][1].Version, "1.1.0", "Expected 1.1.0")
+	assert.Equal(t, dependency.AssetsVersionsMap["chart2"][2].Version, "2.0.0", "Expected 2.0.0")
 }

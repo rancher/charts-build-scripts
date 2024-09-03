@@ -11,14 +11,14 @@ import (
 
 func Test_getAssetsMapFromIndex(t *testing.T) {
 	t.Run("Fail to load Index File", func(t *testing.T) {
-		_, err := getAssetsMapFromIndex("", "", false)
+		_, err := getAssetsMapFromIndex("", "")
 		if err == nil {
 			t.Errorf("Expected error when failing to load Index file")
 		}
 	})
 
 	t.Run("Load all charts successfully", func(t *testing.T) {
-		assetsVersionsMapTest1, err := getAssetsMapFromIndex("mocks/test.yaml", "", false)
+		assetsVersionsMapTest1, err := getAssetsMapFromIndex("mocks/test.yaml", "")
 
 		if err != nil {
 			t.Errorf("Error not expected when failing to load Index file %v", err)
@@ -35,14 +35,14 @@ func Test_getAssetsMapFromIndex(t *testing.T) {
 	})
 
 	t.Run("Fail to load target chart (chart-zero)", func(t *testing.T) {
-		_, err := getAssetsMapFromIndex("mocks/test.yaml", "chart-zero", false)
+		_, err := getAssetsMapFromIndex("mocks/test.yaml", "chart-zero")
 		if err == nil {
 			t.Errorf("Expected error when failing to load Index file")
 		}
 	})
 
 	t.Run("Load target chart (chart-one) successfully", func(t *testing.T) {
-		assetsVersionsMapTest, err := getAssetsMapFromIndex("mocks/test.yaml", "chart-one", false)
+		assetsVersionsMapTest, err := getAssetsMapFromIndex("mocks/test.yaml", "chart-one")
 
 		if err != nil {
 			t.Errorf("Error not expected when failing to load Index file %v", err)
@@ -56,7 +56,7 @@ func Test_getAssetsMapFromIndex(t *testing.T) {
 	})
 
 	t.Run("Load target chart (chart-two) successfully", func(t *testing.T) {
-		assetsVersionsMapTest, err := getAssetsMapFromIndex("mocks/test.yaml", "chart-two", false)
+		assetsVersionsMapTest, err := getAssetsMapFromIndex("mocks/test.yaml", "chart-two")
 
 		if err != nil {
 			t.Errorf("Error not expected when failing to load Index file %v", err)
@@ -75,7 +75,7 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 		// Create a test instance of Dependencies with a pre-populated assetsVersionsMap
 		ld := &Dependencies{
 			// rootFs: fs,
-			assetsVersionsMap: map[string][]Asset{
+			AssetsVersionsMap: map[string][]Asset{
 				"chart1": {
 					{Version: "1.0.0"},
 				},
@@ -96,7 +96,7 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 		}
 
 		// Call the function we're testing
-		err := ld.populateAssetsVersionsPath(false)
+		err := ld.populateAssetsVersionsPath()
 		if err != nil {
 			t.Fatalf("populateAssetsVersionsPath returned an error: %v", err)
 		}
@@ -110,8 +110,8 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 				{Version: "1.0.0", path: "assets/chart2/chart2-1.0.0.tgz"},
 			},
 		}
-		if !reflect.DeepEqual(ld.assetsVersionsMap, expected) {
-			t.Errorf("assetsVersionsMap was not populated correctly, got: %v, want: %v", ld.assetsVersionsMap, expected)
+		if !reflect.DeepEqual(ld.AssetsVersionsMap, expected) {
+			t.Errorf("assetsVersionsMap was not populated correctly, got: %v, want: %v", ld.AssetsVersionsMap, expected)
 		}
 	})
 
@@ -119,7 +119,7 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 		// Create a test instance of Dependencies with a pre-populated assetsVersionsMap
 		ld := &Dependencies{
 			// rootFs: fs,
-			assetsVersionsMap: map[string][]Asset{
+			AssetsVersionsMap: map[string][]Asset{
 				"chart1": {
 					{Version: "1.0.0"},
 				},
@@ -131,7 +131,7 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 		}
 
 		// Call the function we're testing
-		err := ld.populateAssetsVersionsPath(false)
+		err := ld.populateAssetsVersionsPath()
 		if err == nil {
 			t.Fatalf("populateAssetsVersionsPath should have returned an error: %v", err)
 		}
@@ -141,7 +141,7 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 func Test_sortAssetsVersions(t *testing.T) {
 	// Arrange
 	dep := &Dependencies{
-		assetsVersionsMap: map[string][]Asset{
+		AssetsVersionsMap: map[string][]Asset{
 			"key1": {
 				{Version: "1.0.0"},
 				{Version: "0.1.0"},
@@ -159,15 +159,15 @@ func Test_sortAssetsVersions(t *testing.T) {
 	dep.sortAssetsVersions()
 
 	// Assert
-	if dep.assetsVersionsMap["key1"][0].Version != "0.0.1" ||
-		dep.assetsVersionsMap["key1"][1].Version != "0.1.0" ||
-		dep.assetsVersionsMap["key1"][2].Version != "1.0.0" {
+	if dep.AssetsVersionsMap["key1"][0].Version != "0.0.1" ||
+		dep.AssetsVersionsMap["key1"][1].Version != "0.1.0" ||
+		dep.AssetsVersionsMap["key1"][2].Version != "1.0.0" {
 		t.Errorf("assetsVersionsMap was not sorted correctly for key1")
 	}
 
-	if dep.assetsVersionsMap["key2"][0].Version != "1.0.1" ||
-		dep.assetsVersionsMap["key2"][1].Version != "1.1.0" ||
-		dep.assetsVersionsMap["key2"][2].Version != "2.0.0" {
+	if dep.AssetsVersionsMap["key2"][0].Version != "1.0.1" ||
+		dep.AssetsVersionsMap["key2"][1].Version != "1.1.0" ||
+		dep.AssetsVersionsMap["key2"][2].Version != "2.0.0" {
 		t.Errorf("assetsVersionsMap was not sorted correctly for key2")
 	}
 }

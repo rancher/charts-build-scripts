@@ -37,31 +37,6 @@ type VersionRules struct {
 	ProdBranchPrefix string             `json:"prod-branch-prefix"`
 }
 
-// loadFromJSON will load the version rules from version_rules.json file at charts repository
-func loadFromJSON(fs billy.Filesystem) (*VersionRules, error) {
-	vr := &VersionRules{
-		Rules: make(map[string]Version),
-	}
-
-	if exist, err := filesystem.PathExists(fs, path.VersionRulesFile); err != nil || !exist {
-		return nil, err
-	}
-
-	file, err := os.Open(filesystem.GetAbsPath(fs, path.VersionRulesFile))
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	if err := json.NewDecoder(file).Decode(&vr); err != nil {
-		return nil, err
-	}
-
-	return vr, nil
-}
-
-type jsonLoader func(fs billy.Filesystem) (*VersionRules, error)
-
 // rules will check and convert the provided branch version,
 // create the hard-coded rules for the charts repository and calculate the minimum and maximum versions according to the branch version.
 func (d *Dependencies) rules(branchVersion string, jsonLoad jsonLoader) (*VersionRules, error) {
@@ -89,6 +64,31 @@ func (d *Dependencies) rules(branchVersion string, jsonLoad jsonLoader) (*Versio
 	v.DevBranch = v.DevBranchPrefix + v.BranchVersion
 
 	return v, nil
+}
+
+type jsonLoader func(fs billy.Filesystem) (*VersionRules, error)
+
+// loadFromJSON will load the version rules from version_rules.json file at charts repository
+func loadFromJSON(fs billy.Filesystem) (*VersionRules, error) {
+	vr := &VersionRules{
+		Rules: make(map[string]Version),
+	}
+
+	if exist, err := filesystem.PathExists(fs, path.VersionRulesFile); err != nil || !exist {
+		return nil, err
+	}
+
+	file, err := os.Open(filesystem.GetAbsPath(fs, path.VersionRulesFile))
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	if err := json.NewDecoder(file).Decode(&vr); err != nil {
+		return nil, err
+	}
+
+	return vr, nil
 }
 
 // Current lifecycle rules are:
@@ -170,23 +170,18 @@ func (v *VersionRules) CheckChartVersionToRelease(chartVersion string) (bool, er
 
 // CheckForRCVersion checks if the chart version contains the "-rc" string indicating a release candidate version.
 func (v *VersionRules) CheckForRCVersion(chartVersion string) bool {
-	if strings.Contains(strings.ToLower(chartVersion), "-rc") {
-		return true
-	}
-	return false
+	return strings.Contains(strings.ToLower(chartVersion), "-rc")
 }
 
 func branchVersionMinorSum(branchVersion string, number int) string {
 	parts := strings.Split(branchVersion, ".")
 	major, err := strconv.Atoi(parts[0])
 	if err != nil {
-		// Handle error
 		return ""
 	}
 
 	minor, err := strconv.Atoi(parts[1])
 	if err != nil {
-		// Handle error
 		return ""
 	}
 

@@ -12,7 +12,7 @@ import (
 
 // getAssetsMapFromIndex returns a map of assets with their version and
 // an empty path that will be populated later by populateAssetsVersionsPath()
-func getAssetsMapFromIndex(absRepositoryHelmIndexFile, currentChart string, debug bool) (map[string][]Asset, error) {
+func getAssetsMapFromIndex(absRepositoryHelmIndexFile, currentChart string) (map[string][]Asset, error) {
 	// Load the index file
 	helmIndexFile, err := helmRepo.LoadIndexFile(absRepositoryHelmIndexFile)
 	if err != nil {
@@ -24,7 +24,6 @@ func getAssetsMapFromIndex(absRepositoryHelmIndexFile, currentChart string, debu
 
 	switch {
 	case currentChart == "":
-		cycleLog(debug, "Current chart is empty, getting all charts", nil)
 		for chartName, entry := range helmIndexFile.Entries {
 			for _, chartVersion := range entry {
 				annotatedVersions = append(annotatedVersions, Asset{
@@ -36,7 +35,6 @@ func getAssetsMapFromIndex(absRepositoryHelmIndexFile, currentChart string, debu
 		}
 
 	case currentChart != "":
-		cycleLog(debug, "Target chart is", currentChart)
 		if _, ok := helmIndexFile.Entries[currentChart]; !ok {
 			return nil, fmt.Errorf("chart %s not found in the index file", currentChart)
 		}
@@ -54,7 +52,7 @@ func getAssetsMapFromIndex(absRepositoryHelmIndexFile, currentChart string, debu
 // populateAssetsVersionsPath will combine the information from the index.yaml file and the assets directory to get the path of each asset version for each chart.
 // It will populate the assetsVersionsMap with the path of the assets.
 // It walks through the assets directory and compares the version of the assets with the version of the assets in the index.yaml file.
-func (ld *Dependencies) populateAssetsVersionsPath(debug bool) error {
+func (ld *Dependencies) populateAssetsVersionsPath() error {
 	// Return a complet map of assets with their version and path in the repository
 	var assetsVersionsMap = make(map[string][]Asset)
 
@@ -72,10 +70,9 @@ func (ld *Dependencies) populateAssetsVersionsPath(debug bool) error {
 	}
 
 	// Range through the assetsMap and get the path of the assets
-	for chart, assets := range ld.assetsVersionsMap {
+	for chart, assets := range ld.AssetsVersionsMap {
 
 		dirPath := fmt.Sprintf("assets/%s", chart)
-		cycleLog(debug, "Getting assets at path", dirPath)
 
 		if err := ld.walkDirWrapper(ld.RootFs, dirPath, doFunc); err != nil {
 			return fmt.Errorf("encountered error while walking through the assets directory: %w", err)
@@ -90,7 +87,6 @@ func (ld *Dependencies) populateAssetsVersionsPath(debug bool) error {
 				// Compare the received slice of paths with the current versions in assets
 				// lets append the path to the assetsVersionsMap
 				if asset.Version == version {
-					cycleLog(debug, "adding asset to map", filePath)
 					asset.path = filePath
 					assetsVersionsMap[chart] = append(assetsVersionsMap[chart], asset)
 				}
@@ -100,8 +96,8 @@ func (ld *Dependencies) populateAssetsVersionsPath(debug bool) error {
 		filePaths = nil
 	}
 	// Reset and assign new assetsVersionsMap to the struct
-	ld.assetsVersionsMap = nil
-	ld.assetsVersionsMap = assetsVersionsMap
+	ld.AssetsVersionsMap = nil
+	ld.AssetsVersionsMap = assetsVersionsMap
 
 	// Now fileNames slice contains the names of all files in the directories
 	return nil
@@ -111,13 +107,13 @@ func (ld *Dependencies) populateAssetsVersionsPath(debug bool) error {
 // sort the assets for each key in the assetsVersionsMap
 func (ld *Dependencies) sortAssetsVersions() {
 	// Iterate over the map and sort the assets for each key
-	for k, assets := range ld.assetsVersionsMap {
+	for k, assets := range ld.AssetsVersionsMap {
 		sort.Slice(assets, func(i, j int) bool {
 			vi, _ := semver.NewVersion(assets[i].Version)
 			vj, _ := semver.NewVersion(assets[j].Version)
 			return vi.LessThan(vj)
 		})
-		ld.assetsVersionsMap[k] = assets
+		ld.AssetsVersionsMap[k] = assets
 	}
 
 	return

@@ -184,7 +184,7 @@ func (g *Git) CreateAndCheckoutBranch(branch string) error {
 // IsClean checks if the git repository is clean and,
 // returns nil if it is clean, throws an error otherwise
 func (g *Git) IsClean() error {
-	clean, err := g.StatusProcelain(true)
+	clean, err := g.StatusProcelain()
 	if err != nil {
 		logrus.Errorf("error while checking if git is clean: %s", err)
 		return fmt.Errorf("error while checking if git is clean: %s", err)
@@ -198,17 +198,12 @@ func (g *Git) IsClean() error {
 
 // StatusProcelain checks if the git repository is clean and,
 // returns true if it is clean, false otherwise
-func (g *Git) StatusProcelain(debug bool) (bool, error) {
+func (g *Git) StatusProcelain() (bool, error) {
 	cmd := exec.Command("git", "-C", g.Dir, "status", "--porcelain")
-	if debug {
-		cmd := exec.Command("git", "status")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Run()
-	}
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return false, fmt.Errorf("error while checking if git is clean: %s", err)
+		return false, err
 	}
 	if len(output) > 0 {
 		return false, nil

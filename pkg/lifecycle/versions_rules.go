@@ -1,88 +1,94 @@
 package lifecycle
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
+	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/sirupsen/logrus"
 )
 
-// ProductionBranchPrefix is the official prefix for the production branch
-const ProductionBranchPrefix = "release-v"
+var (
+	errorNoBranchVersion         error = errors.New("branch version not provided")
+	errorBranchVersionNotInRules error = errors.New("the given branch version is not defined in the rules")
+)
 
-// DevBranchPrefix is the official prefix for the development branch
-const DevBranchPrefix = "dev-v"
-
-type version struct {
-	min string
-	max string
+// Version holds the maximum and minimum limits allowed for a specific branch version
+type Version struct {
+	Min string `json:"min"`
+	Max string `json:"max"`
 }
 
 // VersionRules will hold all the necessary information to check which assets versions are allowed to be in the repository
 type VersionRules struct {
-	Rules         map[float32]version
-	BranchVersion float32
-	MinVersion    int
-	MaxVersion    int
-	DevBranch     string
-	ProdBranch    string
+	Rules            map[string]Version `json:"rules"`
+	BranchVersion    string             `json:"branch-version,omitempty"`
+	MinVersion       int                `json:"min-version,omitempty"`
+	MaxVersion       int                `json:"max-version,omitempty"`
+	DevBranch        string             `json:"dev-branch,omitempty"`
+	DevBranchPrefix  string             `json:"dev-branch-prefix"`
+	ProdBranch       string             `json:"prod-branch,omitempty"`
+	ProdBranchPrefix string             `json:"prod-branch-prefix"`
 }
 
-func (v *VersionRules) log(debug bool) {
-	if !debug {
-		return
+// loadFromJSON will load the version rules from version_rules.json file at charts repository
+func loadFromJSON(fs billy.Filesystem) (*VersionRules, error) {
+	vr := &VersionRules{
+		Rules: make(map[string]Version),
 	}
 
-	for key, val := range v.Rules {
-		cycleLog(debug, "Branch version", key)
-		cycleLog(debug, "|- min version", val.min)
-		cycleLog(debug, "|- max version", val.max)
+	if exist, err := filesystem.PathExists(fs, path.VersionRulesFile); err != nil || !exist {
+		return nil, err
 	}
-	cycleLog(debug, "Applied rules for branch version", nil)
-	cycleLog(debug, "|-- min version", v.MinVersion)
-	cycleLog(debug, "|-- max version", v.MaxVersion)
-}
 
-// GetVersionRules will check and convert the provided branch version,
-// create the hard-coded rules for the charts repository and calculate the minimum and maximum versions according to the branch version.
-func GetVersionRules(branchVersion string, debug bool) (*VersionRules, error) {
-	if branchVersion == "" {
-		return nil, fmt.Errorf("branch version is empty")
-	}
-	// The rules are defined by the minimum and maximum version that the assets can have
-	var VersionRulesMap = map[float32]version{
-		2.10: {min: "105.0.0", max: "106.0.0"},
-		2.9:  {min: "104.0.0", max: "105.0.0"},
-		2.8:  {min: "103.0.0", max: "104.0.0"},
-		2.7:  {min: "101.0.0", max: "103.0.0"}, // 101 and 102, this is the only case like it
-		2.6:  {min: "100.0.0", max: "101.0.0"},
-		2.5:  {max: "100.0.0"},
-	}
-	// Just convert the string provided branch version to a float32
-	floatBranchVersion, err := convertBranchVersion(branchVersion)
+	file, err := os.Open(filesystem.GetAbsPath(fs, path.VersionRulesFile))
 	if err != nil {
 		return nil, err
 	}
-	// Check if floatBranchVersion is an existing key in VersionRulesMap
-	if _, ok := VersionRulesMap[floatBranchVersion]; !ok {
-		return nil, fmt.Errorf("branch version %v is not defined in the rules", floatBranchVersion)
+	defer file.Close()
+
+	if err := json.NewDecoder(file).Decode(&vr); err != nil {
+		return nil, err
 	}
 
-	v := &VersionRules{
-		Rules:         VersionRulesMap,
-		BranchVersion: floatBranchVersion,
+	return vr, nil
+}
+
+type jsonLoader func(fs billy.Filesystem) (*VersionRules, error)
+
+// rules will check and convert the provided branch version,
+// create the hard-coded rules for the charts repository and calculate the minimum and maximum versions according to the branch version.
+func (d *Dependencies) rules(branchVersion string, jsonLoad jsonLoader) (*VersionRules, error) {
+	if branchVersion == "" {
+		return nil, errorNoBranchVersion
 	}
+
+	v, err := jsonLoad(d.RootFs)
+	if err != nil {
+		return v, err
+	}
+
+	if _, ok := v.Rules[branchVersion]; !ok {
+		return nil, errorBranchVersionNotInRules
+	}
+
+	v.BranchVersion = branchVersion
 
 	// Calculate the min and maximum versions allowed for the current branch version lifecycle
-	v.getMinMaxVersionInts()
+	if err := v.getMinMaxVersionInts(); err != nil {
+		return nil, err
+	}
 
-	v.ProdBranch = fmt.Sprintf("%s%.1f", ProductionBranchPrefix, v.BranchVersion)
-	v.DevBranch = fmt.Sprintf("%s%.1f", DevBranchPrefix, v.BranchVersion)
+	v.ProdBranch = v.ProdBranchPrefix + v.BranchVersion
+	v.DevBranch = v.DevBranchPrefix + v.BranchVersion
 
-	v.log(debug)
-
-	return v, err
+	return v, nil
 }
 
 // Current lifecycle rules are:
@@ -91,18 +97,30 @@ func GetVersionRules(branchVersion string, debug bool) (*VersionRules, error) {
 //	Branch cannot hold versions from newer branches, only older ones.
 //
 // See CheckChartVersionForLifecycle() for more details.
-func (v *VersionRules) getMinMaxVersionInts() {
+func (v *VersionRules) getMinMaxVersionInts() error {
 	// e.g: 2.9 - 0.2 = 2.7
-	minVersionStr := v.Rules[(v.BranchVersion - 0.2)].min
-	maxVersionStr := v.Rules[v.BranchVersion].max
+	minVersionStr := v.Rules[(branchVersionMinorSum(v.BranchVersion, -2))].Min
+	maxVersionStr := v.Rules[v.BranchVersion].Max
 
-	// Don't check for errors here, these are hard-coded values
-	min, _ := strconv.Atoi(strings.Split(minVersionStr, ".")[0])
-	max, _ := strconv.Atoi(strings.Split(maxVersionStr, ".")[0])
+	var err error
+	var min, max int = 0, 0
+
+	if minVersionStr != "" {
+		min, err = strconv.Atoi(strings.Split(minVersionStr, ".")[0])
+		if err != nil {
+			return err
+		}
+	}
+	if maxVersionStr != "" {
+		max, err = strconv.Atoi(strings.Split(maxVersionStr, ".")[0])
+		if err != nil {
+			return err
+		}
+	}
 
 	v.MinVersion = min
 	v.MaxVersion = max
-	return
+	return nil
 }
 
 // convertBranchVersion will convert the received string flag into a float32
@@ -156,4 +174,22 @@ func (v *VersionRules) CheckForRCVersion(chartVersion string) bool {
 		return true
 	}
 	return false
+}
+
+func branchVersionMinorSum(branchVersion string, number int) string {
+	parts := strings.Split(branchVersion, ".")
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		// Handle error
+		return ""
+	}
+
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		// Handle error
+		return ""
+	}
+
+	minor += number
+	return fmt.Sprintf("%d.%d", major, minor)
 }

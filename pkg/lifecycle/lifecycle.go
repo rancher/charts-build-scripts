@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	errorChartRepository error = errors.New("chart repository is in an inconsistent state")
-	errorGitNotClean     error = errors.New("local git repository should be clean")
+	errChartRepository = errors.New("chart repository is in an inconsistent state")
+	errGitNotClean     = errors.New("local git repository should be clean")
 )
 
 // Asset represents an asset with its version and path in the repository
@@ -63,7 +63,7 @@ func InitDependencies(rootFs billy.Filesystem, branchVersion string, currentChar
 		return nil, err
 	}
 	if !clean {
-		return nil, errorGitNotClean
+		return nil, errGitNotClean
 	}
 
 	// Initialize, load, and check version rules for the current branch
@@ -83,7 +83,7 @@ func InitDependencies(rootFs billy.Filesystem, branchVersion string, currentChar
 		return nil, err
 	}
 	if len(dep.AssetsVersionsMap) == 0 {
-		return nil, errorChartRepository
+		return nil, errChartRepository
 	}
 
 	return dep, nil
@@ -96,14 +96,14 @@ func checkFilePaths(rootFs billy.Filesystem) error {
 		return err
 	}
 	if !exists {
-		return errorChartRepository
+		return errChartRepository
 	}
 	exists, err = filesystem.PathExists(rootFs, path.RepositoryHelmIndexFile)
 	if err != nil {
 		return err
 	}
 	if !exists {
-		return errorChartRepository
+		return errChartRepository
 	}
 	return nil
 }

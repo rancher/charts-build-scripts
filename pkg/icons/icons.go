@@ -20,8 +20,8 @@ import (
 func Download(rootFs billy.Filesystem, metadata *chart.Metadata) (string, error) {
 	icon, err := http.Get(metadata.Icon)
 	if err != nil {
-		logrus.Errorf(err.Error())
-		return "", fmt.Errorf("err: %w", err)
+		logrus.Error(err)
+		return "", err
 	}
 
 	byType, err := mime.ExtensionsByType(icon.Header.Get("Content-Type"))
@@ -31,15 +31,15 @@ func Download(rootFs billy.Filesystem, metadata *chart.Metadata) (string, error)
 	path := fmt.Sprintf("%s/%s%s", path.RepositoryLogosDir, metadata.Name, byType[0])
 	create, err := rootFs.Create(path)
 	if err != nil {
-		logrus.Errorf(err.Error())
-		return "", fmt.Errorf("err: %w", err)
+		logrus.Error(err)
+		return "", err
 	}
 	defer create.Close()
 	_, err = io.Copy(create, icon.Body)
 	defer icon.Body.Close()
 	if err != nil {
-		logrus.Errorf(err.Error())
-		return "", fmt.Errorf("err: %w", err)
+		logrus.Error(err)
+		return "", err
 	}
 	return path, nil
 }

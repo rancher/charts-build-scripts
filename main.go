@@ -47,7 +47,11 @@ const (
 	// defaultForkEnvironmentVariable is the default environment variable that indicates the fork URL
 	defaultForkEnvironmentVariable = "FORK"
 	// defaultChartVersionEnvironmentVariable is the default environment variable that indicates the version to release
-	defaultChartVersionEnvironmentVariable = ""
+	defaultChartVersionEnvironmentVariable = "CHART_VERSION"
+	// defaultGHTokenEnvironmentVariable is the default environment variable that indicates the Github Auth token
+	defaultGHTokenEnvironmentVariable = "GH_TOKEN"
+	// defaultPRNumberEnvironmentVariable is the default environment variable that indicates the PR number
+	defaultPRNumberEnvironmentVariable = "PR_NUMBER"
 )
 
 var (
@@ -58,8 +62,6 @@ var (
 
 	// ChartsScriptOptionsFile represents a name of a file that contains options for the charts script to use for this branch
 	ChartsScriptOptionsFile string
-	// GithubToken represents the Github Auth token; currently not used
-	GithubToken string
 	// CurrentPackage represents the specific package to apply the scripts to
 	CurrentPackage string
 	// CurrentChart represents a specific chart to apply the scripts to. Also accepts a specific version.
@@ -80,6 +82,10 @@ var (
 	ChartVersion = ""
 	// Branch repsents the branch to compare against
 	Branch = ""
+	// PullRequest represents the Pull Request identifying number
+	PullRequest = ""
+	// GithubToken represents the Github Auth token
+	GithubToken string
 )
 
 func main() {

@@ -174,7 +174,7 @@ func main() {
 		Name: "version",
 		Usage: `Usage:
 			./bin/charts-build-scripts <command> --version="<chart_version>"
-			VERSION="<chart_version>" make <command>
+			CHART_VERSION="<chart_version>" make <command>
 
 		Target version of chart to release.
 		`,

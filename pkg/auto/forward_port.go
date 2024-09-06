@@ -79,7 +79,7 @@ func (f *ForwardPort) organizePullRequestsByChart(commands []Command) {
 		// If the chart is different from the last chart, organize a new pull request
 		if changed {
 			pr := PullRequest{
-				branch:   fmt.Sprintf("auto-forward-port-%s-%.1f", command.Chart, f.VR.BranchVersion),
+				branch:   fmt.Sprintf("auto-forward-port-%s-%s", command.Chart, f.VR.BranchVersion),
 				commands: []Command{command},
 			}
 			f.pullRequests[command.Chart] = pr

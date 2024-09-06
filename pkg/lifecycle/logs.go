@@ -47,7 +47,7 @@ func (l *Logs) WriteHEAD(versionRules *VersionRules, title string) {
 	l.Write(title, "INFO")
 	currentTime := time.Now()
 	l.Write(currentTime.Format("2006-01-02 15:04:05"), "INFO")
-	l.Write(fmt.Sprintf("Branch Version: %.1f", versionRules.BranchVersion), "INFO")
+	l.Write(fmt.Sprintf("Branch Version: %s", versionRules.BranchVersion), "INFO")
 	l.Write(fmt.Sprintf("minimal version: %d", versionRules.MinVersion), "INFO")
 	l.Write(fmt.Sprintf("max version: %d", versionRules.MaxVersion), "INFO")
 	l.Write(fmt.Sprintf("development branch: %s", versionRules.DevBranch), "INFO")
@@ -55,7 +55,7 @@ func (l *Logs) WriteHEAD(versionRules *VersionRules, title string) {
 
 	rules := make(map[string]string, len(versionRules.Rules))
 	for k, v := range versionRules.Rules {
-		rules[fmt.Sprintf("%.1f", k)] = fmt.Sprintf("min: %s, max: %s", v.min, v.max)
+		rules[fmt.Sprintf("%s", k)] = fmt.Sprintf("min: %s, max: %s", v.Min, v.Max)
 	}
 
 	rulesJSON, err := json.MarshalIndent(rules, "", "    ")

@@ -40,10 +40,10 @@ const (
 	defaultPorcelainEnvironmentVariable = "PORCELAIN"
 	// defaultCacheEnvironmentVariable is the default environment variable that indicates that a cache should be used on pulls to remotes
 	defaultCacheEnvironmentVariable = "USE_CACHE"
-	// defaultDebugEnvironmentVariable is the default environment variable that indicates that debug mode should be enabled
-	defaultDebugEnvironmentVariable = "DEBUG"
 	// defaultBranchVersionEnvironmentVariable is the default environment variable that indicates the branch version to compare against
 	defaultBranchVersionEnvironmentVariable = "BRANCH_VERSION"
+	// defaultBranchEnvironmentVariable is the default environment variable that indicates the branch
+	defaultBranchEnvironmentVariable = "BRANCH"
 	// defaultForkEnvironmentVariable is the default environment variable that indicates the fork URL
 	defaultForkEnvironmentVariable = "FORK"
 	// defaultChartVersionEnvironmentVariable is the default environment variable that indicates the version to release
@@ -74,12 +74,12 @@ var (
 	RemoteMode bool
 	// CacheMode indicates that caching should be used on all remotely pulled resources
 	CacheMode = false
-	// DebugMode indicates that debug mode should be enabled
-	DebugMode = false
 	// ForkURL represents the fork URL configured as a remote in your local git repository
 	ForkURL = ""
 	// ChartVersion of the chart to release
 	ChartVersion = ""
+	// Branch repsents the branch to compare against
+	Branch = ""
 )
 
 func main() {
@@ -151,18 +151,7 @@ func main() {
 		Required: true,
 		EnvVar:   defaultBranchVersionEnvironmentVariable,
 	}
-	debugFlag := cli.BoolFlag{
-		Name: "debug",
-		Usage: `Usage:
-			./bin/charts-build-scripts <some_command> --debug=true
-			DEBUG=true make <some_command>
 
-		Enable debug mode with more verbose output
-		Default Environment Variable:
-		`,
-		Destination: &DebugMode,
-		EnvVar:      defaultDebugEnvironmentVariable,
-	}
 	forkFlag := cli.StringFlag{
 		Name: "fork",
 		Usage: `Usage:
@@ -306,15 +295,6 @@ func main() {
 			Usage:  "Download the chart icon locally and use it",
 			Action: downloadIcon,
 			Flags:  []cli.Flag{packageFlag, configFlag, cacheFlag},
-		},
-		{
-			Name: "enforce-lifecycle",
-			Usage: `(work in progress)
-			Remove all assets versions that don't belong on this branch according to the lifecycle rules.
-			All assets versions that are older than 3 minor versions from the provided branch version(2.7; 2.8; 2.9) will be removed.
-			`,
-			Action: enforceLifecycle,
-			Flags:  []cli.Flag{branchVersionFlag, chartFlag, debugFlag},
 		},
 		{
 			Name: "lifecycle-status",
@@ -641,29 +621,11 @@ func checkRCTagsAndVersions(c *cli.Context) {
 	logrus.Info("RC check has succeeded")
 }
 
-func enforceLifecycle(c *cli.Context) {
-	// Initialize dependencies with branch-version, current chart and debug mode
-	logrus.Info("Initializing dependencies for enforce-lifecycle")
-	repoRoot := getRepoRoot()
-	rootFs := filesystem.GetFilesystem(repoRoot)
-	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, DebugMode)
-	if err != nil {
-		logrus.Fatalf("encountered error while initializing dependencies: %s", err)
-	}
-
-	// Apply versioning rules
-	logrus.Info("Starting to enforce lifecycle rules for assets")
-	err = lifeCycleDep.ApplyRules(CurrentChart, DebugMode)
-	if err != nil {
-		logrus.Fatalf("Failed to apply versioning rules for lifecycle-assets-clean: %s", err)
-	}
-}
-
 func lifecycleStatus(c *cli.Context) {
 	// Initialize dependencies with branch-version and current chart
 	logrus.Info("Initializing dependencies for lifecycle-status")
 	rootFs := filesystem.GetFilesystem(getRepoRoot())
-	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, false)
+	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart)
 	if err != nil {
 		logrus.Fatalf("encountered error while initializing dependencies: %s", err)
 	}
@@ -677,7 +639,6 @@ func lifecycleStatus(c *cli.Context) {
 }
 
 func autoForwardPort(c *cli.Context) {
-
 	if ForkURL == "" {
 		logrus.Fatal("FORK environment variable must be set to run auto-forward-port")
 	}
@@ -685,7 +646,7 @@ func autoForwardPort(c *cli.Context) {
 	// Initialize dependencies with branch-version and current chart
 	logrus.Info("Initializing dependencies for auto-forward-port")
 	rootFs := filesystem.GetFilesystem(getRepoRoot())
-	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, false)
+	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart)
 	if err != nil {
 		logrus.Fatalf("encountered error while initializing dependencies: %v", err)
 	}
@@ -709,7 +670,6 @@ func autoForwardPort(c *cli.Context) {
 	if err != nil {
 		logrus.Fatalf("Failed to execute forward port: %v", err)
 	}
-
 }
 
 func release(c *cli.Context) {
@@ -723,7 +683,7 @@ func release(c *cli.Context) {
 
 	rootFs := filesystem.GetFilesystem(getRepoRoot())
 
-	dependencies, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart, false)
+	dependencies, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart)
 	if err != nil {
 		logrus.Fatalf("encountered error while initializing dependencies: %v", err)
 	}

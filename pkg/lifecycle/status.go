@@ -156,7 +156,7 @@ func (s *Status) listCurrentAssetsVersionsOnTheCurrentBranch() {
 	insideLifecycle := make(map[string][]Asset)
 	outsideLifecycle := make(map[string][]Asset)
 
-	for asset, versions := range s.ld.assetsVersionsMap {
+	for asset, versions := range s.ld.AssetsVersionsMap {
 		for _, version := range versions {
 			inLifecycle := s.ld.VR.CheckChartVersionForLifecycle(version.Version)
 			if inLifecycle {
@@ -213,7 +213,7 @@ func (s *Status) getProdAndDevAssetsFromGit(git *git.Git) (map[string][]Asset, m
 	}
 
 	// Get the map for the released assets versions on the production branch
-	releasedAssets, err := getAssetsMapFromIndex(helmIndexPath, "", false)
+	releasedAssets, err := getAssetsMapFromIndex(helmIndexPath, "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -225,7 +225,7 @@ func (s *Status) getProdAndDevAssetsFromGit(git *git.Git) (map[string][]Asset, m
 	}
 
 	// Get the map for the development assets versions on the development branch
-	devAssets, err := getAssetsMapFromIndex(helmIndexPath, "", false)
+	devAssets, err := getAssetsMapFromIndex(helmIndexPath, "")
 	if err != nil {
 		return nil, nil, err
 	}

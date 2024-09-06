@@ -55,4 +55,7 @@ const (
 
 	// RepositoryReleaseYaml is the file on your Staging/Live branch that contains the release information
 	RepositoryReleaseYaml = "release.yaml"
+
+	// VersionRulesFile is the file that contains the version rules for the current branch on charts-build-scripts
+	VersionRulesFile = "version_rules.json"
 )

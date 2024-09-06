@@ -764,3 +764,31 @@ func release(c *cli.Context) {
 	// make index
 	createOrUpdateIndex(c)
 }
+
+func validateRelease(c *cli.Context) {
+	if GithubToken == "" {
+		logrus.Fatal("GH_TOKEN environment variable must be set to run validate-release-charts")
+	}
+	if PullRequest == "" {
+		logrus.Fatal("PR_NUMBER environment variable must be set to run validate-release-charts")
+	}
+	if Branch == "" {
+		logrus.Fatal("BRANCH environment variable must be set to run validate-release-charts")
+	}
+
+	r := filesystem.GetFilesystem(getRepoRoot())
+
+	if !strings.HasPrefix(Branch, "release-v") {
+		fmt.Println("Branch must be in the format release-v2.x")
+		os.Exit(1)
+	}
+
+	d, err := lifecycle.InitDependencies(r, strings.TrimPrefix(Branch, "release-v"), "")
+	if err != nil {
+		logrus.Fatalf("encountered error while initializing d: %v", err)
+	}
+
+	if err := auto.ValidatePullRequest(GithubToken, PullRequest, d); err != nil {
+		logrus.Fatalf("failed to validate pull request: %v", err)
+	}
+}

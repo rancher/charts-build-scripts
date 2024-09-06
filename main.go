@@ -328,6 +328,50 @@ func main() {
 			Action: release,
 			Flags:  []cli.Flag{branchVersionFlag, chartFlag, chartVersionFlag, forkFlag},
 		},
+		{
+			Name: "validate-release-charts",
+			Usage: `Check charts to release in PR.
+			`,
+			Action: validateRelease,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name: "branch,b",
+					Usage: `Usage:
+					./bin/charts-build-scripts <command> --branch="release-v2.y"
+					BRANCH="release-v2.y" make <command>
+
+					Available branches for release: (release-v2.8; release-v2.9; release-v2.10...)
+					`,
+					Required:    true,
+					EnvVar:      defaultBranchEnvironmentVariable,
+					Destination: &Branch,
+				},
+				cli.StringFlag{
+					Name: "gh_token",
+					Usage: `Usage:
+					./bin/charts-build-scripts <command> --gh_token="********"
+					GH_TOKEN="*********" make <command>
+
+					Github Auth Token provided by Github Actions job
+					`,
+					Required:    true,
+					EnvVar:      defaultGHTokenEnvironmentVariable,
+					Destination: &GithubToken,
+				},
+				cli.StringFlag{
+					Name: "pr_number",
+					Usage: `Usage:
+					./bin/charts-build-scripts <command> --pr_number="****"
+					PR_NUMBER="****" make <command>
+
+					Pull Request identifying number provided by Github Actions job
+					`,
+					Required:    true,
+					EnvVar:      defaultPRNumberEnvironmentVariable,
+					Destination: &PullRequest,
+				},
+			},
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {

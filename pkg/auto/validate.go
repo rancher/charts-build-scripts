@@ -48,8 +48,11 @@ func loadPullRequestValidation(token, prNum string, dep *lifecycle.Dependencies)
 	}
 
 	pr, resp, err := gitClient.PullRequests.Get(ctx, owner, repo, pNum)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to get pull request, status code: %s", resp.Status)
 	}
 
 	prFiles, _, err := gitClient.PullRequests.ListFiles(ctx, owner, repo, pNum, nil)

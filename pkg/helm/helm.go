@@ -1,6 +1,7 @@
 package helm
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -106,4 +107,19 @@ func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) 
 	// Sort and return entries
 	updatedIndex.SortEntries()
 	return updatedIndex, upToDate
+}
+
+// OpenIndexYaml will check and open the index.yaml file in the local repository at the default file path
+func OpenIndexYaml(rootFs billy.Filesystem) (*helmRepo.IndexFile, error) {
+	helmIndexFilePath := filesystem.GetAbsPath(rootFs, path.RepositoryHelmIndexFile)
+
+	exists, err := filesystem.PathExists(rootFs, path.RepositoryHelmIndexFile)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.New("index.yaml file does not exist in the local repository")
+	}
+
+	return helmRepo.LoadIndexFile(helmIndexFilePath)
 }

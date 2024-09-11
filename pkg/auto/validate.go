@@ -1,17 +1,26 @@
 package auto
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strconv"
 
 	"github.com/Masterminds/semver"
+	"github.com/go-git/go-billy/v5"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-github/v41/github"
+	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
+	"github.com/rancher/charts-build-scripts/pkg/rest"
 	"golang.org/x/oauth2"
+
+	helmRepo "helm.sh/helm/v3/pkg/repo"
 )
 
 // Referred to: https://github.com/rancher/charts
@@ -168,5 +177,47 @@ func (v *validation) checkNeverModifyReleasedChart(assetFilePaths map[string]str
 		return fmt.Errorf("%w: %v", errReleaseYaml, assetFilePathErrors)
 	}
 
+	return nil
+}
+
+// CompareIndexFiles will load the current index.yaml file from the root filesystem and compare it with the index.yaml file from charts.rancher.io
+func CompareIndexFiles(rootFs billy.Filesystem) error {
+	// verify, search & open current index.yaml file
+	localIndexYaml, err := helm.OpenIndexYaml(rootFs)
+	if err != nil {
+		return err
+	}
+
+	// download index.yaml from charts.rancher.io
+	body, err := rest.Get("https://charts.rancher.io/index.yaml")
+	if err != nil {
+		return err
+	}
+
+	// save it to a temporary file
+	tempIndex, err := os.CreateTemp("", "temp-index.yaml")
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer tempIndex.Close()
+
+	_, err = io.Copy(tempIndex, bytes.NewReader(body))
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	tempIndexYaml, err := helmRepo.LoadIndexFile(tempIndex.Name())
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tempIndex.Name())
+
+	// compare both index.yaml files
+	if diff := cmp.Diff(localIndexYaml, tempIndexYaml); diff != "" {
+		fmt.Println(diff)
+		return errors.New("index.yaml files are different at git repository and charts.rancher.io")
+	}
 	return nil
 }

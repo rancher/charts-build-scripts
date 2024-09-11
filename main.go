@@ -47,7 +47,11 @@ const (
 	// defaultForkEnvironmentVariable is the default environment variable that indicates the fork URL
 	defaultForkEnvironmentVariable = "FORK"
 	// defaultChartVersionEnvironmentVariable is the default environment variable that indicates the version to release
-	defaultChartVersionEnvironmentVariable = ""
+	defaultChartVersionEnvironmentVariable = "CHART_VERSION"
+	// defaultGHTokenEnvironmentVariable is the default environment variable that indicates the Github Auth token
+	defaultGHTokenEnvironmentVariable = "GH_TOKEN"
+	// defaultPRNumberEnvironmentVariable is the default environment variable that indicates the PR number
+	defaultPRNumberEnvironmentVariable = "PR_NUMBER"
 )
 
 var (
@@ -55,11 +59,8 @@ var (
 	Version = "v0.0.0-dev"
 	// GitCommit represents the latest commit when building this script
 	GitCommit = "HEAD"
-
 	// ChartsScriptOptionsFile represents a name of a file that contains options for the charts script to use for this branch
 	ChartsScriptOptionsFile string
-	// GithubToken represents the Github Auth token; currently not used
-	GithubToken string
 	// CurrentPackage represents the specific package to apply the scripts to
 	CurrentPackage string
 	// CurrentChart represents a specific chart to apply the scripts to. Also accepts a specific version.
@@ -80,6 +81,10 @@ var (
 	ChartVersion = ""
 	// Branch repsents the branch to compare against
 	Branch = ""
+	// PullRequest represents the Pull Request identifying number
+	PullRequest = ""
+	// GithubToken represents the Github Auth token
+	GithubToken string
 )
 
 func main() {
@@ -151,7 +156,6 @@ func main() {
 		Required: true,
 		EnvVar:   defaultBranchVersionEnvironmentVariable,
 	}
-
 	forkFlag := cli.StringFlag{
 		Name: "fork",
 		Usage: `Usage:
@@ -168,7 +172,7 @@ func main() {
 		Name: "version",
 		Usage: `Usage:
 			./bin/charts-build-scripts <command> --version="<chart_version>"
-			VERSION="<chart_version>" make <command>
+			CHART_VERSION="<chart_version>" make <command>
 
 		Target version of chart to release.
 		`,
@@ -321,6 +325,54 @@ func main() {
 			`,
 			Action: release,
 			Flags:  []cli.Flag{branchVersionFlag, chartFlag, chartVersionFlag, forkFlag},
+		},
+		{
+			Name: "validate-release-charts",
+			Usage: `Check charts to release in PR.
+			`,
+			Action: validateRelease,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name: "branch,b",
+					Usage: `Usage:
+					./bin/charts-build-scripts <command> --branch="release-v2.y"
+					BRANCH="release-v2.y" make <command>
+
+					Available branches for release: (release-v2.8; release-v2.9; release-v2.10...)
+					`,
+					Required:    true,
+					EnvVar:      defaultBranchEnvironmentVariable,
+					Destination: &Branch,
+				},
+				cli.StringFlag{
+					Name: "gh_token",
+					Usage: `Usage:
+					./bin/charts-build-scripts <command> --gh_token="********"
+					GH_TOKEN="*********" make <command>
+
+					Github Auth Token provided by Github Actions job
+					`,
+					Required:    true,
+					EnvVar:      defaultGHTokenEnvironmentVariable,
+					Destination: &GithubToken,
+				},
+				cli.StringFlag{
+					Name: "pr_number",
+					Usage: `Usage:
+					./bin/charts-build-scripts <command> --pr_number="****"
+					PR_NUMBER="****" make <command>
+
+					Pull Request identifying number provided by Github Actions job
+					`,
+					Required:    true,
+					EnvVar:      defaultPRNumberEnvironmentVariable,
+					Destination: &PullRequest,
+				},
+				cli.BoolFlag{
+					Name:  "skip",
+					Usage: "Skip the execution and return success",
+				},
+			},
 		},
 	}
 
@@ -713,4 +765,41 @@ func release(c *cli.Context) {
 
 	// make index
 	createOrUpdateIndex(c)
+}
+
+func validateRelease(c *cli.Context) {
+	if c.Bool("skip") {
+		fmt.Println("skipping execution...")
+		return
+	}
+	if GithubToken == "" {
+		fmt.Println("GH_TOKEN environment variable must be set to run validate-release-charts")
+		os.Exit(1)
+	}
+	if PullRequest == "" {
+		fmt.Println("PR_NUMBER environment variable must be set to run validate-release-charts")
+		os.Exit(1)
+	}
+	if Branch == "" {
+		fmt.Println("BRANCH environment variable must be set to run validate-release-charts")
+		os.Exit(1)
+	}
+
+	rootFs := filesystem.GetFilesystem(getRepoRoot())
+
+	if !strings.HasPrefix(Branch, "release-v") {
+		fmt.Println("Branch must be in the format release-v2.x")
+		os.Exit(1)
+	}
+
+	dependencies, err := lifecycle.InitDependencies(rootFs, strings.TrimPrefix(Branch, "release-v"), "")
+	if err != nil {
+		fmt.Printf("encountered error while initializing d: %v \n", err)
+		os.Exit(1)
+	}
+
+	if err := auto.ValidatePullRequest(GithubToken, PullRequest, dependencies); err != nil {
+		fmt.Printf("failed to validate pull request: %v \n", err)
+		os.Exit(1)
+	}
 }

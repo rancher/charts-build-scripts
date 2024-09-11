@@ -767,13 +767,16 @@ func release(c *cli.Context) {
 
 func validateRelease(c *cli.Context) {
 	if GithubToken == "" {
-		logrus.Fatal("GH_TOKEN environment variable must be set to run validate-release-charts")
+		fmt.Println("GH_TOKEN environment variable must be set to run validate-release-charts")
+		os.Exit(1)
 	}
 	if PullRequest == "" {
-		logrus.Fatal("PR_NUMBER environment variable must be set to run validate-release-charts")
+		fmt.Println("PR_NUMBER environment variable must be set to run validate-release-charts")
+		os.Exit(1)
 	}
 	if Branch == "" {
-		logrus.Fatal("BRANCH environment variable must be set to run validate-release-charts")
+		fmt.Println("BRANCH environment variable must be set to run validate-release-charts")
+		os.Exit(1)
 	}
 
 	r := filesystem.GetFilesystem(getRepoRoot())
@@ -785,10 +788,12 @@ func validateRelease(c *cli.Context) {
 
 	d, err := lifecycle.InitDependencies(r, strings.TrimPrefix(Branch, "release-v"), "")
 	if err != nil {
-		logrus.Fatalf("encountered error while initializing d: %v", err)
+		fmt.Printf("encountered error while initializing d: %v \n", err)
+		os.Exit(1)
 	}
 
 	if err := auto.ValidatePullRequest(GithubToken, PullRequest, d); err != nil {
-		logrus.Fatalf("failed to validate pull request: %v", err)
+		fmt.Printf("failed to validate pull request: %v \n", err)
+		os.Exit(1)
 	}
 }

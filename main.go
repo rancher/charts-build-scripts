@@ -59,7 +59,6 @@ var (
 	Version = "v0.0.0-dev"
 	// GitCommit represents the latest commit when building this script
 	GitCommit = "HEAD"
-
 	// ChartsScriptOptionsFile represents a name of a file that contains options for the charts script to use for this branch
 	ChartsScriptOptionsFile string
 	// CurrentPackage represents the specific package to apply the scripts to
@@ -157,7 +156,6 @@ func main() {
 		Required: true,
 		EnvVar:   defaultBranchVersionEnvironmentVariable,
 	}
-
 	forkFlag := cli.StringFlag{
 		Name: "fork",
 		Usage: `Usage:
@@ -369,6 +367,10 @@ func main() {
 					Required:    true,
 					EnvVar:      defaultPRNumberEnvironmentVariable,
 					Destination: &PullRequest,
+				},
+				cli.BoolFlag{
+					Name:  "skip",
+					Usage: "Skip the execution and return success",
 				},
 			},
 		},
@@ -766,6 +768,10 @@ func release(c *cli.Context) {
 }
 
 func validateRelease(c *cli.Context) {
+	if c.Bool("skip") {
+		fmt.Println("skipping execution...")
+		return
+	}
 	if GithubToken == "" {
 		fmt.Println("GH_TOKEN environment variable must be set to run validate-release-charts")
 		os.Exit(1)
@@ -779,20 +785,20 @@ func validateRelease(c *cli.Context) {
 		os.Exit(1)
 	}
 
-	r := filesystem.GetFilesystem(getRepoRoot())
+	rootFs := filesystem.GetFilesystem(getRepoRoot())
 
 	if !strings.HasPrefix(Branch, "release-v") {
 		fmt.Println("Branch must be in the format release-v2.x")
 		os.Exit(1)
 	}
 
-	d, err := lifecycle.InitDependencies(r, strings.TrimPrefix(Branch, "release-v"), "")
+	dependencies, err := lifecycle.InitDependencies(rootFs, strings.TrimPrefix(Branch, "release-v"), "")
 	if err != nil {
 		fmt.Printf("encountered error while initializing d: %v \n", err)
 		os.Exit(1)
 	}
 
-	if err := auto.ValidatePullRequest(GithubToken, PullRequest, d); err != nil {
+	if err := auto.ValidatePullRequest(GithubToken, PullRequest, dependencies); err != nil {
 		fmt.Printf("failed to validate pull request: %v \n", err)
 		os.Exit(1)
 	}

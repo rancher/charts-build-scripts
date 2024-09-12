@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strconv"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/rest"
 	"golang.org/x/oauth2"
 
 	helmRepo "helm.sh/helm/v3/pkg/repo"
@@ -189,7 +189,17 @@ func CompareIndexFiles(rootFs billy.Filesystem) error {
 	}
 
 	// download index.yaml from charts.rancher.io
-	body, err := rest.Get("https://charts.rancher.io/index.yaml")
+	resp, err := http.Get("https://charts.rancher.io/index.yaml")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("status code %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 )
@@ -50,19 +49,4 @@ func Post(url string, body, responseModel any) error {
 	}
 
 	return nil
-}
-
-// Get sends a GET request to the given URL and returns the response body as a byte slice.
-func Get(url string) ([]byte, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status code %d", resp.StatusCode)
-	}
-
-	return io.ReadAll(resp.Body)
 }

@@ -197,15 +197,13 @@ func CompareIndexFiles(rootFs billy.Filesystem) error {
 	// save it to a temporary file
 	tempIndex, err := os.CreateTemp("", "temp-index.yaml")
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 	defer tempIndex.Close()
 
 	_, err = io.Copy(tempIndex, bytes.NewReader(body))
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	tempIndexYaml, err := helmRepo.LoadIndexFile(tempIndex.Name())

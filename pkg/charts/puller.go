@@ -7,6 +7,7 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
+	cbsPath "github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/sirupsen/logrus"
 )
 
@@ -83,6 +84,28 @@ type Local struct{}
 
 // Pull grabs the Helm chart by preparing the package itself
 func (u Local) Pull(rootFs, fs billy.Filesystem, path string) error {
+	packageName := strings.SplitN(fs.Root(), cbsPath.RepositoryPackagesDir, 2)[1]
+	pkg, err := GetPackage(rootFs, packageName)
+	if err != nil {
+		return err
+	}
+	if pkg == nil {
+		return fmt.Errorf("could not find local package %s", packageName)
+	}
+	repositoryPackageWorkingDir, err := filesystem.GetRelativePath(rootFs, filesystem.GetAbsPath(pkg.fs, pkg.Chart.WorkingDir))
+	if err != nil {
+		return err
+	}
+	if repositoryPackageWorkingDir == path {
+		return nil
+	}
+	repositoryPath, err := filesystem.GetRelativePath(rootFs, filesystem.GetAbsPath(fs, path))
+	if err != nil {
+		return err
+	}
+	if err := filesystem.CopyDir(rootFs, repositoryPackageWorkingDir, repositoryPath); err != nil {
+		return fmt.Errorf("encountered error while copying prepared package into path: %s", err)
+	}
 	return nil
 }
 

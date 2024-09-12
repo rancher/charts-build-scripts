@@ -337,7 +337,6 @@ func main() {
 					Usage: `Usage:
 					./bin/charts-build-scripts <command> --branch="release-v2.y"
 					BRANCH="release-v2.y" make <command>
-
 					Available branches for release: (release-v2.8; release-v2.9; release-v2.10...)
 					`,
 					Required:    true,
@@ -371,6 +370,25 @@ func main() {
 				cli.BoolFlag{
 					Name:  "skip",
 					Usage: "Skip the execution and return success",
+				},
+			},
+		},
+		{
+			Name: "compare-index-files",
+			Usage: `Compare the index.yaml between github repository and charts.rancher.io.
+			`,
+			Action: compareIndexFiles,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name: "branch,b",
+					Usage: `Usage:
+					./bin/charts-build-scripts <command> --branch="release-v2.y"
+					BRANCH="release-v2.y" make <command>
+					Available branches for release: (release-v2.8; release-v2.9; release-v2.10...)
+					`,
+					Required:    true,
+					EnvVar:      defaultBranchEnvironmentVariable,
+					Destination: &Branch,
 				},
 			},
 		},
@@ -802,4 +820,19 @@ func validateRelease(c *cli.Context) {
 		fmt.Printf("failed to validate pull request: %v \n", err)
 		os.Exit(1)
 	}
+}
+
+func compareIndexFiles(c *cli.Context) {
+	if Branch == "" {
+		fmt.Println("BRANCH environment variable must be set to run validate-release-charts")
+		os.Exit(1)
+	}
+
+	rootFs := filesystem.GetFilesystem(getRepoRoot())
+
+	if err := auto.CompareIndexFiles(rootFs); err != nil {
+		fmt.Printf("failed to compare index files: %v \n", err)
+		os.Exit(1)
+	}
+	fmt.Println("index.yaml files are the same at git repository and charts.rancher.io")
 }

@@ -392,6 +392,25 @@ func main() {
 				},
 			},
 		},
+		{
+			Name: "update-oci-registry",
+			Usage: `Update the oci-registry with the given assets or push all assets.
+			`,
+			Action: updateOCIRegistry,
+			// Flags: []cli.Flag{
+			// 	cli.StringFlag{
+			// 		Name: "branch,b",
+			// 		Usage: `Usage:
+			// 		./bin/charts-build-scripts <command> --branch="release-v2.y"
+			// 		BRANCH="release-v2.y" make <command>
+			// 		Available branches for release: (release-v2.8; release-v2.9; release-v2.10...)
+			// 		`,
+			// 		Required:    true,
+			// 		EnvVar:      defaultBranchEnvironmentVariable,
+			// 		Destination: &Branch,
+			// 	},
+			// },
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -835,4 +854,14 @@ func compareIndexFiles(c *cli.Context) {
 		os.Exit(1)
 	}
 	fmt.Println("index.yaml files are the same at git repository and charts.rancher.io")
+}
+
+func updateOCIRegistry(c *cli.Context) {
+
+	rootFs := filesystem.GetFilesystem(getRepoRoot())
+	if err := auto.OCI(rootFs); err != nil {
+		fmt.Printf("failed to update oci registry: %v \n", err)
+		os.Exit(1)
+	}
+
 }

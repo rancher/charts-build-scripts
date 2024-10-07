@@ -52,6 +52,11 @@ const (
 	defaultGHTokenEnvironmentVariable = "GH_TOKEN"
 	// defaultPRNumberEnvironmentVariable is the default environment variable that indicates the PR number
 	defaultPRNumberEnvironmentVariable = "PR_NUMBER"
+
+	// default environment variables used by OCI Registry
+	defaultOciDNS      = "OCI_DNS"
+	defaultOciUser     = "OCI_USER"
+	defaultOciPassword = "OCI_PASS"
 )
 
 var (
@@ -73,6 +78,8 @@ var (
 	LocalMode bool
 	// RemoteMode indicates that only remote validation should be run
 	RemoteMode bool
+	// DebugMode indicates debug mode
+	DebugMode bool
 	// CacheMode indicates that caching should be used on all remotely pulled resources
 	CacheMode = false
 	// ForkURL represents the fork URL configured as a remote in your local git repository
@@ -85,6 +92,12 @@ var (
 	PullRequest = ""
 	// GithubToken represents the Github Auth token
 	GithubToken string
+	// OciDNS represents the DNS of the OCI Registry
+	OciDNS string
+	// OciUser represents the user of the OCI Registry
+	OciUser string
+	// OciPassword represents the password of the OCI Registry
+	OciPassword string
 )
 
 func main() {
@@ -95,6 +108,12 @@ func main() {
 	app.Name = "charts-build-scripts"
 	app.Version = fmt.Sprintf("%s (%s)", Version, GitCommit)
 	app.Usage = "Build scripts used to maintain patches on Helm charts forked from other repositories"
+	debugFlag := cli.BoolFlag{
+		Name:        "debug,d",
+		Usage:       "Debug mode",
+		Required:    false,
+		Destination: &DebugMode,
+	}
 	configFlag := cli.StringFlag{
 		Name:        "config",
 		Usage:       "A configuration file with additional options for allowing this branch to interact with other branches",
@@ -179,6 +198,33 @@ func main() {
 		Required:    true,
 		Destination: &ChartVersion,
 		EnvVar:      defaultChartVersionEnvironmentVariable,
+	}
+	ociDNS := cli.StringFlag{
+		Name: "oci-dns",
+		Usage: `Usage:
+			Provided OCI registry DNS.
+		`,
+		Required:    true,
+		Destination: &OciDNS,
+		EnvVar:      defaultOciDNS,
+	}
+	ociUser := cli.StringFlag{
+		Name: "oci-user",
+		Usage: `Usage:
+			Provided OCI registry User.
+		`,
+		Required:    true,
+		Destination: &OciUser,
+		EnvVar:      defaultOciUser,
+	}
+	ociPass := cli.StringFlag{
+		Name: "oci-pass",
+		Usage: `Usage:
+			Provided OCI registry Password.
+		`,
+		Required:    true,
+		Destination: &OciPassword,
+		EnvVar:      defaultOciPassword,
 	}
 	app.Commands = []cli.Command{
 		{
@@ -392,24 +438,15 @@ func main() {
 				},
 			},
 		},
+
 		{
 			Name: "update-oci-registry",
 			Usage: `Update the oci-registry with the given assets or push all assets.
 			`,
 			Action: updateOCIRegistry,
-			// Flags: []cli.Flag{
-			// 	cli.StringFlag{
-			// 		Name: "branch,b",
-			// 		Usage: `Usage:
-			// 		./bin/charts-build-scripts <command> --branch="release-v2.y"
-			// 		BRANCH="release-v2.y" make <command>
-			// 		Available branches for release: (release-v2.8; release-v2.9; release-v2.10...)
-			// 		`,
-			// 		Required:    true,
-			// 		EnvVar:      defaultBranchEnvironmentVariable,
-			// 		Destination: &Branch,
-			// 	},
-			// },
+			Flags: []cli.Flag{
+				debugFlag, ociDNS, ociUser, ociPass,
+			},
 		},
 	}
 
@@ -858,8 +895,13 @@ func compareIndexFiles(c *cli.Context) {
 
 func updateOCIRegistry(c *cli.Context) {
 
+	if OciDNS == "" || OciUser == "" || OciPassword == "" {
+		fmt.Printf("OCI_DNS, OCI_USER, OCI_PASS environment variables must be set to run update-oci-registry\n")
+		os.Exit(1)
+	}
+
 	rootFs := filesystem.GetFilesystem(getRepoRoot())
-	if err := auto.OCI(rootFs); err != nil {
+	if err := auto.UpdateOCI(rootFs, OciDNS, OciUser, OciPassword, DebugMode); err != nil {
 		fmt.Printf("failed to update oci registry: %v \n", err)
 		os.Exit(1)
 	}

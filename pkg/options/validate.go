@@ -94,18 +94,23 @@ func (r ReleaseOptions) SortBySemver() {
 }
 
 // CompareVersions compares two semantic versions and determines ascending ordering
-func CompareVersions(a string, b string) bool {
+func CompareVersions(a string, b string) int {
 	v1, err := version.NewVersion(a)
 	if err != nil {
-		return false
+		return 0
 	}
 
 	v2, err := version.NewVersion(b)
 	if err != nil {
-		return false
+		return 0
 	}
 
-	return v1.LessThanOrEqual(v2)
+	if v1.LessThan(v2) {
+		return -1
+	} else if v1.GreaterThan(v2) {
+		return 1
+	}
+	return 0
 }
 
 // WriteToFile marshals the struct to yaml and writes it into the path specified

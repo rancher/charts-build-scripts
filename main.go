@@ -91,10 +91,12 @@ func main() {
 	if len(os.Getenv("DEBUG")) > 0 {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
+
 	app := cli.NewApp()
 	app.Name = "charts-build-scripts"
 	app.Version = fmt.Sprintf("%s (%s)", Version, GitCommit)
 	app.Usage = "Build scripts used to maintain patches on Helm charts forked from other repositories"
+	// Flags
 	configFlag := cli.StringFlag{
 		Name:        "config",
 		Usage:       "A configuration file with additional options for allowing this branch to interact with other branches",
@@ -180,6 +182,59 @@ func main() {
 		Destination: &ChartVersion,
 		EnvVar:      defaultChartVersionEnvironmentVariable,
 	}
+	branchFlag := cli.StringFlag{
+		Name: "branch,b",
+		Usage: `Usage:
+					./bin/charts-build-scripts <command> --branch="release-v2.y"
+					BRANCH="release-v2.y" make <command>
+					Available branches for release: (release-v2.8; release-v2.9; release-v2.10...)
+					`,
+		Required:    true,
+		EnvVar:      defaultBranchEnvironmentVariable,
+		Destination: &Branch,
+	}
+	localModeFlag := cli.BoolFlag{
+		Name:        "local,l",
+		Usage:       "Only perform local validation of the contents of assets and charts",
+		Required:    false,
+		Destination: &LocalMode,
+	}
+	remoteModeFlag := cli.BoolFlag{
+		Name:        "remote,r",
+		Usage:       "Only perform upstream validation of the contents of assets and charts",
+		Required:    false,
+		Destination: &RemoteMode,
+	}
+	ghTokenFlag := cli.StringFlag{
+		Name: "gh_token",
+		Usage: `Usage:
+					./bin/charts-build-scripts <command> --gh_token="********"
+					GH_TOKEN="*********" make <command>
+
+					Github Auth Token provided by Github Actions job
+					`,
+		Required:    true,
+		EnvVar:      defaultGHTokenEnvironmentVariable,
+		Destination: &GithubToken,
+	}
+	prNumberFlag := cli.StringFlag{
+		Name: "pr_number",
+		Usage: `Usage:
+					./bin/charts-build-scripts <command> --pr_number="****"
+					PR_NUMBER="****" make <command>
+
+					Pull Request identifying number provided by Github Actions job
+					`,
+		Required:    true,
+		EnvVar:      defaultPRNumberEnvironmentVariable,
+		Destination: &PullRequest,
+	}
+	skipFlag := cli.BoolFlag{
+		Name:  "skip",
+		Usage: "Skip the execution and return success",
+	}
+
+	// Commands
 	app.Commands = []cli.Command{
 		{
 			Name:   "list",
@@ -245,18 +300,7 @@ func main() {
 			Name:   "validate",
 			Usage:  "Run validation to ensure that contents of assets and charts won't overwrite released charts",
 			Action: validateRepo,
-			Flags: []cli.Flag{packageFlag, configFlag, cli.BoolFlag{
-				Name:        "local,l",
-				Usage:       "Only perform local validation of the contents of assets and charts",
-				Required:    false,
-				Destination: &LocalMode,
-			}, cli.BoolFlag{
-				Name:        "remote,r",
-				Usage:       "Only perform upstream validation of the contents of assets and charts",
-				Required:    false,
-				Destination: &RemoteMode,
-			},
-			},
+			Flags:  []cli.Flag{packageFlag, configFlag, localModeFlag, remoteModeFlag},
 		},
 		{
 			Name:   "standardize",
@@ -269,6 +313,7 @@ func main() {
 			Name:   "template",
 			Action: createOrUpdateTemplate,
 			Flags: []cli.Flag{
+				// TODO: verify if this is the correct way to pass the variables
 				configFlag,
 				cli.StringFlag{
 					Name:        "repositoryUrl,r",
@@ -331,72 +376,31 @@ func main() {
 			Usage: `Check charts to release in PR.
 			`,
 			Action: validateRelease,
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name: "branch,b",
-					Usage: `Usage:
-					./bin/charts-build-scripts <command> --branch="release-v2.y"
-					BRANCH="release-v2.y" make <command>
-					Available branches for release: (release-v2.8; release-v2.9; release-v2.10...)
-					`,
-					Required:    true,
-					EnvVar:      defaultBranchEnvironmentVariable,
-					Destination: &Branch,
-				},
-				cli.StringFlag{
-					Name: "gh_token",
-					Usage: `Usage:
-					./bin/charts-build-scripts <command> --gh_token="********"
-					GH_TOKEN="*********" make <command>
-
-					Github Auth Token provided by Github Actions job
-					`,
-					Required:    true,
-					EnvVar:      defaultGHTokenEnvironmentVariable,
-					Destination: &GithubToken,
-				},
-				cli.StringFlag{
-					Name: "pr_number",
-					Usage: `Usage:
-					./bin/charts-build-scripts <command> --pr_number="****"
-					PR_NUMBER="****" make <command>
-
-					Pull Request identifying number provided by Github Actions job
-					`,
-					Required:    true,
-					EnvVar:      defaultPRNumberEnvironmentVariable,
-					Destination: &PullRequest,
-				},
-				cli.BoolFlag{
-					Name:  "skip",
-					Usage: "Skip the execution and return success",
-				},
-			},
+			Flags:  []cli.Flag{branchFlag, ghTokenFlag, prNumberFlag, skipFlag},
 		},
 		{
 			Name: "compare-index-files",
 			Usage: `Compare the index.yaml between github repository and charts.rancher.io.
 			`,
 			Action: compareIndexFiles,
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name: "branch,b",
-					Usage: `Usage:
-					./bin/charts-build-scripts <command> --branch="release-v2.y"
-					BRANCH="release-v2.y" make <command>
-					Available branches for release: (release-v2.8; release-v2.9; release-v2.10...)
-					`,
-					Required:    true,
-					EnvVar:      defaultBranchEnvironmentVariable,
-					Destination: &Branch,
-				},
-			},
+			Flags:  []cli.Flag{branchFlag},
+		},
+		{
+			Name: "auto-chart-bump",
+			Usage: `Generate a new chart bump PR.
+			`,
+			Action: autoChartBump,
+			Flags:  []cli.Flag{branchFlag},
 		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
 		logrus.Fatal(err)
 	}
+}
+
+func autoChartBump(c *cli.Context) {
+
 }
 
 func listPackages(c *cli.Context) {

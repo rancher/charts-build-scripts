@@ -12,6 +12,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/sirupsen/logrus"
 	helmAction "helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
@@ -26,16 +27,13 @@ var (
 
 // ExportHelmChart creates a Helm chart archive and an unarchived Helm chart at RepositoryAssetDirpath and RepositoryChartDirPath
 // helmChartPath is a relative path (rooted at the package level) that contains the chart.
-func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion *int, version *semver.Version, upstreamChartVersion string, omitBuildMetadata bool) error {
-	// Try to load the chart to see if it can be exported
-	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
-	chart, err := helmLoader.Load(absHelmChartPath)
+func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion *int, version *semver.Version, autoGenBumpVersion *semver.Version, upstreamChartVersion string, omitBuildMetadata bool) error {
+
+	chart, err := loadHelmChart(fs, helmChartPath)
 	if err != nil {
-		return fmt.Errorf("could not load Helm chart: %s", err)
+		return err
 	}
-	if err := chart.Validate(); err != nil {
-		return fmt.Errorf("failed while trying to validate Helm chart: %s", err)
-	}
+
 	chartVersionSemver, err := semver.Make(chart.Metadata.Version)
 	if err != nil {
 		return fmt.Errorf("cannot parse original chart version %s as valid semver", chart.Metadata.Version)
@@ -87,6 +85,20 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 	}
 	logrus.Infof("Generated chart: %s", chartChartsDirpath)
 	return nil
+}
+
+func loadHelmChart(fs billy.Filesystem, helmChartPath string) (*chart.Chart, error) {
+	// Try to load the chart to see if it can be exported
+	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
+	chart, err := helmLoader.Load(absHelmChartPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not load Helm chart: %s", err)
+	}
+	if err := chart.Validate(); err != nil {
+		return nil, fmt.Errorf("failed while trying to validate Helm chart: %s", err)
+	}
+
+	return chart, nil
 }
 
 // GenerateArchive produces a Helm chart archive. If an archive exists at that path already, it does a deep check of the internal

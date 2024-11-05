@@ -234,7 +234,28 @@ func (b *Bump) BumpChart() error {
 		return err
 	}
 
-	// TODO: modify the release.yaml
+	// modify the release.yaml
+	if err := b.updateReleaseYaml(); err != nil {
+		err = fmt.Errorf("error while updating release.yaml: %w", err)
+		return err
+	}
+
+	return nil
+}
+
+func (b *Bump) updateReleaseYaml() error {
+	// upadte chart release yaml
+	if err := b.releaseYaml.UpdateReleaseYaml(); err != nil {
+		return err
+	}
+
+	// Check if there is a crd and update it.
+	if len(b.Pkg.AdditionalCharts) > 0 {
+		if b.Pkg.AdditionalCharts[0].CRDChartOptions != nil {
+			b.releaseYaml.Chart = b.releaseYaml.Chart + "-crd"
+			return b.releaseYaml.UpdateReleaseYaml()
+		}
+	}
 
 	return nil
 }

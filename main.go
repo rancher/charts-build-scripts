@@ -455,8 +455,25 @@ func generateCharts(c *cli.Context) {
 	}
 	chartsScriptOptions := parseScriptOptions()
 	for _, p := range packages {
-		if err := p.GenerateCharts(chartsScriptOptions.OmitBuildMetadataOnExport); err != nil {
-			logrus.Fatal(err)
+		if p.Auto == false {
+			if err := p.GenerateCharts(chartsScriptOptions.OmitBuildMetadataOnExport); err != nil {
+				logrus.Fatal(err)
+			}
+		} else {
+			repoRoot := getRepoRoot()
+
+			bump, err := auto.SetupBump(repoRoot, p.Name, "dev-v2.10", chartsScriptOptions)
+			if err != nil {
+				fmt.Printf("failed to initialize the chart bump: %s", err.Error())
+				bump.Pkg.Clean()
+				os.Exit(1)
+			}
+
+			if err := bump.BumpChart(); err != nil {
+				fmt.Printf("failed to bump the chart: %s", err.Error())
+				bump.Pkg.Clean()
+				os.Exit(1)
+			}
 		}
 	}
 }
@@ -622,7 +639,7 @@ func cleanCache(c *cli.Context) {
 }
 
 func parseScriptOptions() *options.ChartsScriptOptions {
-	configYaml, err := ioutil.ReadFile(ChartsScriptOptionsFile)
+	configYaml, err := ioutil.ReadFile(defaultChartsScriptOptionsFile)
 	if err != nil {
 		logrus.Fatalf("Unable to find configuration file: %s", err)
 	}

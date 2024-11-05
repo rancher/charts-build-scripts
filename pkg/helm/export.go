@@ -44,20 +44,14 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 	chartAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, chart.Metadata.Name)
 	// All generated charts are indexed by chart name and version
 	chartChartsDirpath := filepath.Join(path.RepositoryChartsDir, chart.Metadata.Name, chartVersion)
-	// Create directories
-	if err := rootFs.MkdirAll(chartAssetsDirpath, os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create directory for assets at %s: %s", chartAssetsDirpath, err)
+
+	// Create directories structure
+	if err := handleDirStructure(rootFs, chartAssetsDirpath, chartChartsDirpath); err != nil {
+		return err
 	}
 	defer filesystem.PruneEmptyDirsInPath(rootFs, chartAssetsDirpath)
-	// If we remove an overlay file, the file will not be removed from the charts directory if it already exists,
-	// the easiest way to solve this problem is to clean the target directory before un-archiving the chart's package
-	if err := filesystem.RemoveAll(rootFs, chartChartsDirpath); err != nil {
-		return fmt.Errorf("failed to clean directory for charts at %s: %s", chartChartsDirpath, err)
-	}
-	if err := rootFs.MkdirAll(chartChartsDirpath, os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create directory for charts at %s: %s", chartChartsDirpath, err)
-	}
 	defer filesystem.PruneEmptyDirsInPath(rootFs, chartChartsDirpath)
+
 	tgzPath, err := GenerateArchive(rootFs, fs, helmChartPath, chartAssetsDirpath, &chartVersion)
 	if err != nil {
 		return err
@@ -118,6 +112,23 @@ func parseChartVersion(packageVersion *int, version *semver.Version, upstreamCha
 	chartVersion := metadataSemver.String()
 
 	return chartVersion, nil
+}
+
+func handleDirStructure(rootFs billy.Filesystem, chartAssetsDirpath, chartChartsDirpath string) error {
+	// Create directories
+	if err := rootFs.MkdirAll(chartAssetsDirpath, os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create directory for assets at %s: %s", chartAssetsDirpath, err)
+	}
+	// If we remove an overlay file, the file will not be removed from the charts directory if it already exists,
+	// the easiest way to solve this problem is to clean the target directory before un-archiving the chart's package
+	if err := filesystem.RemoveAll(rootFs, chartChartsDirpath); err != nil {
+		return fmt.Errorf("failed to clean directory for charts at %s: %s", chartChartsDirpath, err)
+	}
+	if err := rootFs.MkdirAll(chartChartsDirpath, os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create directory for charts at %s: %s", chartChartsDirpath, err)
+	}
+
+	return nil
 }
 
 // GenerateArchive produces a Helm chart archive. If an archive exists at that path already, it does a deep check of the internal

@@ -2,8 +2,11 @@ package auto
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
+	"github.com/rancher/charts-build-scripts/pkg/charts"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 )
@@ -48,11 +51,21 @@ func SetupBump(repoRoot, targetPackage, targetBranch string, chScriptOpts *optio
 		return bump, err
 	}
 
-	// TODO: We initialize the lifecycle dependencies because of the versioning rules and the index.yaml mapping.
-	//
+	//Initialize the lifecycle dependencies because of the versioning rules and the index.yaml mapping.
+	dependencies, err := lifecycle.InitDependencies(filesystem.GetFilesystem(repoRoot), branch, bump.targetChart)
+	if err != nil {
+		err = fmt.Errorf("failure at SetupBump: %w ", err)
+		return bump, err
+	}
 
-	// TODO: Load object with target package information
-	//
+	bump.versionRules = dependencies.VR
+	bump.assetsVersionsMap = dependencies.AssetsVersionsMap
+
+	// Load object with target package information
+	packages, err := charts.GetPackages(repoRoot, targetPackage)
+	if err != nil {
+		return nil, err
+	}
 
 	// TODO: Check if package.yaml has all the necessary fields for an auto chart bump
 	//

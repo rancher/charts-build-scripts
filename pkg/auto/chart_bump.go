@@ -15,6 +15,7 @@ import (
 type Bump struct {
 	configOptions     *options.ChartsScriptOptions
 	targetChart       string
+	Pkg               *charts.Package
 	releaseYaml       *Release
 	versionRules      *lifecycle.VersionRules
 	assetsVersionsMap map[string][]lifecycle.Asset
@@ -22,8 +23,16 @@ type Bump struct {
 
 var (
 	// Errors
-	errNotDevBranch = errors.New("a development branch must be provided; (e.g., dev-v2.*)")
-	errBadPackage   = errors.New("unexpected format for PACKAGE env variable")
+	errNotDevBranch        = errors.New("a development branch must be provided; (e.g., dev-v2.*)")
+	errBadPackage          = errors.New("unexpected format for PACKAGE env variable")
+	errNoPackage           = errors.New("no package provided")
+	errMultiplePackages    = errors.New("multiple packages provided; this is not supported")
+	errFalseAuto           = errors.New("package.yaml must be configured for auto-chart-bump")
+	errPackageName         = errors.New("package name not loaded")
+	errPackageChartVersion = errors.New("package chart version loaded but it should be dinamycally created")
+	errPackageVersion      = errors.New("package version loaded but it should be dinamycally created")
+	errPackegeDoNotRelease = errors.New("package is marked as doNotRelease")
+	errChartWorkDir        = errors.New("chart working directory not loaded")
 )
 
 /*******************************************************
@@ -67,8 +76,10 @@ func SetupBump(repoRoot, targetPackage, targetBranch string, chScriptOpts *optio
 		return nil, err
 	}
 
-	// TODO: Check if package.yaml has all the necessary fields for an auto chart bump
-	//
+	// Check if package.yaml has all the necessary fields for an auto chart bump
+	if err := bump.parsePackageYaml(packages); err != nil {
+		return bump, err
+	}
 
 	// TODO: Load the chart and release.yaml paths
 	//
@@ -97,6 +108,40 @@ func (b *Bump) parseChartFromPackage(targetPackage string) error {
 		return nil
 	}
 	return errBadPackage
+}
+
+// parsePackageYaml will assign the package.yaml information to the Bump struct
+// and check if the package.yaml has all the necessary fields for an auto chart bump
+func (b *Bump) parsePackageYaml(packages []*charts.Package) error {
+	if len(packages) == 0 {
+		return errNoPackage
+	} else if len(packages) > 1 {
+		return errMultiplePackages
+	}
+
+	b.Pkg = packages[0]
+
+	// package root level fields check
+	switch {
+	case b.Pkg.Auto == false:
+		return errFalseAuto
+	case b.Pkg.Name == "":
+		return errPackageName
+	case b.Pkg.Version != nil:
+		return errPackageChartVersion
+	case b.Pkg.PackageVersion != nil:
+		return errPackageVersion
+	case b.Pkg.DoNotRelease == true:
+		return errPackegeDoNotRelease
+	case b.Pkg.Chart.WorkingDir == "":
+		return errChartWorkDir
+	}
+
+	// TODO: Package Upstream fields check
+
+	// TODO: Check Chart and Upstream options for any additional Charts
+
+	return nil
 }
 
 // -----------------------------------------------------------

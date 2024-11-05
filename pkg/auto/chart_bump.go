@@ -17,6 +17,7 @@ type Bump struct {
 	configOptions     *options.ChartsScriptOptions
 	targetChart       string
 	Pkg               *charts.Package
+	versions          *versions
 	releaseYaml       *Release
 	versionRules      *lifecycle.VersionRules
 	assetsVersionsMap map[string][]lifecycle.Asset
@@ -208,7 +209,10 @@ func (b *Bump) BumpChart() error {
 		return err
 	}
 
-	// TODO: Calculate the next version to release
+	// Calculate the next version to release
+	if err := b.calculateNextVersion(); err != nil {
+		return err
+	}
 
 	// make patch
 	if err := b.Pkg.GeneratePatch(); err != nil {

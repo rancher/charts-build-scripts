@@ -143,9 +143,10 @@ func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
 // GetOptions returns the path used to construct this upstream
 func (r GithubRepository) GetOptions() options.UpstreamOptions {
 	return options.UpstreamOptions{
-		URL:          r.GetHTTPSURL(),
-		Subdirectory: r.Subdirectory,
-		Commit:       r.Commit,
+		URL:             r.GetHTTPSURL(),
+		Subdirectory:    r.Subdirectory,
+		Commit:          r.Commit,
+		ChartRepoBranch: r.branch,
 	}
 }
 

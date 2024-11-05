@@ -1,6 +1,8 @@
 package auto
 
 import (
+	"strings"
+
 	"github.com/blang/semver"
 )
 
@@ -14,6 +16,15 @@ type versions struct {
 type version struct {
 	txt string
 	svr *semver.Version
+}
+
+func (v *version) updateSemver() error {
+	newSemver, err := semver.Make(v.txt)
+	if err != nil {
+		return err
+	}
+	v.svr = &newSemver
+	return nil
 }
 
 // calculateNextVersion will calculate the next version to bump based on the latest version
@@ -57,7 +68,18 @@ func (b *Bump) loadVersions() error {
 		return errChartLatestVersion
 	}
 
-	// TODO: Latest version may/may not contain a repoPrefixVersion
+	// Latest version may/may not contain a repoPrefixVersion
+	latestRepoPrefix, latestVersion, found := parseRepoPrefixVersionIfAny(latestUnparsedVersion)
+	if found {
+		b.versions.latestRepoPrefix.txt = latestRepoPrefix
+		if err := b.versions.latestRepoPrefix.updateSemver(); err != nil {
+			return err
+		}
+	}
+	b.versions.latest.txt = latestVersion
+	if err := b.versions.latest.updateSemver(); err != nil {
+		return err
+	}
 
 	// TODO: toRelease version comes from the chart owner upstream repository
 
@@ -66,4 +88,17 @@ func (b *Bump) loadVersions() error {
 	// TODO: Check if latestVersion > versionToRelease before continuing
 
 	return nil
+}
+
+func parseRepoPrefixVersionIfAny(unparsedVersion string) (repoPrefix, version string, found bool) {
+	found = strings.Contains(unparsedVersion, "+up")
+	if found {
+		versions := strings.Split(unparsedVersion, "+up")
+		repoPrefix = versions[0]
+		version = versions[1]
+	} else {
+		version = unparsedVersion
+	}
+
+	return repoPrefix, version, found
 }

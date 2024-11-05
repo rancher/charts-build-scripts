@@ -34,28 +34,11 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 		return err
 	}
 
-	chartVersionSemver, err := semver.Make(chart.Metadata.Version)
+	// Parse the chart version (if autoGenBumpVersion is not nil, it will be used as the version)
+	chartVersion, err := parseChartVersion(packageVersion, version, upstreamChartVersion, chart.Metadata.Version, autoGenBumpVersion, omitBuildMetadata)
 	if err != nil {
-		return fmt.Errorf("cannot parse original chart version %s as valid semver", chart.Metadata.Version)
+		return err
 	}
-	if version != nil {
-		chartVersionSemver = *version
-	} else if packageVersion != nil {
-		// Add packageVersion as string, preventing errors due to leading 0s
-		if uint64(*packageVersion) >= MaxPatchNum {
-			return fmt.Errorf("maximum number for packageVersion is %d, found %d", MaxPatchNum, packageVersion)
-		}
-		if uint64(*packageVersion) < 1 {
-			return fmt.Errorf("minimum number for packageVersion is 1, found %d", packageVersion)
-		}
-		chartVersionSemver.Patch = PatchNumMultiplier*chartVersionSemver.Patch + uint64(*packageVersion)
-	}
-
-	if !omitBuildMetadata && len(upstreamChartVersion) > 0 && upstreamChartVersion != chartVersionSemver.String() {
-		// Add buildMetadataFlag for forked charts
-		chartVersionSemver.Build = append(chartVersionSemver.Build, fmt.Sprintf("up%s", upstreamChartVersion))
-	}
-	chartVersion := chartVersionSemver.String()
 
 	// Assets are indexed by chart name, independent of which package that chart is contained within
 	chartAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, chart.Metadata.Name)
@@ -99,6 +82,42 @@ func loadHelmChart(fs billy.Filesystem, helmChartPath string) (*chart.Chart, err
 	}
 
 	return chart, nil
+}
+
+// parseChartVersion will parse the chart version based on the packageVersion, version, upstreamChartVersion, metadataVersion, and omitBuildMetadata unless autoGenBumpVersion is not nil, in this case it will use autoGenBumpVersion as the version
+func parseChartVersion(packageVersion *int, version *semver.Version, upstreamChartVersion string, metadataVersion string, autoGenBumpVersion *semver.Version, omitBuildMetadata bool) (string, error) {
+	if autoGenBumpVersion != nil {
+		return autoGenBumpVersion.String(), nil
+	}
+
+	metadataSemver, err := semver.Make(metadataVersion)
+	if err != nil {
+		return "", fmt.Errorf("cannot parse original chart version %s as valid semver", metadataVersion)
+	}
+
+	if version != nil {
+		metadataSemver = *version
+	}
+
+	// Add packageVersion as string, preventing errors due to leading 0s
+	if packageVersion != nil {
+		if uint64(*packageVersion) >= MaxPatchNum {
+			return "", fmt.Errorf("maximum number for packageVersion is %d, found %d", MaxPatchNum, packageVersion)
+		}
+		if uint64(*packageVersion) < 1 {
+			return "", fmt.Errorf("minimum number for packageVersion is 1, found %d", packageVersion)
+		}
+		metadataSemver.Patch = PatchNumMultiplier*metadataSemver.Patch + uint64(*packageVersion)
+	}
+
+	// Add buildMetadataFlag for forked charts
+	if !omitBuildMetadata && len(upstreamChartVersion) > 0 && upstreamChartVersion != metadataSemver.String() {
+		metadataSemver.Build = append(metadataSemver.Build, fmt.Sprintf("up%s", upstreamChartVersion))
+	}
+
+	chartVersion := metadataSemver.String()
+
+	return chartVersion, nil
 }
 
 // GenerateArchive produces a Helm chart archive. If an archive exists at that path already, it does a deep check of the internal

@@ -11,6 +11,7 @@ import (
 // Bump TODO: Doc this
 type Bump struct {
 	configOptions     *options.ChartsScriptOptions
+	targetChart       string
 	releaseYaml       *Release
 	versionRules      *lifecycle.VersionRules
 	assetsVersionsMap map[string][]lifecycle.Asset
@@ -19,6 +20,7 @@ type Bump struct {
 var (
 	// Errors
 	errNotDevBranch = errors.New("a development branch must be provided; (e.g., dev-v2.*)")
+	errBadPackage   = errors.New("unexpected format for PACKAGE env variable")
 )
 
 /*******************************************************
@@ -41,8 +43,10 @@ func SetupBump(repoRoot, targetPackage, targetBranch string, chScriptOpts *optio
 		return nil, err
 	}
 
-	// TODO: Load and check the chart name from the target given package
-	// here
+	// Load and check the chart name from the target given package
+	if err := bump.parseChartFromPackage(targetPackage); err != nil {
+		return bump, err
+	}
 
 	// TODO: We initialize the lifecycle dependencies because of the versioning rules and the index.yaml mapping.
 	//
@@ -64,6 +68,22 @@ func parseBranchVersion(targetBranch string) (string, error) {
 		return "", errNotDevBranch
 	}
 	return strings.TrimPrefix(targetBranch, "dev-v"), nil
+}
+
+// parseChartFromPackage extracts the chart name from the targetPackage
+// targetPackage is in the format "<chart>/<some_number>/<chart>"
+// (e.g., "rancher-istio/1.22/rancher-istio")
+// or just <chart>
+func (b *Bump) parseChartFromPackage(targetPackage string) error {
+	parts := strings.Split(targetPackage, "/")
+	if len(parts) == 1 {
+		b.targetChart = parts[0]
+		return nil
+	} else if len(parts) > 1 && len(parts) <= 4 {
+		b.targetChart = parts[len(parts)-1]
+		return nil
+	}
+	return errBadPackage
 }
 
 // -----------------------------------------------------------

@@ -9,6 +9,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/options"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 )
 
 // Bump TODO: Doc this
@@ -88,8 +89,16 @@ func SetupBump(repoRoot, targetPackage, targetBranch string, chScriptOpts *optio
 		return bump, err
 	}
 
-	// TODO: Load the chart and release.yaml paths
-	//
+	//  Load the chart and release.yaml paths
+	releaseYamlPath := filesystem.GetAbsPath(dependencies.RootFs, path.RepositoryReleaseYaml)
+	if releaseYamlPath == "" {
+		return bump, err
+	}
+
+	bump.releaseYaml = &Release{
+		Chart:           bump.targetChart,
+		ReleaseYamlPath: releaseYamlPath,
+	}
 
 	return bump, nil
 }

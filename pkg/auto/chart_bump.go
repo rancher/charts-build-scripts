@@ -199,17 +199,32 @@ func checkUpstreamOptions(options *options.UpstreamOptions) error {
 
 // -----------------------------------------------------------
 
-// BumpChart TODO: description
+// BumpChart will execute a similar approach as the defined development workflow for chartowners.
+// The main difference is that between the steps: (make prepare and make patch) we will calculate the next version to release.
 func (b *Bump) BumpChart() error {
-	// TODO: make prepare
+	// make prepare
+	if err := b.Pkg.Prepare(); err != nil {
+		err = fmt.Errorf("error while preparing package: %w", err)
+		return err
+	}
 
 	// TODO: Calculate the next version to release
 
-	// TODO: make patch
-
-	// TODO: make clean
-
-	// TODO: make charts
+	// make patch
+	if err := b.Pkg.GeneratePatch(); err != nil {
+		err = fmt.Errorf("error while patching package: %w", err)
+		return err
+	}
+	// make clean
+	if err := b.Pkg.Clean(); err != nil {
+		err = fmt.Errorf("error while cleaning package: %w", err)
+		return err
+	}
+	// make charts
+	if err := b.Pkg.GenerateCharts(b.configOptions.OmitBuildMetadataOnExport); err != nil {
+		err = fmt.Errorf("error while generating chart: %w", err)
+		return err
+	}
 
 	// TODO: modify the release.yaml
 

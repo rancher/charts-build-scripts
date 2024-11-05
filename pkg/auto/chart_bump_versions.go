@@ -27,6 +27,10 @@ func (v *version) updateSemver() error {
 	return nil
 }
 
+func (v *version) updateTxt() {
+	v.txt = v.svr.String()
+}
+
 // calculateNextVersion will calculate the next version to bump based on the latest version
 // if the chart had a patch bump, it will increment the patch version for the repoPrefixVersion
 // if the chart had a minor or major bump, it will increment the minor version for the repoPrefixVersion
@@ -37,8 +41,10 @@ func (b *Bump) calculateNextVersion() error {
 		return err
 	}
 
-	// TODO: check and parse the versions before building the new version
-	//
+	// check and parse the versions before building the new version
+	if err := b.applyVersionRules(); err != nil {
+		return err
+	}
 
 	// build: toRelease full version
 	targetVersion := b.versions.toReleaseRepoPrefix.txt + "+up" + b.versions.toRelease.txt
@@ -116,4 +122,49 @@ func parseRepoPrefixVersionIfAny(unparsedVersion string) (repoPrefix, version st
 	}
 
 	return repoPrefix, version, found
+}
+
+func (b *Bump) applyVersionRules() error {
+
+	// get the repository major prefix version rule (i.e., 105; 104; 103...)
+	repoPrefixVersionRule := b.versionRules.Rules[b.versionRules.BranchVersion].Min
+	repoPrefixSemverRule, err := semver.Make(repoPrefixVersionRule)
+	if err != nil {
+		return err
+	}
+
+	/** This will handle the cases:
+	* 	- last version: X.Y.Z | repoPrefixVersion: 105.0.0
+	*   - last version: 104.X.Y+upX.Y.Z | repoPrefixVersion: 105.0.0
+	* in each case, the repoPrefixVersion will be bumped to 105.0.0
+	 */
+	if b.versions.latestRepoPrefix.txt == "" || repoPrefixSemverRule.Major != b.versions.latestRepoPrefix.svr.Major {
+		b.versions.toReleaseRepoPrefix.txt = repoPrefixVersionRule
+		if err := b.versions.toReleaseRepoPrefix.updateSemver(); err != nil {
+			return err
+		}
+		// if we are changing branch lines the repoPrefix will always be: 10X.0.0; return now.
+		return nil
+	}
+
+	b.versions.toReleaseRepoPrefix.txt = b.versions.latestRepoPrefix.txt
+	if err := b.versions.toReleaseRepoPrefix.updateSemver(); err != nil {
+		return err
+	}
+
+	// now only calculate if it is a minor or patch bump according to the latest version.
+	majorBump := b.versions.toRelease.svr.Major > b.versions.latest.svr.Major
+	minorBump := b.versions.toRelease.svr.Minor > b.versions.latest.svr.Minor
+	patchBump := b.versions.toRelease.svr.Patch > b.versions.latest.svr.Patch
+
+	if patchBump && !majorBump && !minorBump {
+		b.versions.toReleaseRepoPrefix.svr.Patch++ // patch bump
+	}
+	if minorBump || majorBump {
+		b.versions.toReleaseRepoPrefix.svr.Minor++ // minor bump
+		b.versions.toReleaseRepoPrefix.svr.Patch = 0
+	}
+
+	b.versions.toReleaseRepoPrefix.updateTxt()
+	return nil
 }

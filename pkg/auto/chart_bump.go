@@ -43,6 +43,9 @@ var (
 	errCRDWorkDir                   = errors.New("additional chart CRDs directory not loaded")
 	errAdditionalChartCRDValidation = errors.New("additionalCharts.crdOptions.addCRDValidationToMainChart must be true")
 	errChartLatestVersion           = errors.New("latest version not found for chart")
+	errChartUpstreamVersion         = errors.New("upstream version not found for chart")
+	errChartUpstreamVersionWrong    = errors.New("upstream version should not have the repo prefix version already")
+	errBumpVersion                  = errors.New("version to bump is not greater than the latest version")
 )
 
 /*******************************************************

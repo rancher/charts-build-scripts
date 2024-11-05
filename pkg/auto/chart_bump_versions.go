@@ -81,15 +81,30 @@ func (b *Bump) loadVersions() error {
 		return err
 	}
 
-	// TODO: toRelease version comes from the chart owner upstream repository
+	// toRelease version comes from the chart owner upstream repository
+	b.versions.toRelease.txt = b.Pkg.Chart.GetUpstreamVersion()
+	if b.versions.toRelease.txt == "" {
+		return errChartUpstreamVersion
+	}
+	if err := b.versions.toRelease.updateSemver(); err != nil {
+		return err
+	}
 
-	// TODO: upstream/(to release version) must not contain a repoPrefixVersion
+	// upstream/(to release version) must not contain a repoPrefixVersion
+	_, _, found = parseRepoPrefixVersionIfAny(b.versions.toRelease.txt)
+	if found {
+		return errChartUpstreamVersionWrong
+	}
 
-	// TODO: Check if latestVersion > versionToRelease before continuing
+	// Check if latestVersion > versionToRelease before continuing
+	if b.versions.toRelease.svr.LT(*b.versions.latest.svr) {
+		return errBumpVersion
+	}
 
 	return nil
 }
 
+// parseRepoPrefixVersionIfAny will parse the repository prefix version if it exists
 func parseRepoPrefixVersionIfAny(unparsedVersion string) (repoPrefix, version string, found bool) {
 	found = strings.Contains(unparsedVersion, "+up")
 	if found {

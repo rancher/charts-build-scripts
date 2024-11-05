@@ -185,9 +185,9 @@ func main() {
 	branchFlag := cli.StringFlag{
 		Name: "branch,b",
 		Usage: `Usage:
-					./bin/charts-build-scripts <command> --branch="release-v2.y"
-					BRANCH="release-v2.y" make <command>
-					Available branches for release: (release-v2.8; release-v2.9; release-v2.10...)
+					./bin/charts-build-scripts <command> --branch="release-v2.y" OR
+					BRANCH="dev-v2.y" make <command>
+					Available branches: (release-v2.8; dev-v2.9; release-v2.10.)
 					`,
 		Required:    true,
 		EnvVar:      defaultBranchEnvironmentVariable,
@@ -386,21 +386,18 @@ func main() {
 			Flags:  []cli.Flag{branchFlag},
 		},
 		{
-			Name: "auto-chart-bump",
+			Name: "chart-bump",
 			Usage: `Generate a new chart bump PR.
 			`,
-			Action: autoChartBump,
-			Flags:  []cli.Flag{branchFlag},
+			Action: chartBump,
+			Before: setupCache,
+			Flags:  []cli.Flag{packageFlag, branchFlag},
 		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
 		logrus.Fatal(err)
 	}
-}
-
-func autoChartBump(c *cli.Context) {
-
 }
 
 func listPackages(c *cli.Context) {
@@ -839,4 +836,31 @@ func compareIndexFiles(c *cli.Context) {
 		os.Exit(1)
 	}
 	fmt.Println("index.yaml files are the same at git repository and charts.rancher.io")
+}
+
+func chartBump(c *cli.Context) {
+	if CurrentPackage == "" {
+		fmt.Println("CurrentPackage environment variable must be set")
+		os.Exit(1)
+	}
+	if Branch == "" {
+		fmt.Println("Branch environment variable must be set")
+		os.Exit(1)
+	}
+
+	repoRoot := getRepoRoot()
+	chartsScriptOptions := parseScriptOptions()
+
+	bump, err := auto.SetupBump(repoRoot, CurrentPackage, Branch, chartsScriptOptions)
+	if err != nil {
+		fmt.Printf("failed to initialize the chart bump: %s", err.Error())
+		bump.Pkg.Clean()
+		os.Exit(1)
+	}
+
+	if err := bump.BumpChart(); err != nil {
+		fmt.Printf("failed to bump the chart: %s", err.Error())
+		bump.Pkg.Clean()
+		os.Exit(1)
+	}
 }

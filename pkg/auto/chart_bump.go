@@ -42,6 +42,7 @@ var (
 	errAdditionalChartWorkDir       = errors.New("additional chart template directory not loaded")
 	errCRDWorkDir                   = errors.New("additional chart CRDs directory not loaded")
 	errAdditionalChartCRDValidation = errors.New("additionalCharts.crdOptions.addCRDValidationToMainChart must be true")
+	errChartLatestVersion           = errors.New("latest version not found for chart")
 )
 
 /*******************************************************

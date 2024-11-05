@@ -23,20 +23,23 @@ type Bump struct {
 
 var (
 	// Errors
-	errNotDevBranch        = errors.New("a development branch must be provided; (e.g., dev-v2.*)")
-	errBadPackage          = errors.New("unexpected format for PACKAGE env variable")
-	errNoPackage           = errors.New("no package provided")
-	errMultiplePackages    = errors.New("multiple packages provided; this is not supported")
-	errFalseAuto           = errors.New("package.yaml must be configured for auto-chart-bump")
-	errPackageName         = errors.New("package name not loaded")
-	errPackageChartVersion = errors.New("package chart version loaded but it should be dinamycally created")
-	errPackageVersion      = errors.New("package version loaded but it should be dinamycally created")
-	errPackegeDoNotRelease = errors.New("package is marked as doNotRelease")
-	errChartWorkDir        = errors.New("chart working directory not loaded")
-	errChartURL            = errors.New("chart upstream url field must be a git repository (.git suffix)")
-	errChartRepoCommit     = errors.New("chart upstream commit field should not be provided")
-	errChartRepoBranch     = errors.New("chart upstream branch field must be provided")
-	errChartSubDir         = errors.New("chart upstream subdirectory field must be provided")
+	errNotDevBranch                 = errors.New("a development branch must be provided; (e.g., dev-v2.*)")
+	errBadPackage                   = errors.New("unexpected format for PACKAGE env variable")
+	errNoPackage                    = errors.New("no package provided")
+	errMultiplePackages             = errors.New("multiple packages provided; this is not supported")
+	errFalseAuto                    = errors.New("package.yaml must be configured for auto-chart-bump")
+	errPackageName                  = errors.New("package name not loaded")
+	errPackageChartVersion          = errors.New("package chart version loaded but it should be dinamycally created")
+	errPackageVersion               = errors.New("package version loaded but it should be dinamycally created")
+	errPackegeDoNotRelease          = errors.New("package is marked as doNotRelease")
+	errChartWorkDir                 = errors.New("chart working directory not loaded")
+	errChartURL                     = errors.New("chart upstream url field must be a git repository (.git suffix)")
+	errChartRepoCommit              = errors.New("chart upstream commit field should not be provided")
+	errChartRepoBranch              = errors.New("chart upstream branch field must be provided")
+	errChartSubDir                  = errors.New("chart upstream subdirectory field must be provided")
+	errAdditionalChartWorkDir       = errors.New("additional chart template directory not loaded")
+	errCRDWorkDir                   = errors.New("additional chart CRDs directory not loaded")
+	errAdditionalChartCRDValidation = errors.New("additionalCharts.crdOptions.addCRDValidationToMainChart must be true")
 )
 
 /*******************************************************
@@ -147,7 +150,24 @@ func (b *Bump) parsePackageYaml(packages []*charts.Package) error {
 		return err
 	}
 
-	// TODO: Check Chart and Upstream options for any additional Charts
+	// Check Chart and Upstream options for any additional Charts like CRDs
+	for _, additionalChart := range b.Pkg.AdditionalCharts {
+		additionalUpstream := *additionalChart.Upstream
+		additionalUpstremOpts := additionalUpstream.GetOptions()
+		if err := checkUpstreamOptions(&additionalUpstremOpts); err != nil {
+			return err
+		}
+		if additionalChart.CRDChartOptions != nil {
+			switch {
+			case additionalChart.CRDChartOptions.TemplateDirectory == "":
+				return errAdditionalChartWorkDir
+			case additionalChart.CRDChartOptions.CRDDirectory == "":
+				return errCRDWorkDir
+			case additionalChart.CRDChartOptions.AddCRDValidationToMainChart == false:
+				return errAdditionalChartCRDValidation
+			}
+		}
+	}
 
 	return nil
 }

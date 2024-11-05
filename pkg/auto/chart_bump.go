@@ -33,6 +33,10 @@ var (
 	errPackageVersion      = errors.New("package version loaded but it should be dinamycally created")
 	errPackegeDoNotRelease = errors.New("package is marked as doNotRelease")
 	errChartWorkDir        = errors.New("chart working directory not loaded")
+	errChartURL            = errors.New("chart upstream url field must be a git repository (.git suffix)")
+	errChartRepoCommit     = errors.New("chart upstream commit field should not be provided")
+	errChartRepoBranch     = errors.New("chart upstream branch field must be provided")
+	errChartSubDir         = errors.New("chart upstream subdirectory field must be provided")
 )
 
 /*******************************************************
@@ -137,9 +141,29 @@ func (b *Bump) parsePackageYaml(packages []*charts.Package) error {
 		return errChartWorkDir
 	}
 
-	// TODO: Package Upstream fields check
+	// Package Upstream fields check
+	upstreamOpts := b.Pkg.Chart.Upstream.GetOptions()
+	if err := checkUpstreamOptions(&upstreamOpts); err != nil {
+		return err
+	}
 
 	// TODO: Check Chart and Upstream options for any additional Charts
+
+	return nil
+}
+
+// checkUpstreamOptions checks if the UpstreamOptions fields are properly loaded
+func checkUpstreamOptions(options *options.UpstreamOptions) error {
+	switch {
+	case !strings.HasSuffix(options.URL, ".git"):
+		return errChartURL
+	case options.Commit != nil:
+		return errChartRepoCommit
+	case options.ChartRepoBranch == nil:
+		return errChartRepoBranch
+	case options.Subdirectory == nil:
+		return errChartSubDir
+	}
 
 	return nil
 }

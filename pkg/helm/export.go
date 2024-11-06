@@ -12,6 +12,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/sirupsen/logrus"
 	helmAction "helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
@@ -26,57 +27,31 @@ var (
 
 // ExportHelmChart creates a Helm chart archive and an unarchived Helm chart at RepositoryAssetDirpath and RepositoryChartDirPath
 // helmChartPath is a relative path (rooted at the package level) that contains the chart.
-func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion *int, version *semver.Version, upstreamChartVersion string, omitBuildMetadata bool) error {
-	// Try to load the chart to see if it can be exported
-	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
-	chart, err := helmLoader.Load(absHelmChartPath)
+func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion *int, version *semver.Version, autoGenBumpVersion *semver.Version, upstreamChartVersion string, omitBuildMetadata bool) error {
+
+	chart, err := loadHelmChart(fs, helmChartPath)
 	if err != nil {
-		return fmt.Errorf("could not load Helm chart: %s", err)
-	}
-	if err := chart.Validate(); err != nil {
-		return fmt.Errorf("failed while trying to validate Helm chart: %s", err)
-	}
-	chartVersionSemver, err := semver.Make(chart.Metadata.Version)
-	if err != nil {
-		return fmt.Errorf("cannot parse original chart version %s as valid semver", chart.Metadata.Version)
-	}
-	if version != nil {
-		chartVersionSemver = *version
-	} else if packageVersion != nil {
-		// Add packageVersion as string, preventing errors due to leading 0s
-		if uint64(*packageVersion) >= MaxPatchNum {
-			return fmt.Errorf("maximum number for packageVersion is %d, found %d", MaxPatchNum, packageVersion)
-		}
-		if uint64(*packageVersion) < 1 {
-			return fmt.Errorf("minimum number for packageVersion is 1, found %d", packageVersion)
-		}
-		chartVersionSemver.Patch = PatchNumMultiplier*chartVersionSemver.Patch + uint64(*packageVersion)
+		return err
 	}
 
-	if !omitBuildMetadata && len(upstreamChartVersion) > 0 && upstreamChartVersion != chartVersionSemver.String() {
-		// Add buildMetadataFlag for forked charts
-		chartVersionSemver.Build = append(chartVersionSemver.Build, fmt.Sprintf("up%s", upstreamChartVersion))
+	// Parse the chart version (if autoGenBumpVersion is not nil, it will be used as the version)
+	chartVersion, err := parseChartVersion(packageVersion, version, upstreamChartVersion, chart.Metadata.Version, autoGenBumpVersion, omitBuildMetadata)
+	if err != nil {
+		return err
 	}
-	chartVersion := chartVersionSemver.String()
 
 	// Assets are indexed by chart name, independent of which package that chart is contained within
 	chartAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, chart.Metadata.Name)
 	// All generated charts are indexed by chart name and version
 	chartChartsDirpath := filepath.Join(path.RepositoryChartsDir, chart.Metadata.Name, chartVersion)
-	// Create directories
-	if err := rootFs.MkdirAll(chartAssetsDirpath, os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create directory for assets at %s: %s", chartAssetsDirpath, err)
+
+	// Create directories structure
+	if err := handleDirStructure(rootFs, chartAssetsDirpath, chartChartsDirpath); err != nil {
+		return err
 	}
 	defer filesystem.PruneEmptyDirsInPath(rootFs, chartAssetsDirpath)
-	// If we remove an overlay file, the file will not be removed from the charts directory if it already exists,
-	// the easiest way to solve this problem is to clean the target directory before un-archiving the chart's package
-	if err := filesystem.RemoveAll(rootFs, chartChartsDirpath); err != nil {
-		return fmt.Errorf("failed to clean directory for charts at %s: %s", chartChartsDirpath, err)
-	}
-	if err := rootFs.MkdirAll(chartChartsDirpath, os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create directory for charts at %s: %s", chartChartsDirpath, err)
-	}
 	defer filesystem.PruneEmptyDirsInPath(rootFs, chartChartsDirpath)
+
 	tgzPath, err := GenerateArchive(rootFs, fs, helmChartPath, chartAssetsDirpath, &chartVersion)
 	if err != nil {
 		return err
@@ -86,6 +61,73 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 		return err
 	}
 	logrus.Infof("Generated chart: %s", chartChartsDirpath)
+	return nil
+}
+
+func loadHelmChart(fs billy.Filesystem, helmChartPath string) (*chart.Chart, error) {
+	// Try to load the chart to see if it can be exported
+	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
+	chart, err := helmLoader.Load(absHelmChartPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not load Helm chart: %s", err)
+	}
+	if err := chart.Validate(); err != nil {
+		return nil, fmt.Errorf("failed while trying to validate Helm chart: %s", err)
+	}
+
+	return chart, nil
+}
+
+// parseChartVersion will parse the chart version based on the packageVersion, version, upstreamChartVersion, metadataVersion, and omitBuildMetadata unless autoGenBumpVersion is not nil, in this case it will use autoGenBumpVersion as the version
+func parseChartVersion(packageVersion *int, version *semver.Version, upstreamChartVersion string, metadataVersion string, autoGenBumpVersion *semver.Version, omitBuildMetadata bool) (string, error) {
+	if autoGenBumpVersion != nil {
+		return autoGenBumpVersion.String(), nil
+	}
+
+	metadataSemver, err := semver.Make(metadataVersion)
+	if err != nil {
+		return "", fmt.Errorf("cannot parse original chart version %s as valid semver", metadataVersion)
+	}
+
+	if version != nil {
+		metadataSemver = *version
+	}
+
+	// Add packageVersion as string, preventing errors due to leading 0s
+	if packageVersion != nil {
+		if uint64(*packageVersion) >= MaxPatchNum {
+			return "", fmt.Errorf("maximum number for packageVersion is %d, found %d", MaxPatchNum, packageVersion)
+		}
+		if uint64(*packageVersion) < 1 {
+			return "", fmt.Errorf("minimum number for packageVersion is 1, found %d", packageVersion)
+		}
+		metadataSemver.Patch = PatchNumMultiplier*metadataSemver.Patch + uint64(*packageVersion)
+	}
+
+	// Add buildMetadataFlag for forked charts
+	if !omitBuildMetadata && len(upstreamChartVersion) > 0 && upstreamChartVersion != metadataSemver.String() {
+		metadataSemver.Build = append(metadataSemver.Build, fmt.Sprintf("up%s", upstreamChartVersion))
+	}
+
+	chartVersion := metadataSemver.String()
+
+	return chartVersion, nil
+}
+
+func handleDirStructure(rootFs billy.Filesystem, chartAssetsDirpath, chartChartsDirpath string) error {
+	// Create directories
+	if err := rootFs.MkdirAll(chartAssetsDirpath, os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create directory for assets at %s: %s", chartAssetsDirpath, err)
+	}
+	// If we remove an overlay file, the file will not be removed from the charts directory if it already exists,
+	// the easiest way to solve this problem is to clean the target directory before un-archiving the chart's package
+	if err := filesystem.RemoveAll(rootFs, chartChartsDirpath); err != nil {
+		return fmt.Errorf("failed to clean directory for charts at %s: %s", chartChartsDirpath, err)
+	}
+	if err := rootFs.MkdirAll(chartChartsDirpath, os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create directory for charts at %s: %s", chartChartsDirpath, err)
+	}
+
 	return nil
 }
 

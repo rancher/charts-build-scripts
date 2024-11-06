@@ -27,13 +27,20 @@ type Chart struct {
 	// The version of this chart in Upstream. This value is set to a non-nil value on Prepare.
 	// GenerateChart will fail if this value is not set (e.g. chart must be prepared first)
 	// If there is no upstream, this will be set to ""
-	upstreamChartVersion *string
+	UpstreamChartVersion *string
+}
+
+func (c *Chart) GetUpstreamVersion() string {
+	if c.UpstreamChartVersion == nil {
+		return ""
+	}
+	return *c.UpstreamChartVersion
 }
 
 // Prepare pulls in a package based on the spec to the local git repository
 func (c *Chart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 	upstreamChartVersion := ""
-	defer func() { c.upstreamChartVersion = &upstreamChartVersion }()
+	defer func() { c.UpstreamChartVersion = &upstreamChartVersion }()
 	if c.Upstream.IsWithinPackage() {
 		logrus.Infof("Local chart does not need to be prepared")
 		// Ensure local charts standardize the Chart.yaml on prepare
@@ -103,11 +110,11 @@ func (c *Chart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 }
 
 // GenerateChart generates the chart and stores it in the assets and charts directory
-func (c *Chart) GenerateChart(rootFs, pkgFs billy.Filesystem, packageVersion *int, version *semver.Version, omitBuildMetadataOnExport bool) error {
-	if c.upstreamChartVersion == nil {
+func (c *Chart) GenerateChart(rootFs, pkgFs billy.Filesystem, packageVersion *int, version *semver.Version, autoGenBumpVersion *semver.Version, omitBuildMetadataOnExport bool) error {
+	if c.UpstreamChartVersion == nil {
 		return fmt.Errorf("cannot generate chart since it has never been prepared: upstreamChartVersion is not set")
 	}
-	if err := helm.ExportHelmChart(rootFs, pkgFs, c.WorkingDir, packageVersion, version, *c.upstreamChartVersion, omitBuildMetadataOnExport); err != nil {
+	if err := helm.ExportHelmChart(rootFs, pkgFs, c.WorkingDir, packageVersion, version, autoGenBumpVersion, *c.UpstreamChartVersion, omitBuildMetadataOnExport); err != nil {
 		return fmt.Errorf("encountered error while trying to export Helm chart for %s: %s", c.WorkingDir, err)
 	}
 	return nil

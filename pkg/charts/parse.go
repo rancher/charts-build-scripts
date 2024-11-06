@@ -16,7 +16,7 @@ import (
 )
 
 // GetPackages returns all packages found within the repository. If there is a specific package provided, it will return just that Package in the list
-func GetPackages(repoRoot string, specificPackage string) ([]*Package, error) {
+func GetPackages(repoRoot, specificPackage string) ([]*Package, error) {
 	var packageList []string
 	var err error
 
@@ -100,6 +100,7 @@ func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// version and packageVersion can not exist at the same time although both are optional
 	if packageOpt.Version != nil && packageOpt.PackageVersion != nil {
 		return nil, fmt.Errorf("cannot have both version and packageVersion at the same time")
@@ -134,6 +135,7 @@ func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 		PackageVersion:   packageOpt.PackageVersion,
 		AdditionalCharts: additionalCharts,
 		DoNotRelease:     packageOpt.DoNotRelease,
+		Auto:             packageOpt.Auto,
 
 		fs:     pkgFs,
 		rootFs: rootFs,
@@ -238,7 +240,7 @@ func GetUpstream(opt options.UpstreamOptions) (puller.Puller, error) {
 		return upstream, nil
 	}
 	if strings.HasSuffix(opt.URL, ".git") {
-		upstream, err := puller.GetGithubRepository(opt, nil)
+		upstream, err := puller.GetGithubRepository(opt, opt.ChartRepoBranch)
 		if err != nil {
 			return nil, err
 		}

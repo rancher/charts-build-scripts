@@ -2,6 +2,7 @@ package charts
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
@@ -10,7 +11,6 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"github.com/sirupsen/logrus"
 )
 
 // Chart represents the main chart in a given package
@@ -42,13 +42,15 @@ func (c *Chart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 	upstreamChartVersion := ""
 	defer func() { c.UpstreamChartVersion = &upstreamChartVersion }()
 	if c.Upstream.IsWithinPackage() {
-		logrus.Infof("Local chart does not need to be prepared")
 		// Ensure local charts standardize the Chart.yaml on prepare
 		if err := helm.StandardizeChartYaml(pkgFs, c.WorkingDir); err != nil {
 			return err
 		}
 		if err := PrepareDependencies(rootFs, pkgFs, c.WorkingDir, c.GeneratedChangesRootDir(), c.IgnoreDependencies); err != nil {
 			return fmt.Errorf("encountered error while trying to prepare dependencies in %s: %s", c.WorkingDir, err)
+		}
+		if err := change.ApplyChanges(pkgFs, c.WorkingDir, c.GeneratedChangesRootDir()); err != nil {
+			return fmt.Errorf("encountered error while trying to apply changes to %s: %s", c.WorkingDir, err)
 		}
 		return nil
 	}
@@ -79,14 +81,25 @@ func (c *Chart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 
 // GeneratePatch generates a patch on a forked Helm chart based on local changes
 func (c *Chart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
-	if c.Upstream.IsWithinPackage() {
-		logrus.Infof("Local chart does not need to be patched")
-		return nil
-	}
+	// Check if working directory exists
 	if exists, err := filesystem.PathExists(pkgFs, c.WorkingDir); err != nil {
 		return fmt.Errorf("encountered error while checking if %s exist: %s", c.WorkingDir, err)
 	} else if !exists {
 		return fmt.Errorf("working directory %s has not been prepared yet", c.WorkingDir)
+	}
+	// Check if dependencies exist
+	depMap, err := GetDependencyMap(pkgFs, c.GeneratedChangesRootDir())
+	if err != nil {
+		return fmt.Errorf("encountered error while finding dependencies: %s", err)
+	}
+	if len(depMap) > 0 {
+		// Check if expected dependencies have been prepared
+		subchartDir := filepath.Join(c.WorkingDir, path.ChartDependenciesDir)
+		if exists, err := filesystem.PathExists(pkgFs, subchartDir); err != nil {
+			return fmt.Errorf("encountered error while checking if %s exist: %s", subchartDir, err)
+		} else if !exists {
+			return fmt.Errorf("subcharts directory %s has not been prepared yet", subchartDir)
+		}
 	}
 	// Standardize the local copy of the Chart.yaml before trying to compare the patch
 	if err := helm.StandardizeChartYaml(pkgFs, c.WorkingDir); err != nil {

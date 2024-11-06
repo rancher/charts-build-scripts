@@ -37,6 +37,8 @@ const (
 
 	// ChartCRDDir represents the directory that we expect to contain CRDs within the chart
 	ChartCRDDir = "crds"
+	// ChartCRDDir represents the directory that we expect to contain subcharts
+	ChartDependenciesDir = "charts"
 	// ChartExtraFileDir represents the directory that contains non-YAML files
 	ChartExtraFileDir = "files"
 	// ChartCRDTgzFilename represents the filename of the crd's tgz file

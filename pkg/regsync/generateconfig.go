@@ -26,18 +26,17 @@ var chartsToIgnoreTags = map[string]string{
 func GenerateConfigFile() error {
 	imageTagMap := make(map[string][]string)
 
-	err := walkAssetsFolder(imageTagMap)
-	if err != nil {
+	if err := walkAssetsFolder(imageTagMap); err != nil {
+		return err
+	}
+
+	// Remove the images that are already signed from the imageTagMap
+	if err := removeSlsaImages(imageTagMap, readSlsaYaml); err != nil {
 		return err
 	}
 
 	// Create the regsync config file
-	err = createRegSyncConfigFile(imageTagMap)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return createRegSyncConfigFile(imageTagMap)
 }
 
 // walkAssetsFolder walks over the assets folder, untars files, stores the values.yaml content

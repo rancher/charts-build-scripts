@@ -11,9 +11,13 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rancher/charts-build-scripts/pkg/path"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 )
+
+// ReadSlsaYamlFunc is a function type that reads the slsa.yaml file and returns a list of images.
+type ReadSlsaYamlFunc func() ([]string, error)
 
 // chartsToIgnoreTags and systemChartsToIgnoreTags defines the charts and system charts in which a specified
 // image tag should be ignored.
@@ -215,4 +219,45 @@ func walkMap(inputMap interface{}, callback func(map[interface{}]interface{})) {
 			walkMap(elem, callback)
 		}
 	}
+}
+
+// removeSlsaImages removes the images that are already signed from the imageTagMap.
+func removeSlsaImages(imageTagMap map[string][]string, readSlsaYaml ReadSlsaYamlFunc) error {
+	// Get the list of images that should not be synced with the registry.
+	// These images are defined in the slsa.yaml file.
+	// We will remove these images from the imageTagMap.
+	slsaImgs, err := readSlsaYaml()
+	if err != nil {
+		return err
+	}
+
+	// The images will not be synced because they are already:
+	// - Signed
+	// - Synced with the registry
+	if slsaImgs != nil {
+		for _, img := range slsaImgs {
+			delete(imageTagMap, img)
+		}
+	}
+	return nil
+}
+
+func readSlsaYaml() ([]string, error) {
+	var slsaImgs []string
+
+	file, err := os.Open(path.SlsaYamlFile)
+	if err != nil {
+		return nil, nil // backward version compatibility
+	}
+	defer file.Close()
+
+	decoder := yaml.NewDecoder(file)
+	if err := decoder.Decode(&slsaImgs); err != nil {
+		if err == io.EOF {
+			return slsaImgs, nil // Handle EOF error gracefully
+		}
+		return nil, err
+	}
+
+	return slsaImgs, nil
 }

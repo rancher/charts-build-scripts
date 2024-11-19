@@ -247,7 +247,7 @@ func readSlsaYaml() ([]string, error) {
 
 	file, err := os.Open(path.SlsaYamlFile)
 	if err != nil {
-		return nil, nil // backward version compatibility
+		return nil, err // backward version compatibility
 	}
 	defer file.Close()
 

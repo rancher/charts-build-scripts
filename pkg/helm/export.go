@@ -16,13 +16,14 @@ import (
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
+// TODO remove this if it is unused
 const (
-	NumPatchDigits = 2
+	numPatchDigits = 2
 )
 
 var (
-	PatchNumMultiplier = uint64(math.Pow10(2))
-	MaxPatchNum        = PatchNumMultiplier - 1
+	patchNumMultiplier = uint64(math.Pow10(2))
+	maxPatchNum        = patchNumMultiplier - 1
 )
 
 // ExportHelmChart creates a Helm chart archive and an unarchived Helm chart at RepositoryAssetDirpath and RepositoryChartDirPath
@@ -95,13 +96,13 @@ func parseChartVersion(packageVersion *int, version *semver.Version, upstreamCha
 
 	// Add packageVersion as string, preventing errors due to leading 0s
 	if packageVersion != nil {
-		if uint64(*packageVersion) >= MaxPatchNum {
-			return "", fmt.Errorf("maximum number for packageVersion is %d, found %d", MaxPatchNum, packageVersion)
+		if uint64(*packageVersion) >= maxPatchNum {
+			return "", fmt.Errorf("maximum number for packageVersion is %d, found %d", maxPatchNum, packageVersion)
 		}
 		if uint64(*packageVersion) < 1 {
 			return "", fmt.Errorf("minimum number for packageVersion is 1, found %d", packageVersion)
 		}
-		metadataSemver.Patch = PatchNumMultiplier*metadataSemver.Patch + uint64(*packageVersion)
+		metadataSemver.Patch = patchNumMultiplier*metadataSemver.Patch + uint64(*packageVersion)
 	}
 
 	// Add buildMetadataFlag for forked charts

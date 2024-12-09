@@ -10,11 +10,12 @@ import (
 	"helm.sh/helm/v3/pkg/getter"
 )
 
+// Registry holds the URL that represents the link to the chart registry including the chart version
 type Registry struct {
-	// URL represents the link to the chart registry including the chart version
 	URL string `yaml:"url"`
 }
 
+// Pull pulls the chart from the registry into the filesystem
 func (r Registry) Pull(rootFs, fs billy.Filesystem, path string) error {
 	logrus.Infof("Pulling %s from upstream into %s", r.URL, path)
 
@@ -50,12 +51,15 @@ func (r Registry) Pull(rootFs, fs billy.Filesystem, path string) error {
 	return nil
 }
 
+// GetOptions returns the options for the upstream
 func (r Registry) GetOptions() options.UpstreamOptions {
 	return options.UpstreamOptions{
 		URL: r.URL,
 	}
 }
 
+// IsWithinPackage returns whether the upstream is within the package
 func (r Registry) IsWithinPackage() bool {
+	// TODO check if this is needed
 	return false
 }

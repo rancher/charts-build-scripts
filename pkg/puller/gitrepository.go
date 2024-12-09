@@ -53,6 +53,7 @@ type GithubRepository struct {
 	branch *string `yaml:"branch"`
 }
 
+// CacheKey returns the key to use for caching
 func (r GithubRepository) CacheKey() string {
 	if !r.IsCacheable() {
 		return ""
@@ -60,6 +61,7 @@ func (r GithubRepository) CacheKey() string {
 	return filepath.Join(".gitrepos", r.String())
 }
 
+// IsCacheable returns whether this repository can be cached
 func (r GithubRepository) IsCacheable() bool {
 	return r.Commit != nil
 }

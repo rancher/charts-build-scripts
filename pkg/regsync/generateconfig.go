@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rancher/charts-build-scripts/pkg/path"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 )
@@ -34,13 +33,31 @@ func GenerateConfigFile() error {
 		return err
 	}
 
-	// Remove the images that are already signed from the imageTagMap
-	if err := removeSlsaImages(imageTagMap, readSlsaYaml); err != nil {
+	// Create the regsync config file
+	if err := createRegSyncConfigFile(imageTagMap); err != nil {
 		return err
 	}
 
-	// Create the regsync config file
-	return createRegSyncConfigFile(imageTagMap)
+	// Check for new image tags from the charts dependencies (value.yaml files)
+	imageTags, err := checkNewImageTags()
+	if err != nil {
+		return err
+	}
+
+	cosignedImages, err := checkCosignedImages(imageTags)
+	if err != nil {
+		return err
+	}
+
+	// remove cosigned images from the imageTagMap
+	removeCosignedImages(imageTagMap, cosignedImages)
+
+	// Update the regsync config file excluding the cosigned images
+	if err := createRegSyncConfigFile(imageTagMap); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // walkAssetsFolder walks over the assets folder, untars files, stores the values.yaml content
@@ -219,45 +236,4 @@ func walkMap(inputMap interface{}, callback func(map[interface{}]interface{})) {
 			walkMap(elem, callback)
 		}
 	}
-}
-
-// removeSlsaImages removes the images that are already signed from the imageTagMap.
-func removeSlsaImages(imageTagMap map[string][]string, readSlsaYaml ReadSlsaYamlFunc) error {
-	// Get the list of images that should not be synced with the registry.
-	// These images are defined in the slsa.yaml file.
-	// We will remove these images from the imageTagMap.
-	slsaImgs, err := readSlsaYaml()
-	if err != nil {
-		return err
-	}
-
-	// The images will not be synced because they are already:
-	// - Signed
-	// - Synced with the registry
-	if slsaImgs != nil {
-		for _, img := range slsaImgs {
-			delete(imageTagMap, img)
-		}
-	}
-	return nil
-}
-
-func readSlsaYaml() ([]string, error) {
-	var slsaImgs []string
-
-	file, err := os.Open(path.SlsaYamlFile)
-	if err != nil {
-		return nil, err // backward version compatibility
-	}
-	defer file.Close()
-
-	decoder := yaml.NewDecoder(file)
-	if err := decoder.Decode(&slsaImgs); err != nil {
-		if err == io.EOF {
-			return slsaImgs, nil // Handle EOF error gracefully
-		}
-		return nil, err
-	}
-
-	return slsaImgs, nil
 }

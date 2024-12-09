@@ -72,6 +72,9 @@ const (
 	// VersionRulesFile is the file that contains the version rules for the current branch on charts-build-scripts
 	VersionRulesFile = "version_rules.json"
 
-	// SlsaYamlFile is the file that contains the list of images already synced and signed for SLSA.
-	SlsaYamlFile = "slsa.yaml"
+	// RegsyncYamlFile file is the file that contains the regsync configuration
+	RegsyncYamlFile = "regsync.yaml"
+
+	// SignedImagesFile is the file that contains the signed images that were bypassed in the last release
+	SignedImagesFile = "signed-images.txt"
 )

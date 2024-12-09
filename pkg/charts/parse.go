@@ -42,6 +42,7 @@ func GetPackages(repoRoot, specificPackage string) ([]*Package, error) {
 	return packages, nil
 }
 
+// ListPackages returns a list of packages found within the repository. If there is a specific package provided, it will return just that Package in the list
 func ListPackages(repoRoot string, specificPackage string) ([]string, error) {
 	var packageList []string
 	rootFs := filesystem.GetFilesystem(repoRoot)

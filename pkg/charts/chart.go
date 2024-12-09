@@ -30,6 +30,7 @@ type Chart struct {
 	UpstreamChartVersion *string
 }
 
+// GetUpstreamVersion returns the upstream version of the chart
 func (c *Chart) GetUpstreamVersion() string {
 	if c.UpstreamChartVersion == nil {
 		return ""

@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// RootCache is the cache at the root of the repository
 var RootCache cacher = &noopCache{}
 
 // InitRootCache initializes a cache at the repository's root to be used, if it does not currently exist

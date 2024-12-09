@@ -152,7 +152,7 @@ func main() {
 			BRANCH_VERSION="x.y" make <command>
 
 		The branch version line to compare against.
-		Available inputs: (2.5; 2.6; 2.7; 2.8; 2.9).
+		Available inputs: (2.5; 2.6; 2.7; 2.8; 2.9; 2.10; 2.11; 2.12).
 		Default Environment Variable:
 		`,
 		Required: true,
@@ -267,6 +267,7 @@ func main() {
 			Name:   "regsync",
 			Usage:  "Create a regsync config file containing all images used for the particular Rancher version",
 			Action: generateRegSyncConfigFile,
+			Flags:  []cli.Flag{},
 		},
 		{
 			Name:   "index",

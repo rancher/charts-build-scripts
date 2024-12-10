@@ -195,7 +195,7 @@ func checkCosignedImages(imageTags map[string][]string) (map[string][]string, er
 	for image, tags := range imageTags {
 		for _, tag := range tags {
 			imageTag := baseImageRepository + image + ":" + tag
-
+			fmt.Printf("checking: %s\n", imageTag)
 			// Close the stdout and stderr so there are no leaks
 			oldStdout, oldStderr, r, w := closeStdOut()
 			// Verify the image, if it's cosigned

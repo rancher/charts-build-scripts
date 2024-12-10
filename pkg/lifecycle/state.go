@@ -40,7 +40,7 @@ func LoadState(rootFs billy.Filesystem) (*Status, error) {
 		return nil, err
 	}
 	if !exist {
-		return nil, err
+		return nil, errors.New("state.json file does not exist")
 	}
 
 	// Read the file content

@@ -154,6 +154,9 @@ sync:`)
 	sort.Strings(repositories)
 
 	for _, repo := range repositories {
+		if repo == "" {
+			continue // skip empty repository
+		}
 		fmt.Fprintf(file, "%s%s\n", "- source: docker.io/", repo)
 		fmt.Fprintf(file, `  target: '{{ env "REGISTRY_ENDPOINT" }}/%s'`, repo)
 		fmt.Fprintln(file)
@@ -168,6 +171,9 @@ sync:`)
 		sort.Strings(tags)
 
 		for _, tag := range tags {
+			if tag == "" {
+				continue // skip empty tag
+			}
 			fmt.Fprintf(file, "    - %s\n", tag)
 		}
 	}

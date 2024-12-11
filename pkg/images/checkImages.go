@@ -136,16 +136,16 @@ func retrieveToken() (string, error) {
 // retrieveCredentials retrieves credentials from environment variables
 func retrieveCredentials() *TokenRequest {
 
-	username := os.Getenv("DOCKER_USERNAME")
-	password := os.Getenv("DOCKER_PASSWORD")
+	username := os.Getenv("DOCKERHUB_USERNAME")
+	password := os.Getenv("DOCKERHUB_TOKEN")
 
 	if strings.Compare(username, "") == 0 {
-		logrus.Errorf("DOCKER_USERNAME not set")
+		logrus.Errorf("DOCKERHUB_USERNAME not set")
 		return nil
 	}
 
 	if strings.Compare(password, "") == 0 {
-		logrus.Errorf("DOCKER_PASSWORD not set")
+		logrus.Errorf("DOCKERHUB_TOKEN not set")
 		return nil
 	}
 

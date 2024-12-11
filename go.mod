@@ -9,6 +9,9 @@ go 1.23.4
 
 replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
 
+// never change this version otherwise old released chart versions validations will break due to the change in the version of the library
+replace github.com/Masterminds/semver/v3 => github.com/Masterminds/semver/v3 v3.3.0
+
 require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/blang/semver v3.5.1+incompatible
@@ -18,7 +21,6 @@ require (
 	github.com/google/go-github/v41 v41.0.0
 	github.com/hashicorp/go-version v1.7.0
 	github.com/rancherlabs/slsactl v0.0.0-20241205152224-1d48724a1db6
-	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3
 	github.com/sirupsen/logrus v1.9.3
 	github.com/sourcegraph/go-diff v0.7.0
 	github.com/stretchr/testify v1.10.0
@@ -56,7 +58,7 @@ require (
 	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/Masterminds/semver/v3 v3.3.1 // indirect
+	github.com/Masterminds/semver/v3 v3.3.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -256,6 +258,7 @@ require (
 	github.com/sassoftware/relic v7.2.1+incompatible // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.8.0 // indirect
 	github.com/segmentio/ksuid v1.0.4 // indirect
+	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sigstore/cosign/v2 v2.4.1 // indirect

@@ -540,7 +540,6 @@ func validateRepo(c *cli.Context) {
 		logrus.Fatalf("cannot specify both local and remote validation")
 	}
 
-	CurrentPackage = "" // Validate always runs on all packages
 	chartsScriptOptions := parseScriptOptions()
 
 	logrus.Infof("Checking if Git is clean")

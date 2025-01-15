@@ -206,10 +206,18 @@ func (s *Status) getProdAndDevAssetsFromGit(git *git.Git) (map[string][]Asset, m
 	rootFs := filesystem.GetFilesystem(s.ld.Git.Dir)
 	helmIndexPath := filesystem.GetAbsPath(rootFs, path.RepositoryHelmIndexFile)
 
-	// Fetch and checkout to the production branch
-	err := git.FetchAndCheckoutBranch(s.ld.VR.ProdBranch)
-	if err != nil {
-		return nil, nil, err
+	if s.ld.Git.Branch == s.ld.VR.ProdBranch {
+		// Fetch and checkout to the production branch
+		err := git.FetchAndPullBranch(s.ld.VR.ProdBranch)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		// Fetch and checkout to the production branch
+		err := git.FetchAndCheckoutBranch(s.ld.VR.ProdBranch)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// Get the map for the released assets versions on the production branch

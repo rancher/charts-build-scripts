@@ -133,6 +133,25 @@ func (g *Git) getGitRemotes() (map[string]string, error) {
 	return remotes, nil
 }
 
+func (g *Git) FetchAndPullBranch(branch string) error {
+	logrus.Infof("Fetching and pulling branch %s", branch)
+	remote := g.Remotes["https://github.com/rancher/charts"]
+
+	cmd := exec.Command("git", "-C", g.Dir, "fetch", remote, branch)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	cmd = exec.Command("git", "-C", g.Dir, "pull", remote, branch)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
+}
+
 // FetchAndCheckoutBranch fetches and checks out a branch
 func (g *Git) FetchAndCheckoutBranch(branch string) error {
 	logrus.Infof("Fetching and checking out at: %s", g.Branch)

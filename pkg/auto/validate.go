@@ -113,8 +113,8 @@ func (v *validation) validateReleaseYaml(releaseOpts options.ReleaseOptions) err
 			if len(releasedVersions) <= 1 {
 				continue // net-new chart
 			}
-			latestReleasedVersion := releasedVersions[1].Version
-			if err := v.checkMinorPatchVersion(version, latestReleasedVersion); err != nil {
+
+			if err := v.checkMinorPatchVersion(version, releasedVersions); err != nil {
 				return err
 			}
 		}
@@ -124,7 +124,14 @@ func (v *validation) validateReleaseYaml(releaseOpts options.ReleaseOptions) err
 }
 
 // checkMinorPatchVersion will check if the chart version is exactly 1 more patch/minor version than the previous chart version or if the chart is being released. If the chart is being forward-ported, this validation is skipped.
-func (v *validation) checkMinorPatchVersion(version string, latestReleasedVersion string) error {
+func (v *validation) checkMinorPatchVersion(version string, releasedVersions []lifecycle.Asset) error {
+	var latestReleasedVersion string
+	if len(releasedVersions) > 1 {
+		latestReleasedVersion = releasedVersions[len(releasedVersions)-1].Version
+	} else {
+		latestReleasedVersion = releasedVersions[0].Version
+	}
+
 	// check if the chart version is being released or forward-ported
 	release, err := v.dep.VR.CheckChartVersionToRelease(version)
 	if err != nil {
@@ -140,9 +147,37 @@ func (v *validation) checkMinorPatchVersion(version string, latestReleasedVersio
 	if err != nil {
 		return err
 	}
+
 	newVer, err := semver.NewVersion(version)
 	if err != nil {
 		return err
+	}
+
+	if newVer.Minor() < latestVer.Minor() {
+		fmt.Println()
+		// get the latest version that will be the 1 minor version below the new version
+		// var maxPatch int64 = 0
+		for _, releasedVersion := range releasedVersions {
+			releasedSemver, err := semver.NewVersion(releasedVersion.Version)
+			if err != nil {
+				continue
+			}
+			if newVer.Minor() > releasedSemver.Minor() {
+				continue
+			}
+			if releasedSemver.Patch() == newVer.Patch() &&
+				releasedSemver.Minor() == newVer.Minor() &&
+				releasedSemver.Major() == newVer.Major() {
+				continue
+			}
+			if newVer.Minor() == releasedSemver.Minor() {
+				if newVer.Patch() == releasedSemver.Patch()+1 {
+					latestVer = releasedSemver
+					break
+				}
+			}
+
+		}
 	}
 
 	// calculate the version bumps
@@ -151,7 +186,7 @@ func (v *validation) checkMinorPatchVersion(version string, latestReleasedVersio
 
 	// the version bump must be exactly 1 more patch or minor version than the previous chart version
 	if minorDiff > 1 || patchDiff > 1 || minorDiff > 0 && patchDiff > 0 {
-		return fmt.Errorf("%w; version: %s; latest version: %s", errMinorPatchVersion, version, latestReleasedVersion)
+		return fmt.Errorf("%w: version: %s", errMinorPatchVersion, version)
 	}
 
 	return nil

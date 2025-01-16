@@ -52,6 +52,8 @@ const (
 	defaultGHTokenEnvironmentVariable = "GH_TOKEN"
 	// defaultPRNumberEnvironmentVariable is the default environment variable that indicates the PR number
 	defaultPRNumberEnvironmentVariable = "PR_NUMBER"
+	// defaultSkipEnvironmentVariable is the default environment variable that indicates whether to skip execution
+	defaultSkipEnvironmentVariable = "SKIP"
 )
 
 var (
@@ -85,6 +87,8 @@ var (
 	PullRequest = ""
 	// GithubToken represents the Github Auth token
 	GithubToken string
+	// Skip indicates whether to skip execution
+	Skip bool
 )
 
 func main() {
@@ -230,8 +234,10 @@ func main() {
 		Destination: &PullRequest,
 	}
 	skipFlag := cli.BoolFlag{
-		Name:  "skip",
-		Usage: "Skip the execution and return success",
+		Name:        "skip",
+		Usage:       "Skip the execution and return success",
+		EnvVar:      defaultSkipEnvironmentVariable,
+		Destination: &Skip,
 	}
 
 	// Commands
@@ -804,7 +810,7 @@ func release(c *cli.Context) {
 }
 
 func validateRelease(c *cli.Context) {
-	if c.Bool("skip") {
+	if Skip {
 		fmt.Println("skipping execution...")
 		return
 	}

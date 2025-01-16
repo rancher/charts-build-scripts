@@ -125,12 +125,8 @@ func (v *validation) validateReleaseYaml(releaseOpts options.ReleaseOptions) err
 
 // checkMinorPatchVersion will check if the chart version is exactly 1 more patch/minor version than the previous chart version or if the chart is being released. If the chart is being forward-ported, this validation is skipped.
 func (v *validation) checkMinorPatchVersion(version string, releasedVersions []lifecycle.Asset) error {
-	var latestReleasedVersion string
-	if len(releasedVersions) > 1 {
-		latestReleasedVersion = releasedVersions[len(releasedVersions)-1].Version
-	} else {
-		latestReleasedVersion = releasedVersions[0].Version
-	}
+
+	latestReleasedVersion := releasedVersions[0].Version
 
 	// check if the chart version is being released or forward-ported
 	release, err := v.dep.VR.CheckChartVersionToRelease(version)
@@ -154,9 +150,7 @@ func (v *validation) checkMinorPatchVersion(version string, releasedVersions []l
 	}
 
 	if newVer.Minor() < latestVer.Minor() {
-		fmt.Println()
 		// get the latest version that will be the 1 minor version below the new version
-		// var maxPatch int64 = 0
 		for _, releasedVersion := range releasedVersions {
 			releasedSemver, err := semver.NewVersion(releasedVersion.Version)
 			if err != nil {

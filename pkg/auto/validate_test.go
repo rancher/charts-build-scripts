@@ -379,7 +379,7 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 					},
 				},
 				version:          "104.2.0",
-				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}, {Version: "104.1.0"}},
+				releasedVersions: []lifecycle.Asset{{Version: "104.1.0"}, {Version: "104.0.0"}},
 			},
 			ex: expected{
 				err: nil,
@@ -394,7 +394,7 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 					},
 				},
 				version:          "104.2.1",
-				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}, {Version: "104.1.0"}, {Version: "104.2.0"}},
+				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
 			},
 			ex: expected{
 				err: nil,
@@ -409,7 +409,7 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 					},
 				},
 				version:          "104.1.1",
-				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}, {Version: "104.1.0"}, {Version: "104.2.0"}},
+				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
 			},
 			ex: expected{
 				err: nil,
@@ -424,7 +424,7 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 					},
 				},
 				version:          "104.0.1",
-				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}, {Version: "104.1.0"}, {Version: "104.2.0"}},
+				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
 			},
 			ex: expected{
 				err: nil,
@@ -439,7 +439,7 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 					},
 				},
 				version:          "104.0.2",
-				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}, {Version: "104.1.0"}, {Version: "104.2.0"}},
+				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
 			},
 			ex: expected{
 				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.0.2"),
@@ -454,7 +454,7 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 					},
 				},
 				version:          "104.1.2",
-				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}, {Version: "104.1.0"}, {Version: "104.2.0"}},
+				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
 			},
 			ex: expected{
 				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.1.2"),
@@ -469,7 +469,7 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 					},
 				},
 				version:          "104.2.2",
-				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}, {Version: "104.1.0"}, {Version: "104.2.0"}},
+				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
 			},
 			ex: expected{
 				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.2.2"),
@@ -484,7 +484,7 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 					},
 				},
 				version:          "104.3.1",
-				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}, {Version: "104.1.0"}, {Version: "104.2.0"}},
+				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
 			},
 			ex: expected{
 				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.3.1"),

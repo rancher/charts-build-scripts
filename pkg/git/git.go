@@ -2,6 +2,7 @@ package git
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -133,11 +134,15 @@ func (g *Git) getGitRemotes() (map[string]string, error) {
 	return remotes, nil
 }
 
+// FetchAndPullBranch fetches and pulls a branch
 func (g *Git) FetchAndPullBranch(branch string) error {
 	logrus.Infof("Fetching and pulling branch %s", branch)
-	remote := g.Remotes["https://github.com/rancher/charts"]
+	upstreamRemote, err := g.getUpstreamRemote()
+	if err != nil {
+		return err
+	}
 
-	cmd := exec.Command("git", "-C", g.Dir, "fetch", remote, branch)
+	cmd := exec.Command("git", "-C", g.Dir, "fetch", upstreamRemote, branch)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -145,7 +150,7 @@ func (g *Git) FetchAndPullBranch(branch string) error {
 		return err
 	}
 
-	cmd = exec.Command("git", "-C", g.Dir, "pull", remote, branch)
+	cmd = exec.Command("git", "-C", g.Dir, "pull", upstreamRemote, branch)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -164,9 +169,12 @@ func (g *Git) FetchAndCheckoutBranch(branch string) error {
 
 // FetchBranch fetches a branch
 func (g *Git) FetchBranch(branch string) error {
-	remote := g.Remotes["https://github.com/rancher/charts"]
+	upstreamRemote, err := g.getUpstreamRemote()
+	if err != nil {
+		return err
+	}
 
-	cmd := exec.Command("git", "-C", g.Dir, "fetch", remote, branch+":"+branch)
+	cmd := exec.Command("git", "-C", g.Dir, "fetch", upstreamRemote, branch+":"+branch)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -183,7 +191,11 @@ func (g *Git) CheckoutBranch(branch string) error {
 // CheckoutFile checks out a file in a branch
 // ex: git checkout <remote>/<branch> -- <file>
 func (g *Git) CheckoutFile(branch, file string) error {
-	upstreamRemote := g.Remotes["https://github.com/rancher/charts"]
+	upstreamRemote, err := g.getUpstreamRemote()
+	if err != nil {
+		return err
+	}
+
 	targetBranch := upstreamRemote + "/" + branch
 	cmd := exec.Command("git", "-C", g.Dir, "checkout", targetBranch, "--", file)
 	cmd.Stdout = os.Stdout
@@ -257,10 +269,11 @@ func (g *Git) DeleteBranch(branch string) error {
 
 // CheckFileExists checks if a file exists in the git repository for a specific branch
 func (g *Git) CheckFileExists(file, branch string) error {
-	upstreamRemote := g.Remotes["https://github.com/rancher/charts"]
-	if upstreamRemote == "" {
-		upstreamRemote = g.Remotes["git@github.com:rancher/charts.git"]
+	upstreamRemote, err := g.getUpstreamRemote()
+	if err != nil {
+		return err
 	}
+
 	target := upstreamRemote + "/" + branch + ":" + file
 	return exec.Command("git", "-C", g.Dir, "cat-file", "-e", target).Run()
 }
@@ -269,4 +282,17 @@ func (g *Git) CheckFileExists(file, branch string) error {
 // ex: git reset HEAD
 func (g *Git) ResetHEAD() error {
 	return exec.Command("git", "-C", g.Dir, "reset", "HEAD").Run()
+}
+
+func (g *Git) getUpstreamRemote() (string, error) {
+	upstreamRemote := g.Remotes["https://github.com/rancher/charts"]
+	if upstreamRemote == "" {
+		upstreamRemote = g.Remotes["git@github.com:rancher/charts.git"]
+	}
+
+	if upstreamRemote == "" {
+		return "", errors.New("upstream remote not configured")
+	}
+
+	return upstreamRemote, nil
 }

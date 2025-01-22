@@ -258,6 +258,9 @@ func (g *Git) DeleteBranch(branch string) error {
 // CheckFileExists checks if a file exists in the git repository for a specific branch
 func (g *Git) CheckFileExists(file, branch string) error {
 	upstreamRemote := g.Remotes["https://github.com/rancher/charts"]
+	if upstreamRemote == "" {
+		upstreamRemote = g.Remotes["git@github.com:rancher/charts.git"]
+	}
 	target := upstreamRemote + "/" + branch + ":" + file
 	return exec.Command("git", "-C", g.Dir, "cat-file", "-e", target).Run()
 }

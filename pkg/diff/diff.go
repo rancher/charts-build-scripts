@@ -3,7 +3,6 @@ package diff
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -23,7 +22,7 @@ func checkDependencyPackage(pathToCmd string) error {
 	version := string(out)
 
 	if strings.Contains(version, "Apple") || strings.Contains(version, "FreeBSD") {
-		return errors.New("detected Apple/FreeBSD version of patch. This will lead to compatibility issues. Install GNU patch: https://github.com/rancher/charts-build-scripts/issues/130")
+		return fmt.Errorf("detected Apple/FreeBSD version of %[1]s. This will lead to compatibility issues. Install GNU %[1]s: https://github.com/rancher/charts-build-scripts/issues/130", pathToCmd)
 	}
 
 	return nil

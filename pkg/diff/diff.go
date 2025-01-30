@@ -5,11 +5,28 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/sirupsen/logrus"
 )
+
+func checkDependencyPackage(pathToCmd string) error {
+	cmd := exec.Command(pathToCmd, "--version")
+	out, err := cmd.Output()
+	if err != nil {
+		return err
+	}
+
+	version := string(out)
+
+	if strings.Contains(version, "Apple") || strings.Contains(version, "FreeBSD") {
+		return fmt.Errorf("detected Apple/FreeBSD version of %[1]s. This will lead to compatibility issues. Install GNU %[1]s: https://github.com/rancher/charts-build-scripts/issues/130", pathToCmd)
+	}
+
+	return nil
+}
 
 // GeneratePatch generates the patch between the files at srcPath and dstPath and outputs it to patchPath
 // It returns whether the patch was generated or any errors that were encountered
@@ -19,6 +36,10 @@ func GeneratePatch(fs billy.Filesystem, patchPath, srcPath, dstPath string) (boo
 	pathToDiffCmd, err := exec.LookPath("diff")
 	if err != nil {
 		return false, fmt.Errorf("cannot generate patch file if GNU diff is not available")
+	}
+
+	if err := checkDependencyPackage(pathToDiffCmd); err != nil {
+		return false, err
 	}
 
 	var buf bytes.Buffer
@@ -57,6 +78,10 @@ func ApplyPatch(fs billy.Filesystem, patchPath, destDir string) error {
 	pathToPatchCmd, err := exec.LookPath("patch")
 	if err != nil {
 		return fmt.Errorf("cannot generate patch file if GNU patch is not available")
+	}
+
+	if err := checkDependencyPackage(pathToPatchCmd); err != nil {
+		return err
 	}
 
 	var buf bytes.Buffer

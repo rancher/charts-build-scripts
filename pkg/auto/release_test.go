@@ -1,8 +1,11 @@
 package auto
 
 import (
+	"log"
 	"os"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func Test_UpdateReleaseYaml(t *testing.T) {
@@ -44,7 +47,7 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 			},
 			ex: expected{
 				ReleaseVersions: map[string][]string{
-					"chart1": {"1.0.0", "2.0.0"},
+					"chart1": {"2.0.0"},
 				},
 			},
 		},
@@ -59,7 +62,7 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 			},
 			ex: expected{
 				ReleaseVersions: map[string][]string{
-					"chart1": {"1.0.0", "2.0.0", "3.0.0"},
+					"chart1": {"3.0.0"},
 				},
 			},
 		},
@@ -98,21 +101,64 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 				},
 			},
 		},
+		// Test for RC versions
+		{
+			name: "Test #6",
+			i: input{
+				ReleaseVersions: map[string][]string{
+					"chart1": {"1.0.0", "2.0.0-rc.1", "2.0.0"},
+				},
+				ChartVersion: "2.0.0",
+				Chart:        "chart1",
+			},
+			ex: expected{
+				ReleaseVersions: map[string][]string{
+					"chart1": {"2.0.0"},
+				},
+			},
+		},
+		{
+			name: "Test #7",
+			i: input{
+				ReleaseVersions: map[string][]string{
+					"chart1": {"1.0.0", "2.0.0", "2.0.1"},
+				},
+				ChartVersion: "2.0.1-rc.1",
+				Chart:        "chart1",
+			},
+			ex: expected{
+				ReleaseVersions: map[string][]string{
+					"chart1": {"2.0.1-rc.1"},
+				},
+			},
+		},
 	}
 
-	tempDir, err := os.MkdirTemp("", "unit-test-tmp")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempReleaseYamlFunc := func(releaseVersions map[string][]string) string {
+		tempDir, err := os.MkdirTemp("", "unit-test-tmp")
+		if err != nil {
+			t.Fatalf("failed to create temp dir: %v", err)
+		}
+		// Create a release.yaml file
+		output, err := os.Create(tempDir + "/release.yaml")
 
-	// Create a release.yaml file
-	if _, err := os.Create(tempDir + "/release.yaml"); err != nil {
-		t.Fatalf("failed to create release.yaml file: %v", err)
+		if err != nil {
+			t.Fatalf("failed to create release.yaml file: %v", err)
+		}
+
+		encoder := yaml.NewEncoder(output)
+		encoder.SetIndent(2)
+		if err := encoder.Encode(releaseVersions); err != nil {
+			log.Fatalf("failed to encode releaseVersions: %v", err)
+		}
+
+		return tempDir
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+
+			tempDir := tempReleaseYamlFunc(tt.i.ReleaseVersions)
 
 			r := &Release{
 				ChartVersion:    tt.i.ChartVersion,
@@ -143,6 +189,8 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 					}
 				}
 			}
+			// reset before next test
+			os.RemoveAll(tempDir)
 		})
 	}
 
@@ -183,48 +231,6 @@ func Test_mountAssetVersionPath(t *testing.T) {
 			}
 			if assetTgz != test.output.assetTgz {
 				t.Errorf("expected %s, got %s", test.output.assetTgz, assetTgz)
-			}
-		})
-	}
-}
-
-func Test_removeDuplicates(t *testing.T) {
-	type input struct {
-		versions []string
-	}
-	inputs := []input{
-		{[]string{"1.0.0", "1.0.0", "1.0.0"}},
-		{[]string{"1.0.0", "1.0.0", "2.0.0", "2.0.0", "3.0.0"}},
-	}
-	type output struct {
-		uniqueVersions []string
-	}
-	outputs := []output{
-		{[]string{"1.0.0"}},
-		{[]string{"1.0.0", "2.0.0", "3.0.0"}},
-	}
-
-	type test struct {
-		name   string
-		input  input
-		output output
-	}
-
-	tests := []test{
-		{"#1", inputs[0], outputs[0]},
-		{"#2", inputs[1], outputs[1]},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			uniqueVersions := removeDuplicates(test.input.versions)
-			if len(uniqueVersions) != len(test.output.uniqueVersions) {
-				t.Errorf("expected %v, got %v", test.output.uniqueVersions, uniqueVersions)
-			}
-			for i := range uniqueVersions {
-				if uniqueVersions[i] != test.output.uniqueVersions[i] {
-					t.Errorf("expected %v, got %v", test.output.uniqueVersions, uniqueVersions)
-				}
 			}
 		})
 	}

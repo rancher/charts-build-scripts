@@ -135,9 +135,8 @@ func (r *Release) UpdateReleaseYaml() error {
 		return err
 	}
 
-	// Append new version and remove duplicates if any
-	releaseVersions[r.Chart] = append(releaseVersions[r.Chart], r.ChartVersion)
-	releaseVersions[r.Chart] = removeDuplicates(releaseVersions[r.Chart])
+	// Overwrite with the target version Bump only
+	releaseVersions[r.Chart] = []string{r.ChartVersion}
 
 	// Since we opened and read the file before we can truncate it.
 	outputFile, err := os.Create(r.ReleaseYamlPath)
@@ -153,19 +152,4 @@ func (r *Release) UpdateReleaseYaml() error {
 	}
 
 	return nil
-}
-
-// removeDuplicates takes a slice of strings and returns a new slice with duplicates removed.
-func removeDuplicates(slice []string) []string {
-	seen := make(map[string]struct{}) // map to keep track of seen strings
-	var result []string               // slice to hold the results
-
-	for _, val := range slice {
-		if _, ok := seen[val]; !ok {
-			seen[val] = struct{}{}       // mark string as seen
-			result = append(result, val) // append to result if not seen before
-		}
-	}
-
-	return result
 }

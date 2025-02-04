@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"crypto/sha1"
 	"fmt"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -561,13 +562,22 @@ func WalkDir(fs billy.Filesystem, dirPath string, doFunc RelativePathFunc) error
 				// Path does not exist anymore, so do not walk it
 				return nil
 			}
-			return err
+			if !util.IsSoftErrorOn() {
+				return err
+			}
+			logrus.Error(err)
 		}
 		path, err := GetRelativePath(fs, abspath)
 		if err != nil {
 			return err
 		}
-		return doFunc(fs, path, info.IsDir())
+		walkFuncRes := doFunc(fs, path, info.IsDir())
+		if !util.IsSoftErrorOn() {
+			return walkFuncRes
+		} else if walkFuncRes != nil {
+			logrus.Error(walkFuncRes)
+		}
+		return nil
 	})
 }
 

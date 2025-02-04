@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -54,6 +55,8 @@ const (
 	defaultPRNumberEnvironmentVariable = "PR_NUMBER"
 	// defaultSkipEnvironmentVariable is the default environment variable that indicates whether to skip execution
 	defaultSkipEnvironmentVariable = "SKIP"
+	// softErrorsEnvironmentVariable is the default environment variable that indicates if soft error mode is enabled
+	softErrorsEnvironmentVariable = "SOFT_ERRORS"
 )
 
 var (
@@ -89,12 +92,15 @@ var (
 	GithubToken string
 	// Skip indicates whether to skip execution
 	Skip bool
+	// SoftErrorMode indicates if certain non-fatal errors will be turned into warnings
+	SoftErrorMode = false
 )
 
 func main() {
 	if len(os.Getenv("DEBUG")) > 0 {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
+	util.InitSoftErrorMode()
 
 	app := cli.NewApp()
 	app.Name = "charts-build-scripts"
@@ -239,6 +245,12 @@ func main() {
 		EnvVar:      defaultSkipEnvironmentVariable,
 		Destination: &Skip,
 	}
+	softErrorsFlag := cli.BoolFlag{
+		Name:        "soft-errors",
+		Usage:       "Enables soft error mode - some non-fatal errors will become warnings",
+		EnvVar:      softErrorsEnvironmentVariable,
+		Destination: &SoftErrorMode,
+	}
 
 	// Commands
 	app.Commands = []cli.Command{
@@ -253,7 +265,7 @@ func main() {
 			Usage:  "Pull in the chart specified from upstream to the charts directory and apply any patch files",
 			Action: prepareCharts,
 			Before: setupCache,
-			Flags:  []cli.Flag{packageFlag, cacheFlag},
+			Flags:  []cli.Flag{packageFlag, cacheFlag, softErrorsFlag},
 		},
 		{
 			Name:   "patch",
@@ -422,6 +434,7 @@ func listPackages(c *cli.Context) {
 }
 
 func prepareCharts(c *cli.Context) {
+	util.SetSoftErrorMode(SoftErrorMode)
 	packages := getPackages()
 	if len(packages) == 0 {
 		logrus.Fatal("Could not find any packages in packages/")

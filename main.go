@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/rancher/charts-build-scripts/pkg/util"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/rancher/charts-build-scripts/pkg/auto"
@@ -478,21 +479,6 @@ func generateCharts(c *cli.Context) {
 		if p.Auto == false {
 			if err := p.GenerateCharts(chartsScriptOptions.OmitBuildMetadataOnExport); err != nil {
 				logrus.Fatal(err)
-			}
-		} else {
-			repoRoot := getRepoRoot()
-
-			bump, err := auto.SetupBump(repoRoot, p.Name, "dev-v2.10", chartsScriptOptions)
-			if err != nil {
-				fmt.Printf("failed to initialize the chart bump: %s", err.Error())
-				bump.Pkg.Clean()
-				os.Exit(1)
-			}
-
-			if err := bump.BumpChart(); err != nil {
-				fmt.Printf("failed to bump the chart: %s", err.Error())
-				bump.Pkg.Clean()
-				os.Exit(1)
 			}
 		}
 	}

@@ -10,7 +10,7 @@ go 1.23.4
 replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
 
 // never change this version otherwise old released chart versions validations will break due to the change in the version of the library
-replace github.com/Masterminds/semver/v3 => github.com/Masterminds/semver/v3 v3.3.0
+replace github.com/Masterminds/semver/v3 => github.com/Masterminds/semver/v3 v3.3.1
 
 require (
 	github.com/Masterminds/semver v1.5.0

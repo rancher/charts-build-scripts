@@ -3,10 +3,13 @@ package auto
 import (
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
@@ -177,8 +180,6 @@ func (b *Bump) parsePackageYaml(packages []*charts.Package) error {
 				return errAdditionalChartWorkDir
 			case additionalChart.CRDChartOptions.CRDDirectory == "":
 				return errCRDWorkDir
-			case additionalChart.CRDChartOptions.AddCRDValidationToMainChart == false:
-				return errAdditionalChartCRDValidation
 			}
 		}
 	}

@@ -208,16 +208,39 @@ func checkUpstreamOptions(options *options.UpstreamOptions) error {
 // BumpChart will execute a similar approach as the defined development workflow for chartowners.
 // The main difference is that between the steps: (make prepare and make patch) we will calculate the next version to release.
 func (b *Bump) BumpChart() error {
+
+	targetCharts, err := chartsTargets(b.targetChart)
+	if err != nil {
+		return err
+	}
+
+	git, err := git.OpenGitRepo(".")
+	if err != nil {
+		return err
+	}
+
 	// make prepare
 	if err := b.Pkg.Prepare(); err != nil {
 		err = fmt.Errorf("error while preparing package: %w", err)
 		return err
 	}
 
-	// Download logo at assets/logos
-	if err := b.Pkg.DownloadIcon(); err != nil {
-		err = fmt.Errorf("error while downloading icon: %w", err)
+	if err := git.AddAndCommit("make prepare"); err != nil {
 		return err
+	}
+
+	// Download logo at assets/logos (webhook and fleet are exceptions)
+	if b.targetChart != "fleet" && b.targetChart != "rancher-webhook" {
+		if err := b.Pkg.DownloadIcon(); err != nil {
+			err = fmt.Errorf("error while downloading icon: %w", err)
+			return err
+		}
+	}
+
+	if clean, _ := git.StatusProcelain(); !clean {
+		if err := git.AddAndCommit("make icon"); err != nil {
+			return err
+		}
 	}
 
 	// Calculate the next version to release
@@ -229,6 +252,12 @@ func (b *Bump) BumpChart() error {
 	if err := b.Pkg.GeneratePatch(); err != nil {
 		err = fmt.Errorf("error while patching package: %w", err)
 		return err
+	}
+
+	if clean, _ := git.StatusProcelain(); !clean {
+		if err := git.AddAndCommit("make patch"); err != nil {
+			return err
+		}
 	}
 
 	// make clean

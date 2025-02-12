@@ -68,7 +68,8 @@ func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) 
 	// Ensure newer version of chart is used if it has been updated
 	for chartName, chartVersions := range updatedIndex.Entries {
 		for i, chartVersion := range chartVersions {
-			if !original.Has(chartName, chartVersion.Version) {
+			version := chartVersion.Version
+			if !original.Has(chartName, version) {
 				// Keep the newly generated chart version as-is
 				upToDate = false
 				logrus.Debugf("Chart %s has introduced a new version %s: %v", chartName, chartVersion.Version, *chartVersion)

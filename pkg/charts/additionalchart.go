@@ -141,6 +141,7 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem, mainChartUpstr
 		if !exists {
 			return fmt.Errorf("unable to prepare a CRD chart since there are no CRDs at %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
 		}
+
 		if err := GenerateCRDChartFromTemplate(pkgFs, c.WorkingDir, filepath.Join(path.PackageTemplatesDir, c.CRDChartOptions.TemplateDirectory), c.CRDChartOptions.CRDDirectory); err != nil {
 			return fmt.Errorf("encountered error while trying to generate CRD chart from template at %s: %s", c.CRDChartOptions.TemplateDirectory, err)
 		}

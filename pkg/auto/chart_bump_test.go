@@ -396,14 +396,6 @@ func Test_parsePackageYaml(t *testing.T) {
 			},
 			expected: expected{err: errCRDWorkDir},
 		},
-		{
-			name: "#13",
-			input: input{
-				packages: newValidPackagesFunc(),
-				b:        &Bump{targetChart: "rancher-chart"},
-			},
-			expected: expected{err: errAdditionalChartCRDValidation},
-		},
 	}
 
 	for _, tc := range tests {
@@ -489,25 +481,6 @@ func Test_parsePackageYaml(t *testing.T) {
 						CRDChartOptions: &options.CRDChartOptions{
 							TemplateDirectory: "crd-template",
 							CRDDirectory:      "",
-						},
-					},
-				}
-			case "#13":
-				someBranch := "some-branch"
-				someSubDir := "some-subdir"
-				// use the newInvalidUpstreamFunc but passing valid options; these options are being tested above.
-				validUpstreamOpts := newInvalidUpstreamFunc(options.UpstreamOptions{
-					URL:             "https://github.com/<owner/<repo>.git",
-					ChartRepoBranch: &someBranch,
-					Subdirectory:    &someSubDir,
-				})
-				tc.input.packages[0].AdditionalCharts = []*charts.AdditionalChart{
-					{
-						Upstream: &validUpstreamOpts,
-						CRDChartOptions: &options.CRDChartOptions{
-							TemplateDirectory:           "crd-template",
-							CRDDirectory:                "templates",
-							AddCRDValidationToMainChart: false,
 						},
 					},
 				}

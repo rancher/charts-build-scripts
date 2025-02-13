@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,22 +16,25 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// SyncEntry represents a single entry in the regsync.yaml file
 type SyncEntry struct {
-	Source string `yaml:"source"`
-	Target string `yaml:"target"` // If you need it
-	Type   string `yaml:"type"`   // If you need it
-	Tags   Tags   `yaml:"tags"`
+	Source string `yaml:"source"` // image name
+	Target string `yaml:"target"` // If needed
+	Type   string `yaml:"type"`   // If needed
+	Tags   Tags   `yaml:"tags"`   // existing tags
 }
 
+// Tags represents the tags in the regsync.yaml file related to a single entry at the prime registry
 type Tags struct {
 	Allow []string `yaml:"allow"`
-	Deny  []string `yaml:"deny"` // If you need it
+	Deny  []string `yaml:"deny"` // If needed
 }
 
-type RegSyncConfig struct {
-	Version  int         `yaml:"version"`
-	Creds    interface{} `yaml:"creds"`    // If you need it
-	Defaults interface{} `yaml:"defaults"` // If you need it
+// Config represents the regsync.yaml file
+type Config struct {
+	Version  int         `yaml:"version"`  // If needed
+	Creds    interface{} `yaml:"creds"`    // If needed
+	Defaults interface{} `yaml:"defaults"` // If needed
 	Sync     []SyncEntry `yaml:"sync"`
 }
 
@@ -48,7 +50,7 @@ func readAllowTagsFromRegsyncYaml() (map[string][]string, error) {
 		return nil, err
 	}
 
-	var config RegSyncConfig
+	var config Config
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal regsync.yaml: %w", err)
@@ -73,11 +75,13 @@ var chartsToIgnoreTags = map[string]string{
 
 // GenerateConfigFile creates a regsync config file out of the current branch.
 func GenerateConfigFile() error {
+	// Read the initial regsync.yaml file
 	initialConfig, err := readAllowTagsFromRegsyncYaml()
 	if err != nil {
 		return err
 	}
 
+	// Walk the entire image dependencies across all charts
 	imageTagMap := make(map[string][]string)
 	if err := walkAssetsFolder(imageTagMap); err != nil {
 		return err
@@ -93,37 +97,52 @@ func GenerateConfigFile() error {
 		return err
 	}
 
+	// Must add and commit the initial changes to the regsync.yaml file
 	if clean, _ := git.StatusProcelain(); clean {
+		fmt.Println("FATAL: should have changes to commit")
 		return errors.New("FATAL: should have changes to commit")
 	}
 
 	if err := git.AddAndCommit("regsync: images and tags present on the current release"); err != nil {
+		fmt.Println(err.Error())
 		return err
 	}
 
-	newPrimeImgTags, err := checkPrimeImageTags(imageTagMap)
+	// Use skopeo lits-tags to retrieve ALL tags for the images at prime registry
+	primeImgTags, err := checkPrimeImageTags(imageTagMap)
 	if err != nil {
+		fmt.Println(err.Error())
 		return err
 	}
 
-	syncImgTags := removePrimeImageTags(imageTagMap, newPrimeImgTags)
+	// Remove the prime image tags from the imageTagMap
+	syncImgTags := removePrimeImageTags(imageTagMap, primeImgTags)
 
-	// Update the regsync config file excluding the cosigned images
+	// Update the regsync config file excluding the prime images and tags
 	if err := createRegSyncConfigFile(syncImgTags); err != nil {
+		fmt.Println(err.Error())
 		return err
 	}
 
-	if clean, _ := git.StatusProcelain(); !clean {
-		if err := git.AddAndCommit("regsync: images to be synced"); err != nil {
-			return err
-		}
+	// Must add and commit the final changes to the regsync.yaml file
+	if clean, _ := git.StatusProcelain(); clean {
+		fmt.Println("FATAL: should have changes to commit")
+		return errors.New("FATAL: should have changes to commit")
 	}
 
+	if err := git.AddAndCommit("regsync: images to be synced"); err != nil {
+		fmt.Println(err.Error())
+		return err
+	}
+
+	// Final state read of regsync.yaml
 	finalConfig, err := readAllowTagsFromRegsyncYaml()
 	if err != nil {
+		fmt.Println(err.Error())
 		return err
 	}
 
+	// Compare the initial and final config to see if there are any changes
 	if !allowedTagsChanged(initialConfig, finalConfig) {
 		fmt.Println("NO")
 		return nil
@@ -319,7 +338,7 @@ func decodeValuesFilesInTgz(tgzPath string) ([]map[interface{}]interface{}, erro
 
 // decodeYAMLFile unmarshals the values into the target interface
 func decodeYAMLFile(r io.Reader, target interface{}) error {
-	data, err := ioutil.ReadAll(r)
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return err
 	}

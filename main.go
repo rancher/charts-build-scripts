@@ -634,7 +634,7 @@ func createOrUpdateTemplate(c *cli.Context) {
 }
 
 func setupCache(c *cli.Context) error {
-	return puller.InitRootCache(CacheMode, path.DefaultCachePath)
+	return puller.InitRootCache(getRepoRoot(), CacheMode, path.DefaultCachePath)
 }
 
 func cleanCache(c *cli.Context) {
@@ -656,6 +656,13 @@ func parseScriptOptions() *options.ChartsScriptOptions {
 }
 
 func getRepoRoot() string {
+	var repoRoot string
+	repoRoot = os.Getenv("DEV_REPO_ROOT")
+	if repoRoot != "" {
+		logrus.Debugf("Using repo root : %s", repoRoot)
+		return repoRoot
+	}
+
 	repoRoot, err := os.Getwd()
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
@@ -697,11 +704,12 @@ func checkImages(c *cli.Context) {
 }
 
 func checkRCTagsAndVersions(c *cli.Context) {
+	repoRoot := getRepoRoot()
 	// Grab all images that contain RC tags
-	rcImageTagMap := images.CheckRCTags()
+	rcImageTagMap := images.CheckRCTags(repoRoot)
 
 	// Grab all chart versions that contain RC tags
-	rcChartVersionMap := charts.CheckRCCharts()
+	rcChartVersionMap := charts.CheckRCCharts(repoRoot)
 
 	// If there are any charts that contains RC version or images that contains RC tags
 	// log them and return an error

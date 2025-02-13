@@ -13,16 +13,12 @@ import (
 var RootCache cacher = &noopCache{}
 
 // InitRootCache initializes a cache at the repository's root to be used, if it does not currently exist
-func InitRootCache(cacheMode bool, path string) error {
+func InitRootCache(repoRoot string, cacheMode bool, path string) error {
 	if !cacheMode {
 		return nil
 	}
 	logrus.Infof("Setting up cache at %s", path)
 	// Get repository filesystem
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("unable to get current working directory: %s", err)
-	}
 	rootFs := filesystem.GetFilesystem(repoRoot)
 
 	// Instantiate cache

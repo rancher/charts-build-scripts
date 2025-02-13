@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -644,7 +643,7 @@ func cleanCache(c *cli.Context) {
 }
 
 func parseScriptOptions() *options.ChartsScriptOptions {
-	configYaml, err := ioutil.ReadFile(ChartsScriptOptionsFile)
+	configYaml, err := os.ReadFile(ChartsScriptOptionsFile)
 	if err != nil {
 		logrus.Fatalf("Unable to find configuration file: %s", err)
 	}

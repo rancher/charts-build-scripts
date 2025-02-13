@@ -2,7 +2,6 @@ package repository
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"time"
@@ -118,7 +117,7 @@ func CreateInitialCommit(repo *git.Repository) error {
 	if err != nil {
 		return err
 	}
-	if err = ioutil.WriteFile(path.Join(repoPath, "README.md"), []byte{}, 0644); err != nil {
+	if err = os.WriteFile(path.Join(repoPath, "README.md"), []byte{}, 0644); err != nil {
 		return err
 	}
 	return CommitAll(repo, "Create initial commit")

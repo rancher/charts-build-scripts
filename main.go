@@ -644,7 +644,7 @@ func cleanCache(c *cli.Context) {
 }
 
 func parseScriptOptions() *options.ChartsScriptOptions {
-	configYaml, err := ioutil.ReadFile(defaultChartsScriptOptionsFile)
+	configYaml, err := ioutil.ReadFile(ChartsScriptOptionsFile)
 	if err != nil {
 		logrus.Fatalf("Unable to find configuration file: %s", err)
 	}

@@ -3,6 +3,7 @@ package regsync
 import (
 	"archive/tar"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -16,8 +17,52 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// ReadSlsaYamlFunc is a function type that reads the slsa.yaml file and returns a list of images.
-type ReadSlsaYamlFunc func() ([]string, error)
+type SyncEntry struct {
+	Source string `yaml:"source"`
+	Target string `yaml:"target"` // If you need it
+	Type   string `yaml:"type"`   // If you need it
+	Tags   Tags   `yaml:"tags"`
+}
+
+type Tags struct {
+	Allow []string `yaml:"allow"`
+	Deny  []string `yaml:"deny"` // If you need it
+}
+
+type RegSyncConfig struct {
+	Version  int         `yaml:"version"`
+	Creds    interface{} `yaml:"creds"`    // If you need it
+	Defaults interface{} `yaml:"defaults"` // If you need it
+	Sync     []SyncEntry `yaml:"sync"`
+}
+
+func readAllowTagsFromRegsyncYaml() (map[string][]string, error) {
+	f, err := os.Open("regsync.yaml")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	var config RegSyncConfig
+	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal regsync.yaml: %w", err)
+	}
+
+	allowMap := make(map[string][]string)
+	for _, entry := range config.Sync {
+		source := entry.Source
+		allow := entry.Tags.Allow
+		allowMap[source] = allow
+	}
+
+	return allowMap, nil
+}
 
 // chartsToIgnoreTags and systemChartsToIgnoreTags defines the charts and system charts in which a specified
 // image tag should be ignored.
@@ -28,8 +73,12 @@ var chartsToIgnoreTags = map[string]string{
 
 // GenerateConfigFile creates a regsync config file out of the current branch.
 func GenerateConfigFile() error {
-	imageTagMap := make(map[string][]string)
+	initialConfig, err := readAllowTagsFromRegsyncYaml()
+	if err != nil {
+		return err
+	}
 
+	imageTagMap := make(map[string][]string)
 	if err := walkAssetsFolder(imageTagMap); err != nil {
 		return err
 	}
@@ -44,10 +93,12 @@ func GenerateConfigFile() error {
 		return err
 	}
 
-	if clean, _ := git.StatusProcelain(); !clean {
-		if err := git.AddAndCommit("regsync: images and tags present on the current release"); err != nil {
-			return err
-		}
+	if clean, _ := git.StatusProcelain(); clean {
+		return errors.New("FATAL: should have changes to commit")
+	}
+
+	if err := git.AddAndCommit("regsync: images and tags present on the current release"); err != nil {
+		return err
 	}
 
 	newPrimeImgTags, err := checkPrimeImageTags(imageTagMap)
@@ -67,7 +118,47 @@ func GenerateConfigFile() error {
 			return err
 		}
 	}
+
+	finalConfig, err := readAllowTagsFromRegsyncYaml()
+	if err != nil {
+		return err
+	}
+
+	if !allowedTagsChanged(initialConfig, finalConfig) {
+		fmt.Println("NO")
+		return nil
+	}
+
+	fmt.Println("YES")
 	return nil
+}
+
+// Function to compare two YAML configurations (you'll need to implement this)
+func allowedTagsChanged(config1, config2 map[string][]string) bool {
+	for source, tags1 := range config1 {
+		if len(tags1) != len(config2[source]) {
+			return true
+		}
+		if len(config2[source]) == 0 {
+			continue
+		}
+		for _, tag1 := range tags1 {
+			if !checkTagExist(tag1, config2[source]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// checkTagExist will return true if "tag" is present in "tags"
+func checkTagExist(tag string, tags []string) bool {
+	for _, t := range tags {
+		if tag == t {
+			return true
+		}
+	}
+	return false
 }
 
 // walkAssetsFolder walks over the assets folder, untars files, stores the values.yaml content

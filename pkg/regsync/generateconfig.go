@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rancher/charts-build-scripts/pkg/git"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 )
@@ -38,25 +39,34 @@ func GenerateConfigFile() error {
 		return err
 	}
 
-	// Check for new image tags from the charts dependencies (value.yaml files)
-	imageTags, err := checkNewImageTags()
+	git, err := git.OpenGitRepo(".")
 	if err != nil {
 		return err
 	}
 
-	cosignedImages, err := checkCosignedImages(imageTags)
+	if clean, _ := git.StatusProcelain(); !clean {
+		if err := git.AddAndCommit("regsync: images and tags present on the current release"); err != nil {
+			return err
+		}
+	}
+
+	newPrimeImgTags, err := checkPrimeImageTags(imageTagMap)
 	if err != nil {
 		return err
 	}
 
-	// remove cosigned images from the imageTagMap
-	removeCosignedImages(imageTagMap, cosignedImages)
+	syncImgTags := removePrimeImageTags(imageTagMap, newPrimeImgTags)
 
 	// Update the regsync config file excluding the cosigned images
-	if err := createRegSyncConfigFile(imageTagMap); err != nil {
+	if err := createRegSyncConfigFile(syncImgTags); err != nil {
 		return err
 	}
 
+	if clean, _ := git.StatusProcelain(); !clean {
+		if err := git.AddAndCommit("regsync: images to be synced"); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -162,6 +172,8 @@ sync:`)
 		fmt.Fprintln(file)
 		fmt.Fprintln(file, "  type: repository")
 		fmt.Fprintln(file, "  tags:")
+		fmt.Fprintln(file, "    deny:")
+		fmt.Fprintln(file, `      - "*"`)
 		fmt.Fprintln(file, "    allow:")
 
 		// We collect all tags and then sort them so there is consistency

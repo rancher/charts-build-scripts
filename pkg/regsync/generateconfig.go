@@ -3,9 +3,9 @@ package regsync
 import (
 	"archive/tar"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,8 +16,55 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// ReadSlsaYamlFunc is a function type that reads the slsa.yaml file and returns a list of images.
-type ReadSlsaYamlFunc func() ([]string, error)
+// SyncEntry represents a single entry in the regsync.yaml file
+type SyncEntry struct {
+	Source string `yaml:"source"` // image name
+	Target string `yaml:"target"` // If needed
+	Type   string `yaml:"type"`   // If needed
+	Tags   Tags   `yaml:"tags"`   // existing tags
+}
+
+// Tags represents the tags in the regsync.yaml file related to a single entry at the prime registry
+type Tags struct {
+	Allow []string `yaml:"allow"`
+	Deny  []string `yaml:"deny"` // If needed
+}
+
+// Config represents the regsync.yaml file
+type Config struct {
+	Version  int         `yaml:"version"`  // If needed
+	Creds    interface{} `yaml:"creds"`    // If needed
+	Defaults interface{} `yaml:"defaults"` // If needed
+	Sync     []SyncEntry `yaml:"sync"`
+}
+
+func readAllowTagsFromRegsyncYaml() (map[string][]string, error) {
+	f, err := os.Open("regsync.yaml")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	var config Config
+	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal regsync.yaml: %w", err)
+	}
+
+	allowMap := make(map[string][]string)
+	for _, entry := range config.Sync {
+		source := entry.Source
+		allow := entry.Tags.Allow
+		allowMap[source] = allow
+	}
+
+	return allowMap, nil
+}
 
 // chartsToIgnoreTags and systemChartsToIgnoreTags defines the charts and system charts in which a specified
 // image tag should be ignored.
@@ -28,8 +75,14 @@ var chartsToIgnoreTags = map[string]string{
 
 // GenerateConfigFile creates a regsync config file out of the current branch.
 func GenerateConfigFile() error {
-	imageTagMap := make(map[string][]string)
+	// Read the initial regsync.yaml file
+	initialConfig, err := readAllowTagsFromRegsyncYaml()
+	if err != nil {
+		return err
+	}
 
+	// Walk the entire image dependencies across all charts
+	imageTagMap := make(map[string][]string)
 	if err := walkAssetsFolder(imageTagMap); err != nil {
 		return err
 	}
@@ -44,30 +97,87 @@ func GenerateConfigFile() error {
 		return err
 	}
 
-	if clean, _ := git.StatusProcelain(); !clean {
-		if err := git.AddAndCommit("regsync: images and tags present on the current release"); err != nil {
-			return err
-		}
+	// Must add and commit the initial changes to the regsync.yaml file
+	if clean, _ := git.StatusProcelain(); clean {
+		fmt.Println("FATAL: should have changes to commit")
+		return errors.New("FATAL: should have changes to commit")
 	}
 
-	newPrimeImgTags, err := checkPrimeImageTags(imageTagMap)
+	if err := git.AddAndCommit("regsync: images and tags present on the current release"); err != nil {
+		fmt.Println(err.Error())
+		return err
+	}
+
+	// Use skopeo lits-tags to retrieve ALL tags for the images at prime registry
+	primeImgTags, err := checkPrimeImageTags(imageTagMap)
 	if err != nil {
+		fmt.Println(err.Error())
 		return err
 	}
 
-	syncImgTags := removePrimeImageTags(imageTagMap, newPrimeImgTags)
+	// Remove the prime image tags from the imageTagMap
+	syncImgTags := removePrimeImageTags(imageTagMap, primeImgTags)
 
-	// Update the regsync config file excluding the cosigned images
+	// Update the regsync config file excluding the prime images and tags
 	if err := createRegSyncConfigFile(syncImgTags); err != nil {
+		fmt.Println(err.Error())
 		return err
 	}
 
-	if clean, _ := git.StatusProcelain(); !clean {
-		if err := git.AddAndCommit("regsync: images to be synced"); err != nil {
-			return err
+	// Must add and commit the final changes to the regsync.yaml file
+	if clean, _ := git.StatusProcelain(); clean {
+		fmt.Println("FATAL: should have changes to commit")
+		return errors.New("FATAL: should have changes to commit")
+	}
+
+	if err := git.AddAndCommit("regsync: images to be synced"); err != nil {
+		fmt.Println(err.Error())
+		return err
+	}
+
+	// Final state read of regsync.yaml
+	finalConfig, err := readAllowTagsFromRegsyncYaml()
+	if err != nil {
+		fmt.Println(err.Error())
+		return err
+	}
+
+	// Compare the initial and final config to see if there are any changes
+	if !allowedTagsChanged(initialConfig, finalConfig) {
+		fmt.Println("NO")
+		return nil
+	}
+
+	fmt.Println("YES")
+	return nil
+}
+
+// Function to compare two YAML configurations (you'll need to implement this)
+func allowedTagsChanged(config1, config2 map[string][]string) bool {
+	for source, tags1 := range config1 {
+		if len(tags1) != len(config2[source]) {
+			return true
+		}
+		if len(config2[source]) == 0 {
+			continue
+		}
+		for _, tag1 := range tags1 {
+			if !checkTagExist(tag1, config2[source]) {
+				return true
+			}
 		}
 	}
-	return nil
+	return false
+}
+
+// checkTagExist will return true if "tag" is present in "tags"
+func checkTagExist(tag string, tags []string) bool {
+	for _, t := range tags {
+		if tag == t {
+			return true
+		}
+	}
+	return false
 }
 
 // walkAssetsFolder walks over the assets folder, untars files, stores the values.yaml content
@@ -228,7 +338,7 @@ func decodeValuesFilesInTgz(tgzPath string) ([]map[interface{}]interface{}, erro
 
 // decodeYAMLFile unmarshals the values into the target interface
 func decodeYAMLFile(r io.Reader, target interface{}) error {
-	data, err := ioutil.ReadAll(r)
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return err
 	}

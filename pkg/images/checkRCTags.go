@@ -1,7 +1,6 @@
 package images
 
 import (
-	"os"
 	"strings"
 
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
@@ -11,10 +10,10 @@ import (
 )
 
 // CheckRCTags checks for any images that have RC tags
-func CheckRCTags() map[string][]string {
+func CheckRCTags(repoRoot string) map[string][]string {
 
 	// Get the release options from the release.yaml file
-	releaseOptions := getReleaseOptions()
+	releaseOptions := getReleaseOptions(repoRoot)
 
 	logrus.Infof("Checking for RC tags in charts: %v", releaseOptions)
 
@@ -41,13 +40,7 @@ func CheckRCTags() map[string][]string {
 }
 
 // getReleaseOptions returns the release options from the release.yaml file
-func getReleaseOptions() options.ReleaseOptions {
-	// Get the current working directory
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-
+func getReleaseOptions(repoRoot string) options.ReleaseOptions {
 	// Get the filesystem on the repo root
 	repoFs := filesystem.GetFilesystem(repoRoot)
 

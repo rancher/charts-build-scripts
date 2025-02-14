@@ -25,6 +25,7 @@ require (
 	github.com/sourcegraph/go-diff v0.7.0
 	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli v1.22.16
+	github.com/urfave/cli/v2 v2.27.5
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d
 	golang.org/x/oauth2 v0.25.0
 	gopkg.in/yaml.v2 v2.4.0

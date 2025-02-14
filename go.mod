@@ -19,6 +19,7 @@ require (
 	github.com/go-git/go-git/v5 v5.13.1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/go-github/v41 v41.0.0
+	github.com/google/go-github/v69 v69.1.0
 	github.com/hashicorp/go-version v1.7.0
 	github.com/rancherlabs/slsactl v0.0.9
 	github.com/sirupsen/logrus v1.9.3

@@ -28,9 +28,9 @@ const owner = "rancher"
 const repo = "charts"
 
 var (
-	errReleaseYaml       error = errors.New("release.yaml errors")
-	errModifiedChart     error = errors.New("released chart cannot be modified")
-	errMinorPatchVersion error = errors.New("chart version must be exactly 1 more patch/minor version than the previous chart version")
+	errReleaseYaml       = errors.New("release.yaml errors")
+	errModifiedChart     = errors.New("released chart cannot be modified")
+	errMinorPatchVersion = errors.New("chart version must be exactly 1 more patch/minor version than the previous chart version")
 )
 
 // validation struct will hold the pull request and its files to be validated.

@@ -16,7 +16,7 @@ type Registry struct {
 }
 
 // Pull pulls the chart from the registry into the filesystem
-func (r Registry) Pull(rootFs, fs billy.Filesystem, path string) error {
+func (r Registry) Pull(_ /*rootFs*/, fs billy.Filesystem, path string) error {
 	logrus.Infof("Pulling %s from upstream into %s", r.URL, path)
 
 	getter, err := getter.NewOCIGetter()

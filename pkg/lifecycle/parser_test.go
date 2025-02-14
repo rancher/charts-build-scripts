@@ -57,7 +57,7 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 					{Version: "1.0.0"},
 				},
 			},
-			walkDirWrapper: func(fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error {
+			walkDirWrapper: func(_ billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error {
 				// Simulate the behavior of filesystem.WalkDir as needed for your test.
 				if dirPath == "assets/chart1" {
 					doFunc(nil, "assets/chart1/chart1-1.0.0.tgz", false)
@@ -94,7 +94,7 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 					{Version: "1.0.0"},
 				},
 			},
-			walkDirWrapper: func(fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error {
+			walkDirWrapper: func(_ billy.Filesystem, _ string, doFunc filesystem.RelativePathFunc) error {
 				doFunc(nil, "", false)
 				return fmt.Errorf("Some random error")
 			},

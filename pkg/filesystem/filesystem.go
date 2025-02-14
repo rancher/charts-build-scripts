@@ -6,7 +6,6 @@ import (
 	"compress/gzip"
 	"crypto/sha1"
 	"fmt"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/rancher/charts-build-scripts/pkg/util"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/osfs"

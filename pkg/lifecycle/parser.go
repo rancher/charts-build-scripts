@@ -62,7 +62,7 @@ func (ld *Dependencies) populateAssetsVersionsPath() error {
 	// during its traversal of the directory specified by dirPath
 	// All results will be appended fo filePaths
 	var filePaths []string
-	doFunc := func(fs billy.Filesystem, path string, isDir bool) error {
+	doFunc := func(_ billy.Filesystem, path string, isDir bool) error {
 		if !isDir {
 			filePaths = append(filePaths, path)
 		}

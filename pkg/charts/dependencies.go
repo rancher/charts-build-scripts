@@ -73,7 +73,7 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 			}
 			continue
 		}
-		if filesystem.RemoveAll(dependencyFs, dependency.WorkingDir); err != nil {
+		if err := filesystem.RemoveAll(dependencyFs, dependency.WorkingDir); err != nil {
 			return err
 		}
 		if err := dependency.Upstream.Pull(rootFs, dependencyFs, dependency.WorkingDir); err != nil {

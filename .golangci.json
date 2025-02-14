@@ -11,9 +11,12 @@
 		]
 	},
 	"run": {
-		"skip-files": [
-			"/zz_generated_"
-		],
-		"deadline": "5m"
+		"issues" : {
+			"skip-files" : [
+				"/zz_generated_"
+
+			]
+		},
+		"timeout": "5m"
 	}
 }

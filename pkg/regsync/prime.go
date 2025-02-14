@@ -14,7 +14,7 @@ type skopeo struct {
 
 // checkPrimeImageTags checks the prime image tags on the registry.
 func checkPrimeImageTags(imageTags map[string][]string) (map[string][]string, error) {
-	var primeImageTags map[string][]string = make(map[string][]string)
+	var primeImageTags = make(map[string][]string)
 
 	fmt.Println("checking prime image tags")
 	for image := range imageTags {
@@ -55,7 +55,7 @@ func skopeoListTags(image string) ([]string, error) {
 
 // removePrimeImageTags will only allow the tags that are not present in the prime image tags.
 func removePrimeImageTags(imageTagMap, newPrimeImgTags map[string][]string) map[string][]string {
-	var syncImgTags map[string][]string = make(map[string][]string)
+	var syncImgTags = make(map[string][]string)
 
 	for image, tags := range imageTagMap {
 		if image == "" {

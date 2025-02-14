@@ -51,7 +51,7 @@ func ListPackages(repoRoot string, specificPackage string) ([]string, error) {
 		return packageList, err
 	}
 
-	listPackages := func(fs billy.Filesystem, dirPath string, isDir bool) error {
+	listPackages := func(_ billy.Filesystem, dirPath string, isDir bool) error {
 		if !isDir {
 			return nil
 		}

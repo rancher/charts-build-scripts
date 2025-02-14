@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	errorNoBranchVersion         error = errors.New("branch version not provided")
-	errorBranchVersionNotInRules error = errors.New("the given branch version is not defined in the rules")
+	errorNoBranchVersion         = errors.New("branch version not provided")
+	errorBranchVersionNotInRules = errors.New("the given branch version is not defined in the rules")
 )
 
 // Version holds the maximum and minimum limits allowed for a specific branch version
@@ -103,23 +103,23 @@ func (v *VersionRules) getMinMaxVersionInts() error {
 	maxVersionStr := v.Rules[v.BranchVersion].Max
 
 	var err error
-	var min, max int = 0, 0
+	var minV, maxV int = 0, 0
 
 	if minVersionStr != "" {
-		min, err = strconv.Atoi(strings.Split(minVersionStr, ".")[0])
+		minV, err = strconv.Atoi(strings.Split(minVersionStr, ".")[0])
 		if err != nil {
 			return err
 		}
 	}
 	if maxVersionStr != "" {
-		max, err = strconv.Atoi(strings.Split(maxVersionStr, ".")[0])
+		maxV, err = strconv.Atoi(strings.Split(maxVersionStr, ".")[0])
 		if err != nil {
 			return err
 		}
 	}
 
-	v.MinVersion = min
-	v.MaxVersion = max
+	v.MinVersion = minV
+	v.MaxVersion = maxV
 	return nil
 }
 

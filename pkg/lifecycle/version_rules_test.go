@@ -55,7 +55,7 @@ func Test_rules(t *testing.T) {
 			i: input{
 				fs:            fs,
 				branchVersion: "99.99",
-				mockLoad: func(fs billy.Filesystem) (*VersionRules, error) {
+				mockLoad: func(_ billy.Filesystem) (*VersionRules, error) {
 					return &VersionRules{
 						Rules: map[string]Version{
 							"2.9": {Min: "101", Max: "105"},
@@ -73,7 +73,7 @@ func Test_rules(t *testing.T) {
 			i: input{
 				fs:            fs,
 				branchVersion: "2.9",
-				mockLoad: func(fs billy.Filesystem) (*VersionRules, error) {
+				mockLoad: func(_ billy.Filesystem) (*VersionRules, error) {
 					return &VersionRules{
 						Rules: map[string]Version{
 							"2.9": {Min: "104.0.0", Max: "105.0.0"},
@@ -104,7 +104,7 @@ func Test_rules(t *testing.T) {
 			i: input{
 				fs:            fs,
 				branchVersion: "2.9",
-				mockLoad: func(fs billy.Filesystem) (*VersionRules, error) {
+				mockLoad: func(_ billy.Filesystem) (*VersionRules, error) {
 					return &VersionRules{
 						Rules: map[string]Version{
 							"2.9": {Min: "104.0.0", Max: "105.0.0"},
@@ -139,7 +139,7 @@ func Test_rules(t *testing.T) {
 			i: input{
 				fs:            fs,
 				branchVersion: "2.10",
-				mockLoad: func(fs billy.Filesystem) (*VersionRules, error) {
+				mockLoad: func(_ billy.Filesystem) (*VersionRules, error) {
 					return &VersionRules{
 						Rules: map[string]Version{
 							"2.10": {Min: "105.0.0", Max: "106.0.0"},
@@ -176,7 +176,7 @@ func Test_rules(t *testing.T) {
 			i: input{
 				fs:            fs,
 				branchVersion: "2.7",
-				mockLoad: func(fs billy.Filesystem) (*VersionRules, error) {
+				mockLoad: func(_ billy.Filesystem) (*VersionRules, error) {
 					return &VersionRules{
 						Rules: map[string]Version{
 							"2.10": {Min: "105.0.0", Max: "106.0.0"},

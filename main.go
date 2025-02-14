@@ -420,7 +420,7 @@ func main() {
 	}
 }
 
-func listPackages(c *cli.Context) {
+func listPackages(_ *cli.Context) {
 	repoRoot := getRepoRoot()
 	packageList, err := charts.ListPackages(repoRoot, CurrentPackage)
 	if err != nil {
@@ -434,7 +434,7 @@ func listPackages(c *cli.Context) {
 	logrus.Infof("Found the following packages: %v", packageList)
 }
 
-func prepareCharts(c *cli.Context) {
+func prepareCharts(_ *cli.Context) {
 	util.SetSoftErrorMode(SoftErrorMode)
 	packages := getPackages()
 	if len(packages) == 0 {
@@ -447,7 +447,7 @@ func prepareCharts(c *cli.Context) {
 	}
 }
 
-func generatePatch(c *cli.Context) {
+func generatePatch(_ *cli.Context) {
 	packages := getPackages()
 	if len(packages) == 0 {
 		logrus.Infof("No packages found.")
@@ -468,7 +468,7 @@ func generatePatch(c *cli.Context) {
 	}
 }
 
-func generateCharts(c *cli.Context) {
+func generateCharts(_ *cli.Context) {
 	packages := getPackages()
 	if len(packages) == 0 {
 		logrus.Infof("No packages found.")
@@ -484,7 +484,7 @@ func generateCharts(c *cli.Context) {
 	}
 }
 
-func downloadIcon(c *cli.Context) {
+func downloadIcon(_ *cli.Context) {
 	packages := getPackages()
 	if len(packages) == 0 {
 		logrus.Infof("No packages found.")
@@ -498,13 +498,13 @@ func downloadIcon(c *cli.Context) {
 	}
 }
 
-func generateRegSyncConfigFile(c *cli.Context) {
+func generateRegSyncConfigFile(_ *cli.Context) {
 	if err := regsync.GenerateConfigFile(); err != nil {
 		logrus.Fatal(err)
 	}
 }
 
-func createOrUpdateIndex(c *cli.Context) {
+func createOrUpdateIndex(_ *cli.Context) {
 	repoRoot := getRepoRoot()
 	if err := helm.CreateOrUpdateHelmIndex(filesystem.GetFilesystem(repoRoot)); err != nil {
 		logrus.Fatal(err)
@@ -527,7 +527,7 @@ func unzipAssets(c *cli.Context) {
 	createOrUpdateIndex(c)
 }
 
-func cleanRepo(c *cli.Context) {
+func cleanRepo(_ *cli.Context) {
 	packages := getPackages()
 	if len(packages) == 0 {
 		logrus.Infof("No packages found.")
@@ -615,7 +615,7 @@ func validateRepo(c *cli.Context) {
 	logrus.Info("Successfully validated current repository!")
 }
 
-func standardizeRepo(c *cli.Context) {
+func standardizeRepo(_ *cli.Context) {
 	repoRoot := getRepoRoot()
 	repoFs := filesystem.GetFilesystem(repoRoot)
 	if err := standardize.RestructureChartsAndAssets(repoFs); err != nil {
@@ -623,7 +623,7 @@ func standardizeRepo(c *cli.Context) {
 	}
 }
 
-func createOrUpdateTemplate(c *cli.Context) {
+func createOrUpdateTemplate(_ *cli.Context) {
 	repoRoot := getRepoRoot()
 	repoFs := filesystem.GetFilesystem(repoRoot)
 	chartsScriptOptions := parseScriptOptions()
@@ -633,11 +633,11 @@ func createOrUpdateTemplate(c *cli.Context) {
 	logrus.Infof("Successfully updated repository based on upstream template.")
 }
 
-func setupCache(c *cli.Context) error {
+func setupCache(_ *cli.Context) error {
 	return puller.InitRootCache(CacheMode, path.DefaultCachePath)
 }
 
-func cleanCache(c *cli.Context) {
+func cleanCache(_ *cli.Context) {
 	if err := puller.CleanRootCache(path.DefaultCachePath); err != nil {
 		logrus.Fatal(err)
 	}
@@ -690,13 +690,13 @@ func getGitInfo() (*git.Repository, *git.Worktree, git.Status) {
 	return repo, wt, status
 }
 
-func checkImages(c *cli.Context) {
+func checkImages(_ *cli.Context) {
 	if err := images.CheckImages(); err != nil {
 		logrus.Fatal(err)
 	}
 }
 
-func checkRCTagsAndVersions(c *cli.Context) {
+func checkRCTagsAndVersions(_ *cli.Context) {
 	// Grab all images that contain RC tags
 	rcImageTagMap := images.CheckRCTags()
 
@@ -808,7 +808,7 @@ func release(c *cli.Context) {
 	createOrUpdateIndex(c)
 }
 
-func validateRelease(c *cli.Context) {
+func validateRelease(_ *cli.Context) {
 	if Skip {
 		fmt.Println("skipping execution...")
 		return
@@ -845,7 +845,7 @@ func validateRelease(c *cli.Context) {
 	}
 }
 
-func compareIndexFiles(c *cli.Context) {
+func compareIndexFiles(_ *cli.Context) {
 	if Branch == "" {
 		fmt.Println("BRANCH environment variable must be set to run validate-release-charts")
 		os.Exit(1)
@@ -860,7 +860,7 @@ func compareIndexFiles(c *cli.Context) {
 	fmt.Println("index.yaml files are the same at git repository and charts.rancher.io")
 }
 
-func chartBump(c *cli.Context) {
+func chartBump(_ *cli.Context) {
 	if CurrentPackage == "" {
 		fmt.Println("CurrentPackage environment variable must be set")
 		os.Exit(1)

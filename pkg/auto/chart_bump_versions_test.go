@@ -86,7 +86,7 @@ func Test_calculateNextVersion(t *testing.T) {
 	}
 
 	buildInputBump := func(latestVersion string, toReleaseVersion string) *Bump {
-		var toReleaseVersionPtr *string = &toReleaseVersion
+		var toReleaseVersionPtr = &toReleaseVersion
 
 		return &Bump{
 			targetChart: "rancher-chart",
@@ -102,7 +102,7 @@ func Test_calculateNextVersion(t *testing.T) {
 
 	buildExpectedBump := func(latest, latestRepoPrefix, toRelease, toReleaseRepoPrefix string) *Bump {
 		var (
-			toReleaseVersionPtr *string = &toRelease
+			toReleaseVersionPtr = &toRelease
 			targetVersion       string
 			targetSemver        semver.Version
 		)

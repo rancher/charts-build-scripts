@@ -89,7 +89,7 @@ func Test_validateReleaseYaml(t *testing.T) {
 					},
 					dep: &lifecycle.Dependencies{
 						AssetsVersionsMap: map[string][]lifecycle.Asset{
-							"chart-1": []lifecycle.Asset{
+							"chart-1": {
 								{
 									Version: "104.0.1",
 								},
@@ -136,12 +136,12 @@ func Test_validateReleaseYaml(t *testing.T) {
 					},
 					dep: &lifecycle.Dependencies{
 						AssetsVersionsMap: map[string][]lifecycle.Asset{
-							"chart-1": []lifecycle.Asset{
+							"chart-1": {
 								{
 									Version: "104.0.0",
 								},
 							},
-							"chart-2": []lifecycle.Asset{
+							"chart-2": {
 								{
 									Version: "104.0.0",
 								},
@@ -180,7 +180,7 @@ func Test_validateReleaseYaml(t *testing.T) {
 					},
 					dep: &lifecycle.Dependencies{
 						AssetsVersionsMap: map[string][]lifecycle.Asset{
-							"chart-1": []lifecycle.Asset{
+							"chart-1": {
 								{
 									Version: "104.0.0",
 								},
@@ -226,12 +226,12 @@ func Test_validateReleaseYaml(t *testing.T) {
 					},
 					dep: &lifecycle.Dependencies{
 						AssetsVersionsMap: map[string][]lifecycle.Asset{
-							"chart-1": []lifecycle.Asset{
+							"chart-1": {
 								{
 									Version: "104.0.0",
 								},
 							},
-							"chart-2": []lifecycle.Asset{
+							"chart-2": {
 								{
 									Version: "104.0.0",
 								},
@@ -277,12 +277,12 @@ func Test_validateReleaseYaml(t *testing.T) {
 					},
 					dep: &lifecycle.Dependencies{
 						AssetsVersionsMap: map[string][]lifecycle.Asset{
-							"chart-1": []lifecycle.Asset{
+							"chart-1": {
 								{
 									Version: "104.0.0",
 								},
 							},
-							"chart-2": []lifecycle.Asset{
+							"chart-2": {
 								{
 									Version: "104.0.0",
 								},

@@ -82,7 +82,7 @@ func (u LocalPackage) String() string {
 type Local struct{}
 
 // Pull grabs the Helm chart by preparing the package itself
-func (u Local) Pull(rootFs, fs billy.Filesystem, path string) error {
+func (u Local) Pull(_, _ billy.Filesystem, _ string) error {
 	return nil
 }
 

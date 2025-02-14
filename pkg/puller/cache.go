@@ -68,12 +68,12 @@ type cacher interface {
 type noopCache struct{}
 
 // Add does not do anything
-func (c *noopCache) Add(key string, fs billy.Filesystem, path string) (bool, error) {
+func (c *noopCache) Add(_ string, _ billy.Filesystem, _ string) (bool, error) {
 	return false, nil
 }
 
 // Get does not do anything
-func (c *noopCache) Get(key string, fs billy.Filesystem, path string) (bool, error) {
+func (c *noopCache) Get(_ string, _ billy.Filesystem, _ string) (bool, error) {
 	return false, nil
 }
 

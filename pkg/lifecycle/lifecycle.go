@@ -2,7 +2,6 @@ package lifecycle
 
 import (
 	"errors"
-	"os"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
@@ -37,13 +36,10 @@ type WalkDirFunc func(fs billy.Filesystem, dirPath string, doFunc filesystem.Rel
 // InitDependencies will check the filesystem, branch version,
 // git status, initialize the Dependencies struct and populate it.
 // If anything fails the operation will be aborted.
-func InitDependencies(rootFs billy.Filesystem, branchVersion string, currentChart string) (*Dependencies, error) {
+func InitDependencies(repoRoot string, rootFs billy.Filesystem, branchVersion string, currentChart string) (*Dependencies, error) {
 	var err error
 
-	workDir, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
+	workDir := repoRoot
 
 	git, err := git.OpenGitRepo(workDir)
 	if err != nil {

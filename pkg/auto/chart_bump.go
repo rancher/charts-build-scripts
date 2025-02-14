@@ -77,7 +77,7 @@ func SetupBump(repoRoot, targetPackage, targetBranch string, chScriptOpts *optio
 	}
 
 	//Initialize the lifecycle dependencies because of the versioning rules and the index.yaml mapping.
-	dependencies, err := lifecycle.InitDependencies(filesystem.GetFilesystem(repoRoot), branch, bump.targetChart)
+	dependencies, err := lifecycle.InitDependencies(repoRoot, filesystem.GetFilesystem(repoRoot), branch, bump.targetChart)
 	if err != nil {
 		err = fmt.Errorf("failure at SetupBump: %w ", err)
 		return bump, err

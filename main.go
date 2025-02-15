@@ -458,6 +458,15 @@ func main() {
 			Before: setupCache,
 			Flags:  []cli.Flag{packageFlag, branchFlag},
 		},
+		{
+			Name: "update-oci-registry",
+			Usage: `Update the oci-registry with the given assets or push all assets.
+			`,
+			Action: updateOCIRegistry,
+			Flags: []cli.Flag{
+				debugFlag, ociDNS, ociUser, ociPass,
+			},
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -930,4 +939,19 @@ func chartBump(c *cli.Context) {
 		bump.Pkg.Clean()
 		os.Exit(1)
 	}
+}
+
+func updateOCIRegistry(c *cli.Context) {
+
+	if OciDNS == "" || OciUser == "" || OciPassword == "" {
+		fmt.Println("OCI_DNS, OCI_USER, OCI_PASS environment variables must be set to run update-oci-registry")
+		os.Exit(1)
+	}
+
+	rootFs := filesystem.GetFilesystem(getRepoRoot())
+	if err := auto.UpdateOCI(rootFs, OciDNS, OciUser, OciPassword, DebugMode); err != nil {
+		fmt.Println("failed to update oci registry: ", err.Error())
+		os.Exit(1)
+	}
+
 }

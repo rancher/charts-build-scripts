@@ -1,12 +1,15 @@
 package validate
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/go-git/go-git/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	bashGit "github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
@@ -210,5 +213,58 @@ func copyAndUnzip(repoFs billy.Filesystem, upstreamPath, localPath string) error
 	if err := zip.DumpAssets(repoFs.Root(), specificAsset); err != nil {
 		return fmt.Errorf("encountered error while copying over contents of modified upstream asset to charts: %s", err)
 	}
+	return nil
+}
+
+// StatusExceptions checks if the git repository is clean and if it is not, it checks if the changes are allowed
+func StatusExceptions(status git.Status) error {
+	if !status.IsClean() {
+		if err := validateExceptions(status); err != nil {
+			logrus.Errorf("git is not clean: %s\n", err.Error())
+			logrus.Errorf("status:\n%s\n", status)
+			return errors.New("Repository must be clean to run validation")
+		}
+
+		g, err := bashGit.OpenGitRepo(".")
+		if err != nil {
+			return err
+		}
+		if err := g.FullReset(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateExceptions checks if the changes are allowed
+func validateExceptions(status git.Status) error {
+	/**
+	* The following exceptions are allowed to be modified, they were wrongly released with .orig files on the final production version.
+	* This does not break anything and it is not allowed to modify already released charts.
+	 */
+	exceptions := map[string][]string{
+		"rancher-istio":        {"105.4.0+up1.23.2"},
+		"prometheus-federator": {"103.0.0+up0.4.0", "103.0.1+up0.4.1", "104.0.0+up0.4.0"},
+	}
+
+	for changedFile, _ := range status {
+		if changedFile == "index.yaml" {
+			continue
+		}
+
+		for exceptionChart, exceptionVersions := range exceptions {
+			if !strings.Contains(changedFile, exceptionChart) {
+				continue
+			}
+
+			for _, exceptionVersion := range exceptionVersions {
+				if !strings.Contains(changedFile, exceptionVersion) {
+					return fmt.Errorf("chart: %s - version: %s is not allowed to be modified", exceptionChart, exceptionVersion)
+				}
+			}
+		}
+	}
+
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
@@ -29,6 +30,10 @@ var (
 // ExportHelmChart creates a Helm chart archive and an unarchived Helm chart at RepositoryAssetDirpath and RepositoryChartDirPath
 // helmChartPath is a relative path (rooted at the package level) that contains the chart.
 func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion *int, version *semver.Version, autoGenBumpVersion *semver.Version, upstreamChartVersion string, omitBuildMetadata bool) error {
+
+	if err := removeOrigFiles(filesystem.GetAbsPath(fs, helmChartPath)); err != nil {
+		return fmt.Errorf("failed to remove .orig files: %s", err)
+	}
 
 	chart, err := loadHelmChart(fs, helmChartPath)
 	if err != nil {
@@ -63,6 +68,23 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 	}
 	logrus.Infof("Generated chart: %s", chartChartsDirpath)
 	return nil
+}
+
+// removeOrigFiles removes all files ending with .orig in the specified directory
+func removeOrigFiles(dir string) error {
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".orig") {
+			if err := os.Remove(path); err != nil {
+				return err
+			}
+			logrus.Infof("Removed file: %s", path)
+		}
+		return nil
+	})
+	return err
 }
 
 func loadHelmChart(fs billy.Filesystem, helmChartPath string) (*chart.Chart, error) {

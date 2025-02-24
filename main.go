@@ -562,10 +562,10 @@ func validateRepo(c *cli.Context) {
 
 		logrus.Infof("Checking if Git is clean after generating charts")
 		_, _, status = getGitInfo()
-		if !status.IsClean() {
-			logrus.Warnf("Generated charts produced the following changes in Git.\n%s", status)
-			logrus.Fatalf("Please commit these changes and run validation again.")
+		if err := validate.StatusExceptions(status); err != nil {
+			logrus.Fatal(err)
 		}
+
 		logrus.Infof("Successfully validated that current charts and assets are up to date.")
 	}
 

@@ -278,6 +278,32 @@ func (g *Git) CheckFileExists(file, branch string) error {
 	return exec.Command("git", "-C", g.Dir, "cat-file", "-e", target).Run()
 }
 
+// FullReset performs a hard reset, cleans the repository and restores it
+func (g *Git) FullReset() error {
+	if err := g.HardHEADReset(); err != nil {
+		return err
+	}
+	if err := g.ForceClean(); err != nil {
+		return err
+	}
+	return g.Restore()
+}
+
+// HardHEADReset = git reset --hard HEAD
+func (g *Git) HardHEADReset() error {
+	return exec.Command("git", "-C", g.Dir, "reset", "--hard", "HEAD").Run()
+}
+
+// ForceClean = git clean -fdx
+func (g *Git) ForceClean() error {
+	return exec.Command("git", "-C", g.Dir, "clean", "-fdx").Run()
+}
+
+// Restore = git restore .
+func (g *Git) Restore() error {
+	return exec.Command("git", "-C", g.Dir, "restore", ".").Run()
+}
+
 // ResetHEAD resets the HEAD of the git repository
 // ex: git reset HEAD
 func (g *Git) ResetHEAD() error {

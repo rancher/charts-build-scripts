@@ -77,7 +77,7 @@ func (r GithubRepository) GetSSHURL() string {
 }
 
 // Pull grabs the repository
-func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
+func (r GithubRepository) Pull(_ /*rootFs*/, fs billy.Filesystem, path string) error {
 	if r.IsCacheable() {
 		pulledFromCache, err := RootCache.Get(r.CacheKey(), fs, path)
 		if err != nil {

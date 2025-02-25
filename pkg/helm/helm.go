@@ -56,20 +56,20 @@ func CreateOrUpdateHelmIndex(rootFs billy.Filesystem) error {
 }
 
 // UpdateIndex updates the original index with the new contents
-func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) {
+func UpdateIndex(origRepo, newRepo *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) {
 	// Create a copy of new to return
 	updatedIndex := helmRepo.NewIndexFile()
-	updatedIndex.Merge(new)
+	updatedIndex.Merge(newRepo)
 	upToDate := true
 
 	// Preserve generated timestamp
-	updatedIndex.Generated = original.Generated
+	updatedIndex.Generated = origRepo.Generated
 
 	// Ensure newer version of chart is used if it has been updated
 	for chartName, chartVersions := range updatedIndex.Entries {
 		for i, chartVersion := range chartVersions {
 			version := chartVersion.Version
-			if !original.Has(chartName, version) {
+			if !origRepo.Has(chartName, version) {
 				// Keep the newly generated chart version as-is
 				upToDate = false
 				logrus.Debugf("Chart %s has introduced a new version %s: %v", chartName, chartVersion.Version, *chartVersion)
@@ -77,7 +77,7 @@ func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) 
 			}
 			// Get original chart version
 			var originalChartVersion *helmRepo.ChartVersion
-			for _, originalChartVersion = range original.Entries[chartName] {
+			for _, originalChartVersion = range origRepo.Entries[chartName] {
 				if originalChartVersion.Version == chartVersion.Version {
 					// found originalChartVersion, which must exist since we checked that the original has it
 					break
@@ -94,7 +94,7 @@ func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) 
 		}
 	}
 
-	for chartName, chartVersions := range original.Entries {
+	for chartName, chartVersions := range origRepo.Entries {
 		for _, chartVersion := range chartVersions {
 			if !updatedIndex.Has(chartName, chartVersion.Version) {
 				// Chart was removed

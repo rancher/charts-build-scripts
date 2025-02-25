@@ -58,8 +58,8 @@ func (r ReleaseOptions) Append(chartName string, chartVersion string) ReleaseOpt
 }
 
 // Merge merges two ReleaseOptions and returns the merged copy
-func (r ReleaseOptions) Merge(new ReleaseOptions) ReleaseOptions {
-	for chartName, versions := range new {
+func (r ReleaseOptions) Merge(newOpts ReleaseOptions) ReleaseOptions {
+	for chartName, versions := range newOpts {
 		for _, version := range versions {
 			r = r.Append(chartName, version)
 		}

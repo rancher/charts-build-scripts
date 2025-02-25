@@ -21,7 +21,7 @@ type Archive struct {
 }
 
 // Pull grabs the archive
-func (u Archive) Pull(rootFs, fs billy.Filesystem, path string) error {
+func (u Archive) Pull(_ /*rootFs*/, fs billy.Filesystem, path string) error {
 	logrus.Infof("Pulling %s from upstream into %s", u, path)
 	if err := filesystem.GetChartArchive(fs, u.URL, chartArchiveFilepath); err != nil {
 		return err

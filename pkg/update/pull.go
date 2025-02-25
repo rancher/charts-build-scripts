@@ -70,7 +70,7 @@ func pullUpstream(rootFs billy.Filesystem, pkgFs billy.Filesystem, templateDir s
 
 func applyTemplate(pkgFs billy.Filesystem, chartsScriptOptions options.ChartsScriptOptions, templateDir string, generatedDir string) error {
 	tempFs := filesystem.GetFilesystem(filesystem.GetAbsPath(pkgFs, generatedDir))
-	applySingleTemplate := func(fs billy.Filesystem, path string, isDir bool) error {
+	applySingleTemplate := func(_ billy.Filesystem, path string, isDir bool) error {
 		if isDir {
 			return nil
 		}

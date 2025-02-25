@@ -123,7 +123,7 @@ func Test_removePrimeImageTags(t *testing.T) {
 				},
 			},
 			expected: expected{
-				result: map[string][]string{"rancher/cis-operator": []string{}},
+				result: map[string][]string{"rancher/cis-operator": {}},
 			},
 		},
 		{
@@ -137,7 +137,7 @@ func Test_removePrimeImageTags(t *testing.T) {
 				},
 			},
 			expected: expected{
-				result: map[string][]string{"rancher/cis-operator": []string{}},
+				result: map[string][]string{"rancher/cis-operator": {}},
 			},
 		},
 		{
@@ -151,7 +151,7 @@ func Test_removePrimeImageTags(t *testing.T) {
 				},
 			},
 			expected: expected{
-				result: map[string][]string{"rancher/cis-operator": []string{"v1.0.0"}},
+				result: map[string][]string{"rancher/cis-operator": {"v1.0.0"}},
 			},
 		},
 		{
@@ -165,7 +165,7 @@ func Test_removePrimeImageTags(t *testing.T) {
 				},
 			},
 			expected: expected{
-				result: map[string][]string{"rancher/cis-operator": []string{}},
+				result: map[string][]string{"rancher/cis-operator": {}},
 			},
 		},
 	}

@@ -87,7 +87,7 @@ func GenerateConfigFile() error {
 		return err
 	}
 
-	// Create the regsync config file
+	// Create the first regsync config file for tracking images and tags on prime registry
 	if err := createRegSyncConfigFile(imageTagMap); err != nil {
 		return err
 	}
@@ -282,16 +282,18 @@ sync:`)
 		fmt.Fprintln(file)
 		fmt.Fprintln(file, "  type: repository")
 		fmt.Fprintln(file, "  tags:")
-		fmt.Fprintln(file, "    deny:")
-		fmt.Fprintln(file, `      - "*"`)
-		fmt.Fprintln(file, "    allow:")
 
 		// We collect all tags and then sort them so there is consistency
 		// in the update of the regsync file always.
 		tags := make([]string, 0)
 		tags = append(tags, imageTagMap[repo]...)
+		if len(tags) == 0 {
+			fmt.Fprintln(file, "    deny:")
+			fmt.Fprintln(file, `      - "*"`)
+			continue
+		}
 		sort.Strings(tags)
-
+		fmt.Fprintln(file, "    allow:")
 		for _, tag := range tags {
 			if tag == "" {
 				continue // skip empty tag

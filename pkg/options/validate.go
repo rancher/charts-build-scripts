@@ -1,7 +1,6 @@
 package options
 
 import (
-	"io/ioutil"
 	"os"
 
 	"github.com/hashicorp/go-version"
@@ -78,7 +77,7 @@ func LoadReleaseOptionsFromFile(fs billy.Filesystem, path string) (ReleaseOption
 		// If release.yaml does not exist, return an empty ReleaseOptions
 		return releaseOptions, nil
 	}
-	releaseOptionsBytes, err := ioutil.ReadFile(filesystem.GetAbsPath(fs, path))
+	releaseOptionsBytes, err := os.ReadFile(filesystem.GetAbsPath(fs, path))
 	if err != nil {
 		return releaseOptions, err
 	}

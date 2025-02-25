@@ -1,7 +1,6 @@
 package charts
 
 import (
-	"os"
 	"strings"
 
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
@@ -10,14 +9,7 @@ import (
 )
 
 // CheckRCCharts checks for any charts that have RC versions
-func CheckRCCharts() map[string][]string {
-
-	// Get the current working directory
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-
+func CheckRCCharts(repoRoot string) map[string][]string {
 	// Get the filesystem on the repo root
 	repoFs := filesystem.GetFilesystem(repoRoot)
 

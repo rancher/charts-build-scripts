@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,7 +76,7 @@ func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helm
 			return nil
 		}
 		absPath := filesystem.GetAbsPath(fs, path)
-		yamlFile, err := ioutil.ReadFile(absPath)
+		yamlFile, err := os.ReadFile(absPath)
 		if err != nil {
 			return fmt.Errorf("unable to read file %s: %s", absPath, err)
 		}
@@ -133,7 +132,7 @@ func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helm
 	validateInstallCRDsContents := fmt.Sprintf(ValidateInstallCRDContentsFmt, strings.Join(formattedCRDs, "\n"))
 	validateInstallCRDsDestpath := filepath.Join(helmChartPathWithoutCRDs, path.ChartValidateInstallCRDFile)
 	// Write to file
-	err = ioutil.WriteFile(filesystem.GetAbsPath(fs, validateInstallCRDsDestpath), []byte(validateInstallCRDsContents), os.ModePerm)
+	err = os.WriteFile(filesystem.GetAbsPath(fs, validateInstallCRDsDestpath), []byte(validateInstallCRDsContents), os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("encountered error while writing into %s: %s", validateInstallCRDsDestpath, err)
 	}

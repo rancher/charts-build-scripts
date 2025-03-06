@@ -25,7 +25,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/validate"
 	"github.com/rancher/charts-build-scripts/pkg/zip"
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v2"
 )
 

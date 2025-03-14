@@ -7,7 +7,7 @@ go 1.23.4
 // golang.org/x/sys => golang.org/x/sys v0.0.0-20200826173525-f9321e4c35a6
 // replace k8s.io/client-go => k8s.io/client-go v0.24.3
 
-replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
+replace github.com/imdario/mergo => github.com/imdario/mergo v1.0.1
 
 // never change this version otherwise old released chart versions validations will break due to the change in the version of the library
 replace github.com/Masterminds/semver/v3 => github.com/Masterminds/semver/v3 v3.3.0

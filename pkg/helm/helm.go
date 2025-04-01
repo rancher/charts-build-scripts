@@ -38,6 +38,10 @@ func CreateOrUpdateHelmIndex(rootFs billy.Filesystem) error {
 		return fmt.Errorf("encountered error while trying to generate new Helm index: %s", err)
 	}
 
+	// Sort entries to ensure consistent ordering
+	helmIndexFile.SortEntries()
+	newHelmIndexFile.SortEntries()
+
 	// Update index
 	helmIndexFile, upToDate := UpdateIndex(helmIndexFile, newHelmIndexFile)
 
@@ -57,16 +61,13 @@ func CreateOrUpdateHelmIndex(rootFs billy.Filesystem) error {
 
 // UpdateIndex updates the original index with the new contents
 func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) {
-	// Create a copy of new to return
-	updatedIndex := helmRepo.NewIndexFile()
-	updatedIndex.Merge(new)
-	upToDate := true
 
+	upToDate := true
 	// Preserve generated timestamp
-	updatedIndex.Generated = original.Generated
+	new.Generated = original.Generated
 
 	// Ensure newer version of chart is used if it has been updated
-	for chartName, chartVersions := range updatedIndex.Entries {
+	for chartName, chartVersions := range new.Entries {
 		for i, chartVersion := range chartVersions {
 			version := chartVersion.Version
 			if !original.Has(chartName, version) {
@@ -86,7 +87,7 @@ func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) 
 			// Try to preserve it only if nothing has changed.
 			if originalChartVersion.Digest == chartVersion.Digest {
 				// Don't modify created timestamp
-				updatedIndex.Entries[chartName][i].Created = originalChartVersion.Created
+				new.Entries[chartName][i].Created = originalChartVersion.Created
 			} else {
 				upToDate = false
 				logrus.Debugf("Chart %s at version %s has been modified", chartName, originalChartVersion.Version)
@@ -96,7 +97,7 @@ func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) 
 
 	for chartName, chartVersions := range original.Entries {
 		for _, chartVersion := range chartVersions {
-			if !updatedIndex.Has(chartName, chartVersion.Version) {
+			if !new.Has(chartName, chartVersion.Version) {
 				// Chart was removed
 				upToDate = false
 				logrus.Debugf("Chart %s at version %s has been removed: %v", chartName, chartVersion.Version, *chartVersion)
@@ -105,9 +106,9 @@ func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) 
 		}
 	}
 
-	// Sort and return entries
-	updatedIndex.SortEntries()
-	return updatedIndex, upToDate
+	// Sort one more time for safety
+	new.SortEntries()
+	return new, upToDate
 }
 
 // OpenIndexYaml will check and open the index.yaml file in the local repository at the default file path

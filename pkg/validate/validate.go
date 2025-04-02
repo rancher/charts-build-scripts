@@ -65,7 +65,7 @@ func (r CompareGeneratedAssetsResponse) DumpReleaseYaml(repoFs billy.Filesystem)
 
 // CompareGeneratedAssets checks to see if current assets and charts match upstream, aside from those indicated in the release.yaml
 // It returns a boolean indicating if the comparison has passed or an error
-func CompareGeneratedAssets(repoFs billy.Filesystem, u options.UpstreamOptions, branch string, releaseOptions options.ReleaseOptions) (CompareGeneratedAssetsResponse, error) {
+func CompareGeneratedAssets(repoRoot string, repoFs billy.Filesystem, u options.UpstreamOptions, branch string, releaseOptions options.ReleaseOptions) (CompareGeneratedAssetsResponse, error) {
 	response := CompareGeneratedAssetsResponse{
 		UntrackedInRelease:  options.ReleaseOptions{},
 		ModifiedPostRelease: options.ReleaseOptions{},
@@ -73,7 +73,7 @@ func CompareGeneratedAssets(repoFs billy.Filesystem, u options.UpstreamOptions, 
 	}
 
 	// Initialize lifecycle package for validating with assets lifecycle rules
-	lifeCycleDep, err := lifecycle.InitDependencies(repoFs, lifecycle.ExtractBranchVersion(branch), "")
+	lifeCycleDep, err := lifecycle.InitDependencies(repoRoot, repoFs, lifecycle.ExtractBranchVersion(branch), "")
 	if err != nil {
 		logrus.Fatalf("encountered error while initializing lifecycle dependencies: %s", err)
 	}

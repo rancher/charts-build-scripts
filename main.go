@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -582,7 +581,7 @@ func validateRepo(c *cli.Context) {
 			u := chartsScriptOptions.ValidateOptions.UpstreamOptions
 			branch := chartsScriptOptions.ValidateOptions.Branch
 			logrus.Infof("Performing upstream validation against repository %s at branch %s", u.URL, branch)
-			compareGeneratedAssetsResponse, err := validate.CompareGeneratedAssets(repoFs, u, branch, releaseOptions)
+			compareGeneratedAssetsResponse, err := validate.CompareGeneratedAssets(repoRoot, repoFs, u, branch, releaseOptions)
 			if err != nil {
 				logrus.Fatal(err)
 			}
@@ -634,17 +633,17 @@ func createOrUpdateTemplate(c *cli.Context) {
 }
 
 func setupCache(c *cli.Context) error {
-	return puller.InitRootCache(CacheMode, path.DefaultCachePath)
+	return puller.InitRootCache(getRepoRoot(), CacheMode, path.DefaultCachePath)
 }
 
 func cleanCache(c *cli.Context) {
-	if err := puller.CleanRootCache(path.DefaultCachePath); err != nil {
+	if err := puller.CleanRootCache(getRepoRoot(), path.DefaultCachePath); err != nil {
 		logrus.Fatal(err)
 	}
 }
 
 func parseScriptOptions() *options.ChartsScriptOptions {
-	configYaml, err := ioutil.ReadFile(defaultChartsScriptOptionsFile)
+	configYaml, err := os.ReadFile(ChartsScriptOptionsFile)
 	if err != nil {
 		logrus.Fatalf("Unable to find configuration file: %s", err)
 	}
@@ -656,6 +655,13 @@ func parseScriptOptions() *options.ChartsScriptOptions {
 }
 
 func getRepoRoot() string {
+	var repoRoot string
+	repoRoot = os.Getenv("DEV_REPO_ROOT")
+	if repoRoot != "" {
+		logrus.Debugf("Using repo root : %s", repoRoot)
+		return repoRoot
+	}
+
 	repoRoot, err := os.Getwd()
 	if err != nil {
 		logrus.Fatalf("Unable to get current working directory: %s", err)
@@ -697,11 +703,12 @@ func checkImages(c *cli.Context) {
 }
 
 func checkRCTagsAndVersions(c *cli.Context) {
+	repoRoot := getRepoRoot()
 	// Grab all images that contain RC tags
-	rcImageTagMap := images.CheckRCTags()
+	rcImageTagMap := images.CheckRCTags(repoRoot)
 
 	// Grab all chart versions that contain RC tags
-	rcChartVersionMap := charts.CheckRCCharts()
+	rcChartVersionMap := charts.CheckRCCharts(repoRoot)
 
 	// If there are any charts that contains RC version or images that contains RC tags
 	// log them and return an error
@@ -717,8 +724,9 @@ func checkRCTagsAndVersions(c *cli.Context) {
 func lifecycleStatus(c *cli.Context) {
 	// Initialize dependencies with branch-version and current chart
 	logrus.Info("Initializing dependencies for lifecycle-status")
-	rootFs := filesystem.GetFilesystem(getRepoRoot())
-	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart)
+	repoRoot := getRepoRoot()
+	rootFs := filesystem.GetFilesystem(repoRoot)
+	lifeCycleDep, err := lifecycle.InitDependencies(repoRoot, rootFs, c.String("branch-version"), CurrentChart)
 	if err != nil {
 		logrus.Fatalf("encountered error while initializing dependencies: %s", err)
 	}
@@ -738,8 +746,9 @@ func autoForwardPort(c *cli.Context) {
 
 	// Initialize dependencies with branch-version and current chart
 	logrus.Info("Initializing dependencies for auto-forward-port")
-	rootFs := filesystem.GetFilesystem(getRepoRoot())
-	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart)
+	repoRoot := getRepoRoot()
+	rootFs := filesystem.GetFilesystem(repoRoot)
+	lifeCycleDep, err := lifecycle.InitDependencies(repoRoot, rootFs, c.String("branch-version"), CurrentChart)
 	if err != nil {
 		logrus.Fatalf("encountered error while initializing dependencies: %v", err)
 	}
@@ -773,10 +782,10 @@ func release(c *cli.Context) {
 	if CurrentChart == "" {
 		logrus.Fatal("CHART environment variable must be set to run release cmd")
 	}
+	repoRoot := getRepoRoot()
+	rootFs := filesystem.GetFilesystem(repoRoot)
 
-	rootFs := filesystem.GetFilesystem(getRepoRoot())
-
-	dependencies, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart)
+	dependencies, err := lifecycle.InitDependencies(repoRoot, rootFs, c.String("branch-version"), CurrentChart)
 	if err != nil {
 		logrus.Fatalf("encountered error while initializing dependencies: %v", err)
 	}
@@ -825,15 +834,15 @@ func validateRelease(c *cli.Context) {
 		fmt.Println("BRANCH environment variable must be set to run validate-release-charts")
 		os.Exit(1)
 	}
-
-	rootFs := filesystem.GetFilesystem(getRepoRoot())
+	repoRoot := getRepoRoot()
+	rootFs := filesystem.GetFilesystem(repoRoot)
 
 	if !strings.HasPrefix(Branch, "release-v") {
 		fmt.Println("Branch must be in the format release-v2.x")
 		os.Exit(1)
 	}
 
-	dependencies, err := lifecycle.InitDependencies(rootFs, strings.TrimPrefix(Branch, "release-v"), "")
+	dependencies, err := lifecycle.InitDependencies(repoRoot, rootFs, strings.TrimPrefix(Branch, "release-v"), "")
 	if err != nil {
 		fmt.Printf("encountered error while initializing d: %v \n", err)
 		os.Exit(1)

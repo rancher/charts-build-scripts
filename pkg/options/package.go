@@ -2,7 +2,6 @@ package options
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/go-git/go-billy/v5"
@@ -105,7 +104,7 @@ func LoadPackageOptionsFromFile(fs billy.Filesystem, path string) (PackageOption
 	if !exists {
 		return packageOptions, fmt.Errorf("unable to load package options from file %s since it does not exist", filesystem.GetAbsPath(fs, path))
 	}
-	chartOptionsBytes, err := ioutil.ReadFile(filesystem.GetAbsPath(fs, path))
+	chartOptionsBytes, err := os.ReadFile(filesystem.GetAbsPath(fs, path))
 	if err != nil {
 		return packageOptions, err
 	}
@@ -146,7 +145,7 @@ func LoadChartOptionsFromFile(fs billy.Filesystem, path string) (ChartOptions, e
 	if !exists {
 		return chartOptions, fmt.Errorf("unable to load chart options from file %s since it does not exist", filesystem.GetAbsPath(fs, path))
 	}
-	chartOptionsBytes, err := ioutil.ReadFile(filesystem.GetAbsPath(fs, path))
+	chartOptionsBytes, err := os.ReadFile(filesystem.GetAbsPath(fs, path))
 	if err != nil {
 		return chartOptions, err
 	}

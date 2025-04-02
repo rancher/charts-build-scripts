@@ -6,14 +6,14 @@ import (
 	"compress/gzip"
 	"crypto/sha1"
 	"fmt"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/rancher/charts-build-scripts/pkg/util"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/osfs"
@@ -591,11 +591,11 @@ func CopyDir(fs billy.Filesystem, srcDir string, dstDir string) error {
 		if isDir {
 			return fs.MkdirAll(dstPath, os.ModePerm)
 		}
-		data, err := ioutil.ReadFile(GetAbsPath(fs, srcPath))
+		data, err := os.ReadFile(GetAbsPath(fs, srcPath))
 		if err != nil {
 			return err
 		}
-		return ioutil.WriteFile(GetAbsPath(fs, dstPath), data, os.ModePerm)
+		return os.WriteFile(GetAbsPath(fs, dstPath), data, os.ModePerm)
 	})
 }
 
@@ -608,7 +608,7 @@ func MakeSubdirectoryRoot(fs billy.Filesystem, path, subdirectory string) error 
 	if !exists {
 		return fmt.Errorf("subdirectory %s does not exist in path %s in filesystem %s", subdirectory, path, fs.Root())
 	}
-	absTempDir, err := ioutil.TempDir(fs.Root(), "make-subdirectory-root")
+	absTempDir, err := os.MkdirTemp(fs.Root(), "make-subdirectory-root")
 	if err != nil {
 		return err
 	}

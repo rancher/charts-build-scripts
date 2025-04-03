@@ -880,6 +880,7 @@ func chartBump(c *cli.Context) {
 	}
 
 	repoRoot := getRepoRoot()
+	ChartsScriptOptionsFile = "configuration.yaml"
 	chartsScriptOptions := parseScriptOptions()
 
 	bump, err := auto.SetupBump(repoRoot, CurrentPackage, Branch, chartsScriptOptions)

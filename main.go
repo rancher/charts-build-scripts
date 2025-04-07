@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
+	"github.com/lmittmann/tint"
 	"github.com/rancher/charts-build-scripts/pkg/util"
 
 	"github.com/go-git/go-git/v5"
@@ -57,6 +59,8 @@ const (
 	defaultSkipEnvironmentVariable = "SKIP"
 	// softErrorsEnvironmentVariable is the default environment variable that indicates if soft error mode is enabled
 	softErrorsEnvironmentVariable = "SOFT_ERRORS"
+	// defaultLogLevelEnvironmentVariable is the default environment variable that indicates the log level
+	defaultLogLevelEnvironmentVariable = "LOG"
 )
 
 var (
@@ -94,12 +98,38 @@ var (
 	Skip bool
 	// SoftErrorMode indicates if certain non-fatal errors will be turned into warnings
 	SoftErrorMode = false
+	// RepoRoot represents the root path of the repository
+	RepoRoot string
 )
 
-func main() {
-	if len(os.Getenv("DEBUG")) > 0 {
-		logrus.SetLevel(logrus.DebugLevel)
+func init() {
+	tintOptions := &tint.Options{
+		AddSource:  true,
+		TimeFormat: "15:04:05",
 	}
+
+	// Set the log level based on the LOG environment variable
+	lvl := os.Getenv("LOG")
+	if lvl != "" {
+		switch lvl {
+		case "DEBUG":
+			tintOptions.Level = slog.LevelDebug
+		case "INFO":
+			tintOptions.Level = slog.LevelInfo
+		case "WARN":
+			tintOptions.Level = slog.LevelWarn
+		case "ERROR":
+			tintOptions.Level = slog.LevelError
+		default:
+			tintOptions.Level = slog.LevelInfo
+		}
+	}
+	// Create a new slog logger with tint handler
+	logger := slog.New(tint.NewHandler(os.Stderr, tintOptions))
+	slog.SetDefault(logger)
+}
+
+func main() {
 	util.InitSoftErrorMode()
 
 	app := cli.NewApp()

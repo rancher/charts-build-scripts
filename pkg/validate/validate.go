@@ -3,6 +3,7 @@ package validate
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
@@ -15,8 +16,8 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
 	"github.com/rancher/charts-build-scripts/pkg/standardize"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 	"github.com/rancher/charts-build-scripts/pkg/zip"
-	"github.com/sirupsen/logrus"
 
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
@@ -38,10 +39,10 @@ func (r CompareGeneratedAssetsResponse) PassedValidation() bool {
 
 // LogDiscrepancies produces logs that can be used to pretty-print why a validation might have failed
 func (r CompareGeneratedAssetsResponse) LogDiscrepancies() {
-	logrus.Errorf("The following new assets have been introduced: %s", r.UntrackedInRelease)
-	logrus.Errorf("The following released assets have been removed: %s", r.RemovedPostRelease)
-	logrus.Errorf("The following released assets have been modified: %s", r.ModifiedPostRelease)
-	logrus.Errorf("If this was intentional, to allow validation to pass, these charts must be added to the release.yaml.")
+	util.Log(slog.LevelError, "new assets introduced", slog.Any("UntrackedInRelease", r.UntrackedInRelease))
+	util.Log(slog.LevelError, "assets removed", slog.Any("RemovedPostRelease", r.RemovedPostRelease))
+	util.Log(slog.LevelError, "assets modified", slog.Any("ModifiedPostRelease", r.ModifiedPostRelease))
+	util.Log(slog.LevelError, "If this was intentional, to allow validation to pass, these charts must be added to the release.yaml.")
 }
 
 // DumpReleaseYaml takes the response collected by this CompareGeneratedAssetsResponse and automatically creates the appropriate release.yaml,
@@ -75,25 +76,29 @@ func CompareGeneratedAssets(repoRoot string, repoFs billy.Filesystem, u options.
 	// Initialize lifecycle package for validating with assets lifecycle rules
 	lifeCycleDep, err := lifecycle.InitDependencies(repoRoot, repoFs, lifecycle.ExtractBranchVersion(branch), "")
 	if err != nil {
-		logrus.Fatalf("encountered error while initializing lifecycle dependencies: %s", err)
+		util.Log(slog.LevelError, "failed to initialize lifecycle dependencies", util.Err(err))
+		return response, err
 	}
 
 	// Pull repository
-	logrus.Infof("Pulling upstream repository %s at branch %s", u.URL, branch)
 	releasedChartsRepoBranch, err := puller.GetGithubRepository(u, &branch)
 	if err != nil {
 		return response, fmt.Errorf("failed to get Github repository pointing to new upstream: %s", err)
 	}
+
 	if err := releasedChartsRepoBranch.Pull(repoFs, repoFs, path.ChartsRepositoryUpstreamBranchDir); err != nil {
 		return response, fmt.Errorf("failed to pull assets from upstream: %s", err)
 	}
 	defer filesystem.RemoveAll(repoFs, path.ChartsRepositoryUpstreamBranchDir)
+
 	// Standardize the upstream repository
-	logrus.Infof("Standardizing upstream repository to compare it against local")
+	util.Log(slog.LevelInfo, "standardizing upstream repository to compare it against local")
+
 	releaseFs, err := repoFs.Chroot(path.ChartsRepositoryUpstreamBranchDir)
 	if err != nil {
 		return response, fmt.Errorf("failed to get filesystem for %s: %s", path.ChartsRepositoryUpstreamBranchDir, err)
 	}
+
 	if err := standardize.RestructureChartsAndAssets(releaseFs); err != nil {
 		return response, fmt.Errorf("failed to standardize upstream: %s", err)
 	}
@@ -120,7 +125,7 @@ func CompareGeneratedAssets(repoRoot string, repoFs billy.Filesystem, u options.
 			return nil
 		}
 		// Chart exists in local and is not tracked by release.yaml
-		logrus.Infof("%s/%s is untracked", chart.Metadata.Name, chart.Metadata.Version)
+		util.Log(slog.LevelWarn, "chart is untracked", slog.String("name", chart.Metadata.Name), slog.String("version", chart.Metadata.Version))
 		// If the chart exists in local and not on the upstream it may have been removed by the lifecycle rules
 		isVersionInLifecycle := lifeCycleDep.VR.CheckChartVersionForLifecycle(chart.Metadata.Version)
 		if isVersionInLifecycle {
@@ -151,7 +156,8 @@ func CompareGeneratedAssets(repoRoot string, repoFs billy.Filesystem, u options.
 			return nil
 		}
 		// Chart was removed from local and is not tracked by release.yaml
-		logrus.Infof("%s/%s was removed", chart.Metadata.Name, chart.Metadata.Version)
+		util.Log(slog.LevelWarn, "chart was removed", slog.String("name", chart.Metadata.Name), slog.String("version", chart.Metadata.Version))
+
 		response.RemovedPostRelease = response.RemovedPostRelease.Append(chart.Metadata.Name, chart.Metadata.Version)
 		// Found asset that only exists in upstream and is not tracked by release.yaml
 		localPath, err := filesystem.MovePath(upstreamPath, path.ChartsRepositoryUpstreamBranchDir, "")
@@ -190,12 +196,14 @@ func CompareGeneratedAssets(repoRoot string, repoFs billy.Filesystem, u options.
 			return nil
 		}
 		// Chart was modified in local and is not tracked by release.yaml
-		logrus.Infof("%s/%s was modified", chart.Metadata.Name, chart.Metadata.Version)
+		util.Log(slog.LevelWarn, "chart was modified", slog.String("name", chart.Metadata.Name), slog.String("version", chart.Metadata.Version))
+
 		response.ModifiedPostRelease = response.ModifiedPostRelease.Append(chart.Metadata.Name, chart.Metadata.Version)
 		return copyAndUnzip(repoFs, upstreamPath, localPath)
 	}
+	// Compare the directories
+	util.Log(slog.LevelInfo, "comparing standardized upstream assets against local assets")
 
-	logrus.Infof("Comparing standardized upstream assets against local assets")
 	if err := filesystem.CompareDirs(repoFs, "", path.ChartsRepositoryUpstreamBranchDir, localOnly, upstreamOnly, localAndUpstream); err != nil {
 		return response, fmt.Errorf("encountered error while trying to compare local against upstream: %s", err)
 	}
@@ -220,9 +228,9 @@ func copyAndUnzip(repoFs billy.Filesystem, upstreamPath, localPath string) error
 func StatusExceptions(status git.Status) error {
 	if !status.IsClean() {
 		if err := validateExceptions(status); err != nil {
-			logrus.Errorf("git is not clean: %s\n", err.Error())
-			logrus.Errorf("status:\n%s\n", status)
-			return errors.New("Repository must be clean to run validation")
+			util.Log(slog.LevelError, "git is not clean", slog.String("status", status.String()))
+			util.Log(slog.LevelError, "error", util.Err(err))
+			return errors.New("repository must be clean to run validation")
 		}
 
 		g, err := bashGit.OpenGitRepo(".")

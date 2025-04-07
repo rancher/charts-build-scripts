@@ -2,12 +2,13 @@ package regsync
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"unicode"
 
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 	"golang.org/x/exp/slices"
 )
 
@@ -59,8 +60,7 @@ func walkFilteredAssetsFolder(imageTagMap, filter map[string][]string) error {
 				if strings.Compare(chartName, chart) == 0 {
 					for _, version := range versions {
 						if strings.Compare(chartVersion, version) == 0 {
-
-							logrus.Infof("collecting images and tags for chart %s version %s", chartName, chartVersion)
+							util.Log(slog.LevelInfo, "collecting images and tags for chart", slog.String("chartName", chartName), slog.String("chartVersion", chartVersion))
 
 							// There can be multiple values yaml files for single chart. So, making a for loop.
 							for _, valuesYaml := range valuesYamlMaps {

@@ -3,10 +3,11 @@ package lifecycle
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 // Logs is a struct that holds the file and file path of the log file
@@ -28,7 +29,7 @@ func CreateLogs(fileName, detail string) (*Logs, error) {
 	// Create the logs directory if it doesn't exist
 	err := os.MkdirAll("logs", 0755)
 	if err != nil {
-		logrus.Errorf("Error while creating logs directory: %s", err)
+		util.Log(slog.LevelError, "failed to create logs directory", util.Err(err))
 		return nil, err
 	}
 
@@ -60,7 +61,7 @@ func (l *Logs) WriteHEAD(versionRules *VersionRules, title string) {
 
 	rulesJSON, err := json.MarshalIndent(rules, "", "    ")
 	if err != nil {
-		logrus.Errorf("JSON marshaling failed: %s", err)
+		util.Log(slog.LevelError, "failed to marshal rules to JSON", util.Err(err))
 		l.Write(fmt.Sprintf("rules: %v\n", versionRules.Rules), "INFO")
 	} else {
 		l.Write(fmt.Sprintf("rules: %s\n", rulesJSON), "INFO")
@@ -71,34 +72,28 @@ func (l *Logs) WriteHEAD(versionRules *VersionRules, title string) {
 func (l *Logs) Write(data string, logType string) {
 	switch logType {
 	case "INFO":
-		logrus.Info(data)
 		if _, err := l.File.WriteString("INFO=" + data + "\n"); err != nil {
-			logrus.Errorf("Error while writing logs: %s", err)
+			util.Log(slog.LevelError, "failed to write logs", util.Err(err))
 		}
 	case "WARN":
-		logrus.Warn(data)
 		if _, err := l.File.WriteString("WARN=" + data + "\n"); err != nil {
-			logrus.Errorf("Error while writing logs: %s", err)
+			util.Log(slog.LevelError, "failed to write logs", util.Err(err))
 		}
 	case "ERROR":
-		logrus.Error(data)
 		if _, err := l.File.WriteString("ERROR=" + data + "\n"); err != nil {
-			logrus.Errorf("Error while writing logs: %s", err)
+			util.Log(slog.LevelError, "failed to write logs", util.Err(err))
 		}
 	case "SEPARATE":
-		fmt.Printf(separator)
 		if _, err := l.File.WriteString(separator); err != nil {
-			logrus.Errorf("Error while writing logs: %s", err)
+			util.Log(slog.LevelError, "failed to write logs", util.Err(err))
 		}
 	case "END":
-		fmt.Printf(ender)
 		if _, err := l.File.WriteString("\n" + ender + "\n"); err != nil {
-			logrus.Errorf("Error while writing logs: %s", err)
+			util.Log(slog.LevelError, "failed to write logs", util.Err(err))
 		}
 	default:
-		fmt.Println(data)
 		if _, err := l.File.WriteString(data + "\n"); err != nil {
-			logrus.Errorf("Error while writing logs: %s", err)
+			util.Log(slog.LevelError, "failed to write logs", util.Err(err))
 		}
 	}
 }

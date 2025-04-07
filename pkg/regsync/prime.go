@@ -3,8 +3,10 @@ package regsync
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os/exec"
-	"strings"
+
+	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 type skopeo struct {
@@ -16,17 +18,19 @@ type skopeo struct {
 func checkPrimeImageTags(imageTags map[string][]string) (map[string][]string, error) {
 	var primeImageTags map[string][]string = make(map[string][]string)
 
-	fmt.Println("checking prime image tags")
+	util.Log(slog.LevelInfo, "checking prime image tags")
 	for image := range imageTags {
 		if image == "" {
 			continue
 		}
-		fmt.Printf("image: %s\n", image)
+
+		util.Log(slog.LevelDebug, "", slog.String("image", image))
 		tags, err := skopeoListTags(image)
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("Tags: %s\n", strings.Join(tags, ", "))
+
+		util.Log(slog.LevelDebug, "", slog.Any("tags", tags))
 		primeImageTags[image] = tags
 	}
 
@@ -69,7 +73,7 @@ func removePrimeImageTags(imageTagMap, newPrimeImgTags map[string][]string) map[
 			primeTags := newPrimeImgTags[image]
 			if exist := primeTagFinder(tag, primeTags); !exist {
 				syncImgTags[image] = append(syncImgTags[image], tag)
-				fmt.Println(syncImgTags)
+				util.Log(slog.LevelDebug, "", slog.Any("syncImgTags", syncImgTags))
 			}
 		}
 	}

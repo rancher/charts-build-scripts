@@ -2,6 +2,7 @@ package puller
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
@@ -11,7 +12,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 const (
@@ -22,13 +23,16 @@ const (
 // GetGithubRepository gets a GitHub repository from options
 func GetGithubRepository(upstreamOptions options.UpstreamOptions, branch *string) (GithubRepository, error) {
 	var githubRepo GithubRepository
+
 	if !strings.HasSuffix(upstreamOptions.URL, ".git") {
 		return githubRepo, fmt.Errorf("URL does not seem to point to a Git repository: %s", upstreamOptions.URL)
 	}
+
 	splitURL := strings.Split(strings.TrimSuffix(upstreamOptions.URL, ".git"), "/")
 	if len(splitURL) < 2 {
 		return githubRepo, fmt.Errorf("URL does not seem to be valid for a Git repository: %s", upstreamOptions.URL)
 	}
+
 	return GithubRepository{
 		Subdirectory: upstreamOptions.Subdirectory,
 		Commit:       upstreamOptions.Commit,
@@ -84,26 +88,36 @@ func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
 			return err
 		}
 		if pulledFromCache {
-			logrus.Infof("Pulled %s from cache into %s", r, path)
+			util.Log(slog.LevelInfo, "pulled from cache", slog.String("repo", r.name), slog.String("path", path))
 			return nil
 		}
 	}
-	logrus.Infof("Pulling %s from upstream into %s", r, path)
+
+	util.Log(slog.LevelInfo, "pulling from upstream")
 	if r.Commit == nil && r.branch == nil {
-		return fmt.Errorf("if you are pulling from a Git repository, a commit is required in the package.yaml")
+		util.Log(slog.LevelError, "if you are pulling from a Git repository, a commit or a branch is required in the package.yaml")
+		return fmt.Errorf("no commit or branch specified")
 	}
+
 	cloneOptions := git.CloneOptions{
 		URL: r.GetHTTPSURL(),
 	}
+	util.Log(slog.LevelDebug, "", slog.String("url", cloneOptions.URL))
+
 	if r.branch != nil {
+		util.Log(slog.LevelDebug, "", slog.String("branch", *r.branch))
 		cloneOptions.ReferenceName = repository.GetLocalBranchRefName(*r.branch)
 		cloneOptions.SingleBranch = true
 	}
+
 	repo, err := git.PlainClone(filesystem.GetAbsPath(fs, path), false, &cloneOptions)
 	if err != nil {
 		return err
 	}
+
 	if r.Commit != nil {
+		util.Log(slog.LevelDebug, "", slog.String("commit", *r.Commit))
+
 		wt, err := repo.Worktree()
 		if err != nil {
 			return err
@@ -122,23 +136,30 @@ func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
 			return fmt.Errorf("unable to checkout commit %s, may not be a valid commit hash from upstream", *r.Commit)
 		}
 	}
+
 	if err := filesystem.RemoveAll(fs, filepath.Join(path, ".git")); err != nil {
 		return err
 	}
-	if r.Subdirectory != nil && len(*r.Subdirectory) > 0 {
-		if err := filesystem.MakeSubdirectoryRoot(fs, path, *r.Subdirectory); err != nil {
-			return err
+
+	if r.Subdirectory != nil {
+		util.Log(slog.LevelDebug, "", slog.String("subdirectory", *r.Subdirectory))
+		if len(*r.Subdirectory) > 0 {
+			if err := filesystem.MakeSubdirectoryRoot(fs, path, *r.Subdirectory); err != nil {
+				return err
+			}
 		}
 	}
+
 	if r.IsCacheable() {
 		addedToCache, err := RootCache.Add(r.CacheKey(), fs, path)
 		if err != nil {
 			return err
 		}
 		if addedToCache {
-			logrus.Infof("Cached %s", r)
+			util.Log(slog.LevelInfo, "cached", slog.String("repo", r.name), slog.String("path", path))
 		}
 	}
+
 	return nil
 }
 

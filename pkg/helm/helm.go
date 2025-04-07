@@ -3,12 +3,13 @@ package helm
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 	helmRepo "helm.sh/helm/v3/pkg/repo"
 )
 
@@ -46,7 +47,7 @@ func CreateOrUpdateHelmIndex(rootFs billy.Filesystem) error {
 	helmIndexFile, upToDate := UpdateIndex(helmIndexFile, newHelmIndexFile)
 
 	if upToDate {
-		logrus.Info("index.yaml is up-to-date")
+		util.Log(slog.LevelInfo, "index.yaml is up-to-date")
 		return nil
 	}
 
@@ -55,7 +56,8 @@ func CreateOrUpdateHelmIndex(rootFs billy.Filesystem) error {
 	if err != nil {
 		return fmt.Errorf("encountered error while trying to write updated Helm index into index.yaml: %s", err)
 	}
-	logrus.Info("Generated index.yaml")
+
+	util.Log(slog.LevelInfo, "generated index.yaml")
 	return nil
 }
 
@@ -73,7 +75,7 @@ func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) 
 			if !original.Has(chartName, version) {
 				// Keep the newly generated chart version as-is
 				upToDate = false
-				logrus.Debugf("Chart %s has introduced a new version %s: %v", chartName, chartVersion.Version, *chartVersion)
+				util.Log(slog.LevelDebug, "chart has introduced a new version", slog.String("chartName", chartName), slog.String("version", version))
 				continue
 			}
 			// Get original chart version
@@ -90,7 +92,7 @@ func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) 
 				new.Entries[chartName][i].Created = originalChartVersion.Created
 			} else {
 				upToDate = false
-				logrus.Debugf("Chart %s at version %s has been modified", chartName, originalChartVersion.Version)
+				util.Log(slog.LevelDebug, "chart has been modified", slog.String("chartName", chartName), slog.String("version", version))
 			}
 		}
 	}
@@ -100,7 +102,7 @@ func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) 
 			if !new.Has(chartName, chartVersion.Version) {
 				// Chart was removed
 				upToDate = false
-				logrus.Debugf("Chart %s at version %s has been removed: %v", chartName, chartVersion.Version, *chartVersion)
+				util.Log(slog.LevelDebug, "chart has been removed", slog.String("chartName", chartName), slog.String("version", chartVersion.Version))
 				continue
 			}
 		}

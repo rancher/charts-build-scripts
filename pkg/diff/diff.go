@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 func checkDependencyPackage(pathToCmd string) error {
@@ -51,14 +52,15 @@ func GeneratePatch(fs billy.Filesystem, patchPath, srcPath, dstPath string) (boo
 		exitErr, ok := err.(*exec.ExitError)
 		// Exit code of 1 indicates that a difference was observed, so it is expected
 		if !ok || exitErr.ExitCode() != 1 {
-			logrus.Errorf("\n%s", &buf)
-			return false, fmt.Errorf("unable to generate patch with error: %s", err)
+			util.Log(slog.LevelError, "unable to generate patch", slog.String("buf", fmt.Sprintf("\n%s\n", &buf)))
+			return false, err
 		}
 	}
 
 	if buf.Len() == 0 {
 		return false, nil
 	}
+
 	// Patch exists
 	patchFile, err := filesystem.CreateFileAndDirs(fs, patchPath)
 	if err != nil {
@@ -73,6 +75,8 @@ func GeneratePatch(fs billy.Filesystem, patchPath, srcPath, dstPath string) (boo
 
 // ApplyPatch applies a patch file located at patchPath to the destDir on the filesystem
 func ApplyPatch(fs billy.Filesystem, patchPath, destDir string) error {
+	util.Log(slog.LevelInfo, "applying patches", slog.String("patchPath", patchPath), slog.String("destDir", destDir))
+
 	// TODO(aiyengar2): find a better library to actually generate and apply patches
 	// There doesn't seem to be any existing library at the moment that can work with unified patches
 	pathToPatchCmd, err := exec.LookPath("patch")
@@ -97,8 +101,7 @@ func ApplyPatch(fs billy.Filesystem, patchPath, destDir string) error {
 	cmd.Stdout = &buf
 
 	if err = cmd.Run(); err != nil {
-		logrus.Errorf("\n%s", &buf)
-		err = fmt.Errorf("unable to generate patch with error: %s", err)
+		util.Log(slog.LevelError, "unable to apply patch", slog.String("buf", fmt.Sprintf("\n%s\n", &buf)))
 	}
 	return err
 }

@@ -2,6 +2,7 @@ package zip
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
@@ -85,9 +86,12 @@ func DumpAssets(repoRoot string, specificAsset string) error {
 				return nil
 			}
 		}
-		logrus.Infof("Unarchiving %s", tgzPath)
-		foundAsset = true
+
+		// Unarchive Tgz file
+		util.Log(slog.LevelInfo, "unarchiving", slog.String("tgzPath", tgzPath))
+
 		// Get path to unarchive tgz to
+		foundAsset = true
 		absAssetPath := filesystem.GetAbsPath(fs, tgzPath)
 		chart, err := helmLoader.Load(absAssetPath)
 		if err != nil {
@@ -104,7 +108,8 @@ func DumpAssets(repoRoot string, specificAsset string) error {
 		if err := filesystem.UnarchiveTgz(fs, tgzPath, "", chartChartsDirpath, true); err != nil {
 			return err
 		}
-		logrus.Infof("Generated chart: %s", chartChartsDirpath)
+
+		util.Log(slog.LevelInfo, "generated chart", slog.String("chartChartsDirpath", chartChartsDirpath))
 		return nil
 	}
 

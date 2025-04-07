@@ -3,12 +3,13 @@ package images
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
 	"github.com/rancher/charts-build-scripts/pkg/regsync"
 	"github.com/rancher/charts-build-scripts/pkg/rest"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 const (
@@ -42,19 +43,20 @@ func CheckImages() error {
 	// Get a token to access the Docker Hub API
 	token, err := retrieveToken()
 	if err != nil {
-		logrus.Infof("failed to retrieve token, requests will be unauthenticated: %v", err)
+		util.Log(slog.LevelWarn, "failed to retrieve token, requests will be unauthenticated", util.Err(err))
 	}
 
 	// Loop through all images and tags to check if they exist
 	for image := range imageTagMap {
 		if len(image) == 0 {
-			logrus.Infof("found blank image, skipping tag check")
+			util.Log(slog.LevelWarn, "found blank image, skipping tag check")
 			continue
 		}
 
 		// Split image into namespace and repository
 		location := strings.Split(image, "/")
 		if len(location) != 2 {
+			util.Log(slog.LevelError, "failed to split image into namespace and repository", slog.String("image", image))
 			return fmt.Errorf("failed to generate namespace and repository for image: %s", image)
 		}
 
@@ -69,8 +71,8 @@ func CheckImages() error {
 
 	// If there are any images that have failed the check, log them and return an error
 	if len(failedImages) > 0 || len(imagesOutsideNamespace) > 0 {
-		logrus.Errorf("found images outside the rancher namespace: %v", imagesOutsideNamespace)
-		logrus.Errorf("images that are not on Docker Hub: %v", failedImages)
+		util.Log(slog.LevelError, "found images outside the rancher namespace", slog.Any("imagesOutsideNamespace", imagesOutsideNamespace))
+		util.Log(slog.LevelError, "images that are not on Docker Hub", slog.Any("failedImages", failedImages))
 		return errors.New("image check has failed")
 	}
 
@@ -83,7 +85,7 @@ func checkPattern(imageTagMap map[string][]string) []string {
 
 	for image := range imageTagMap {
 		if len(image) == 0 {
-			logrus.Infof("found blank image, skipping image namespace check")
+			util.Log(slog.LevelWarn, "found blank image, skipping image namespace check")
 			continue
 		}
 
@@ -97,18 +99,18 @@ func checkPattern(imageTagMap map[string][]string) []string {
 
 // checkTag checks if a tag exists in a namespace/repository
 func checkTag(namespace, repository, tag, token string) error {
-	logrus.Infof("Checking tag %s/%s:%s", namespace, repository, tag)
+	util.Log(slog.LevelDebug, "checking tag", slog.String("namespace", namespace), slog.String("repository", repository), slog.String("tag", tag))
 
 	url := fmt.Sprintf("https://hub.docker.com/v2/namespaces/%s/repositories/%s/tags/%s", namespace, repository, tag)
 
 	// Sends HEAD request to check if namespace/repository:tag exists
 	err := rest.Head(url, token)
 	if err != nil {
-		logrus.Errorf("failed to check tag %s/%s:%s - %s", namespace, repository, tag, err.Error())
+		util.Log(slog.LevelError, "failed to check tag", util.Err(err))
 		return err
 	}
 
-	logrus.Infof("tag %s/%s:%s found", namespace, repository, tag)
+	util.Log(slog.LevelInfo, "tag found", slog.String("repository", repository), slog.String("tag", tag))
 	return nil
 }
 
@@ -118,7 +120,7 @@ func retrieveToken() (string, error) {
 	// Retrieve credentials from environment variables
 	credentials := retrieveCredentials()
 	if credentials == nil {
-		logrus.Infof("no credentials found, requests will be unauthenticated")
+		util.Log(slog.LevelWarn, "no credentials found, requests will be unauthenticated")
 		return "", nil
 	}
 
@@ -140,12 +142,12 @@ func retrieveCredentials() *TokenRequest {
 	password := os.Getenv("DOCKER_PASSWORD")
 
 	if strings.Compare(username, "") == 0 {
-		logrus.Errorf("DOCKER_USERNAME not set")
+		util.Log(slog.LevelError, "DOCKER_USERNAME not set", slog.String("username", username))
 		return nil
 	}
 
 	if strings.Compare(password, "") == 0 {
-		logrus.Errorf("DOCKER_PASSWORD not set")
+		util.Log(slog.LevelError, "DOCKER_PASSWORD not set", slog.String("password", password))
 		return nil
 	}
 

@@ -2,13 +2,14 @@ package helm
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
@@ -30,7 +31,8 @@ func CopyCRDsFromChart(fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHel
 		return os.ErrNotExist
 	}
 
-	logrus.Infof("Copying CRDs from %s to %s", srcCRDsDirpath, dstCRDsDirpath)
+	util.Log(slog.LevelInfo, "copying CRDs", slog.String("srcCRDsDirpath", srcCRDsDirpath), slog.String("dstCRDsDirpath", dstCRDsDirpath))
+
 	return filesystem.CopyDir(fs, srcCRDsDirpath, dstCRDsDirpath)
 }
 
@@ -47,7 +49,8 @@ func DeleteCRDsFromChart(fs billy.Filesystem, helmChartPath string) error {
 			return err
 		}
 		if exists {
-			logrus.Infof("Deleting %s", crdFilepath)
+			util.Log(slog.LevelDebug, "deleting CRD", slog.String("crdFilepath", crdFilepath))
+
 			if err := fs.Remove(crdFilepath); err != nil {
 				return err
 			}
@@ -69,6 +72,7 @@ func ArchiveCRDs(fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHelmChart
 	}
 	srcCRDsDirPath := filepath.Join(srcHelmChartPath, srcCRDsDir)
 	dstFilePath := filepath.Join(dstHelmChartPath, destCRDsDir, path.ChartCRDTgzFilename)
-	logrus.Infof("Compressing CRDs from %s to %s", srcCRDsDirPath, dstFilePath)
+
+	util.Log(slog.LevelDebug, "compressing CRDs", slog.String("srcCRDsDirPath", srcCRDsDirPath), slog.String("dstFilePath", dstFilePath))
 	return filesystem.ArchiveDir(fs, srcCRDsDirPath, dstFilePath)
 }

@@ -2,6 +2,7 @@ package change
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
@@ -9,12 +10,12 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/diff"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 // ApplyChanges applies the changes from the gcOverlayDirpath, gcExcludeDirpath, and gcPatchDirpath within gcDir to toDir within the package filesystem
 func ApplyChanges(fs billy.Filesystem, toDir, gcRootDir string) error {
-	logrus.Infof("Applying changes from %s", path.GeneratedChangesDir)
+	util.Log(slog.LevelInfo, "applying changes")
 	// gcRootDir should always end with path.GeneratedChangesDir
 	if !strings.HasSuffix(gcRootDir, path.GeneratedChangesDir) {
 		return fmt.Errorf("root directory for generated changes should end with %s, received: %s", path.GeneratedChangesDir, gcRootDir)
@@ -26,7 +27,8 @@ func ApplyChanges(fs billy.Filesystem, toDir, gcRootDir string) error {
 		if isDir {
 			return nil
 		}
-		logrus.Infof("Applying: %s", patchPath)
+
+		util.Log(slog.LevelDebug, "applying patch", slog.String("path", patchPath))
 		return diff.ApplyPatch(fs, patchPath, toDir)
 	}
 
@@ -38,7 +40,8 @@ func ApplyChanges(fs billy.Filesystem, toDir, gcRootDir string) error {
 		if err != nil {
 			return err
 		}
-		logrus.Infof("Adding: %s", filepath)
+
+		util.Log(slog.LevelDebug, "Adding", slog.String("filepath", filepath))
 		return filesystem.CopyFile(fs, overlayPath, filepath)
 	}
 
@@ -50,7 +53,8 @@ func ApplyChanges(fs billy.Filesystem, toDir, gcRootDir string) error {
 		if err != nil {
 			return err
 		}
-		logrus.Infof("Removing: %s", filepath)
+
+		util.Log(slog.LevelDebug, "Removing", slog.String("filepath", filepath))
 		return filesystem.RemoveAll(fs, filepath)
 	}
 	exists, err := filesystem.PathExists(fs, chartsPatchDirpath)

@@ -2,6 +2,7 @@ package helm
 
 import (
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
@@ -11,7 +12,7 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 	helmAction "helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
@@ -66,7 +67,8 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 	if err := filesystem.UnarchiveTgz(rootFs, tgzPath, "", chartChartsDirpath, true); err != nil {
 		return err
 	}
-	logrus.Infof("Generated chart: %s", chartChartsDirpath)
+
+	util.Log(slog.LevelInfo, "exported chart", slog.String("chartChartsDirPath", chartChartsDirpath), slog.String("tgzPath", tgzPath))
 	return nil
 }
 
@@ -80,7 +82,8 @@ func removeOrigFiles(dir string) error {
 			if err := os.Remove(path); err != nil {
 				return err
 			}
-			logrus.Infof("Removed file: %s", path)
+
+			util.Log(slog.LevelDebug, "removed file", slog.String("path", path))
 		}
 		return nil
 	})
@@ -195,9 +198,9 @@ func GenerateArchive(rootFs, fs billy.Filesystem, helmChartPath, chartAssetsDirp
 	}
 	if shouldUpdateArchive {
 		filesystem.CopyFile(rootFs, tempTgzPath, tgzPath)
-		logrus.Infof("Generated archive: %s", tgzPath)
+		util.Log(slog.LevelInfo, "generated archive", slog.String("tgzPath", tgzPath))
 	} else {
-		logrus.Infof("Archive is up-to-date: %s", tgzPath)
+		util.Log(slog.LevelInfo, "archive is up-to-date", slog.String("tgzPath", tgzPath))
 	}
 	return tgzPath, nil
 }

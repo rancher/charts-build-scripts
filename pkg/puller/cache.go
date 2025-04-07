@@ -2,11 +2,12 @@ package puller
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 // RootCache is the cache at the root of the repository
@@ -17,7 +18,8 @@ func InitRootCache(repoRoot string, cacheMode bool, path string) error {
 	if !cacheMode {
 		return nil
 	}
-	logrus.Infof("Setting up cache at %s", path)
+
+	util.Log(slog.LevelInfo, "setting up cache", slog.String("path", path))
 	// Get repository filesystem
 	rootFs := filesystem.GetFilesystem(repoRoot)
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -18,6 +19,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 	"golang.org/x/oauth2"
 
 	helmRepo "helm.sh/helm/v3/pkg/repo"
@@ -253,7 +255,7 @@ func CompareIndexFiles(rootFs billy.Filesystem) error {
 
 	// compare both index.yaml files
 	if diff := cmp.Diff(localIndexYaml, tempIndexYaml); diff != "" {
-		fmt.Println(diff)
+		util.Log(slog.LevelDebug, "index.yaml files are different", slog.String("diff", diff))
 		return errors.New("index.yaml files are different at git repository and charts.rancher.io")
 	}
 	return nil

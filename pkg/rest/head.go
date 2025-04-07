@@ -2,11 +2,12 @@ package rest
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 const maxRetries = 5
@@ -41,8 +42,7 @@ func Head(url, token string) error {
 		switch response.StatusCode {
 		case http.StatusOK:
 			requestRemaining := response.Header.Get("X-RateLimit-Remaining")
-			logrus.Infof("request remaining: %s", requestRemaining)
-
+			util.Log(slog.LevelDebug, "request remaining", slog.String("requestRemaining", requestRemaining))
 			return nil
 
 		case http.StatusTooManyRequests:
@@ -54,7 +54,7 @@ func Head(url, token string) error {
 			retryAfter := time.Unix(retryAfterMillisInt, 0)
 			timeUntilRetry := time.Until(retryAfter)
 
-			logrus.Infof("request was rate limited, retrying in %s", timeUntilRetry)
+			util.Log(slog.LevelWarn, "request was rate limited", slog.String("timeUntilRetry", timeUntilRetry.String()))
 			time.Sleep(timeUntilRetry)
 
 			continue

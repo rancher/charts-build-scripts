@@ -2,6 +2,7 @@ package charts
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 
 	"github.com/blang/semver"
@@ -12,7 +13,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 // AdditionalChart represents any additional charts packaged along with the main chart in a package
@@ -110,7 +111,7 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem, mainChartUpstr
 		return fmt.Errorf("no options provided to prepare additional chart")
 	}
 	if c.Upstream != nil && (*c.Upstream).IsWithinPackage() {
-		logrus.Infof("Local chart does not need to be patched")
+		util.Log(slog.LevelInfo, "local chart does not need to be patched")
 		// Ensure local charts standardize the Chart.yaml on prepare
 		if err := helm.StandardizeChartYaml(pkgFs, c.WorkingDir); err != nil {
 			return err
@@ -128,7 +129,6 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem, mainChartUpstr
 			return fmt.Errorf("encountered error while trying to get the main chart's working directory: %s", err)
 		}
 		if c.Upstream != nil {
-			logrus.Infof("pulling CRD upstream")
 			u := *c.Upstream
 			if err := u.Pull(rootFs, pkgFs, filepath.Join(mainChartWorkingDir, path.ChartCRDDir)); err != nil {
 				return fmt.Errorf("encountered error while trying to pull upstream into %s: %s", mainChartWorkingDir, err)
@@ -193,7 +193,7 @@ func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 		return fmt.Errorf("no options provided to prepare additional chart")
 	}
 	if c.Upstream != nil && (*c.Upstream).IsWithinPackage() {
-		logrus.Infof("Local chart does not need to be patched")
+		util.Log(slog.LevelInfo, "local chart does not need to be patched")
 		return nil
 	}
 	if exists, err := filesystem.PathExists(pkgFs, c.WorkingDir); err != nil {
@@ -203,8 +203,7 @@ func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 	}
 
 	if c.CRDChartOptions != nil {
-		logrus.Warnf("Patches are not supported for additional charts using CRDChartOptions. Any local changes will be overridden; please make the changes directly at %s",
-			filepath.Join(path.PackageTemplatesDir, c.CRDChartOptions.TemplateDirectory))
+		util.Log(slog.LevelWarn, "patches are not supported for CRD charts using CRDChartOptions. Any local changes will be overridden; please make the changes directly at %s", slog.String("TemplateDirectory", filepath.Join(path.PackageTemplatesDir, c.CRDChartOptions.TemplateDirectory)))
 		return nil
 	}
 

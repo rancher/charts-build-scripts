@@ -2,6 +2,7 @@ package change
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/diff"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 const (
@@ -18,7 +19,8 @@ const (
 
 // GenerateChanges generates the change between fromDir and toDir and places it in the appropriate directories within gcDir
 func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string, replacePaths []string) error {
-	logrus.Infof("Generating changes to %s", path.GeneratedChangesDir)
+	util.Log(slog.LevelInfo, "generating changes", slog.String("GeneratedChangesDir", path.GeneratedChangesDir))
+
 	// gcRootDir should always end with path.GeneratedChangesDir
 	if !strings.HasSuffix(gcRootDir, path.GeneratedChangesDir) {
 		return fmt.Errorf("root directory for generated changes should end with %s, received: %s", path.GeneratedChangesDir, gcRootDir)
@@ -41,7 +43,8 @@ func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string, repl
 		if err := filesystem.CopyFile(fs, toPath, overlayPath); err != nil {
 			return err
 		}
-		logrus.Infof("Overlay: %s", toPath)
+
+		util.Log(slog.LevelInfo, "overlay", slog.String("toPath", toPath))
 		return nil
 	}
 	generateExcludeFile := func(fs billy.Filesystem, fromPath string, isDir bool) error {
@@ -55,17 +58,20 @@ func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string, repl
 		if err := filesystem.CopyFile(fs, fromPath, excludePath); err != nil {
 			return err
 		}
-		logrus.Infof("Exclude: %s", fromPath)
+
+		util.Log(slog.LevelInfo, "exclude", slog.String("fromPath", fromPath))
 		return nil
 	}
 	generatePatchFile := func(fs billy.Filesystem, fromPath, toPath string, isDir bool) error {
 		if isDir {
 			return nil
 		}
+
 		p, err := filesystem.MovePath(fromPath, fromDir, "")
 		if err != nil {
 			return err
 		}
+
 		if _, ok := replacePathsMap[p]; ok {
 			if err := generateExcludeFile(fs, fromPath, isDir); err != nil {
 				return err
@@ -75,6 +81,7 @@ func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string, repl
 			}
 			return nil
 		}
+
 		patchPath := filepath.Join(gcRootDir, path.GeneratedChangesPatchDir, p)
 		patchPathWithExt := fmt.Sprintf(patchFmt, patchPath)
 		generatedPatch, err := diff.GeneratePatch(fs, patchPathWithExt, fromPath, toPath)
@@ -82,8 +89,9 @@ func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string, repl
 			return err
 		}
 		if generatedPatch {
-			logrus.Infof("Patch: %s", patchPath)
+			util.Log(slog.LevelInfo, "patch", slog.String("patchPath", patchPath))
 		}
+
 		return nil
 	}
 	return filesystem.CompareDirs(fs, fromDir, toDir, generateExcludeFile, generateOverlayFile, generatePatchFile)

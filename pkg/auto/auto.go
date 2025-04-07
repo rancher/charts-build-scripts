@@ -3,6 +3,7 @@ package auto
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,7 +13,7 @@ import (
 	"github.com/Masterminds/semver"
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 /**
@@ -59,14 +60,13 @@ func whichYQCommand() (string, error) {
 	cmd := exec.Command("which", "yq")
 	output, err := cmd.Output() // Capture the output instead of printing it
 	if err != nil {
-		errYqPath := fmt.Errorf("error while getting yq path; err: %w", err)
-		logrus.Error(errYqPath)
-		return "", errYqPath
+		util.Log(slog.LevelError, "error while getting yq path", util.Err(err))
+		return "", err
 	}
 	yqPath := strings.TrimSpace(string(output)) // Convert output to string and trim whitespace
 	if yqPath == "" {
 		errYq := errors.New("yq command not found")
-		logrus.Error(errYq)
+		util.Log(slog.LevelError, "yq command not found", util.Err(errYq))
 		return "", errYq
 	}
 	// Extract the directory from the yqPath and append the yq directory to the PATH
@@ -99,12 +99,12 @@ func (f *ForwardPort) createForwardPortCommands(chart string) ([]Command, error)
 		if commands[i].Chart == commands[j].Chart {
 			vi, err := semver.NewVersion(commands[i].Version)
 			if err != nil {
-				logrus.Errorf("Error parsing version '%s': %v", commands[i].Version, err)
+				util.Log(slog.LevelError, "error parsing version", util.Err(err))
 				return false
 			}
 			vj, err := semver.NewVersion(commands[j].Version)
 			if err != nil {
-				logrus.Errorf("Error parsing version '%s': %v", commands[j].Version, err)
+				util.Log(slog.LevelError, "error parsing version", util.Err(err))
 				return false
 			}
 			return vi.LessThan(vj)
@@ -128,7 +128,6 @@ func (f *ForwardPort) writeMakeCommand(asset, version string) (Command, error) {
 	upstreamRemote, ok := f.git.Remotes["https://github.com/rancher/charts"]
 	if !ok {
 		errNoUpstreamRemote := errors.New("upstream remote not found; you need to have the upstream remote configured in your git repository (https://github.com/rancher/charts)")
-		logrus.Error(errNoUpstreamRemote)
 		return Command{}, errNoUpstreamRemote
 	}
 	commands := []string{
@@ -226,22 +225,19 @@ func prepareReleaseYaml() error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			errNoReleaseYaml := fmt.Errorf("release.yaml does not exist; err: %w", err)
-			logrus.Error(errNoReleaseYaml)
 			return errNoReleaseYaml
 		}
 		errReleaseYaml := fmt.Errorf("release.yaml failure; err: %w", err)
-		logrus.Error(errReleaseYaml)
 		return errReleaseYaml
 	}
 
 	// File exists, truncate the file to erase its content
 	if err := os.Truncate("release.yaml", 0); err != nil {
 		errTruncate := fmt.Errorf("release.yaml failure while truncating it; err: %w", err)
-		logrus.Error(errTruncate)
 		return errTruncate
 	}
 
-	logrus.Info("Content of release.yaml erased successfully.")
+	util.Log(slog.LevelInfo, "content of release.yaml erased successfully.")
 	return nil
 }
 
@@ -258,7 +254,7 @@ func executeCommand(command []string, yqPath string) error {
 	// Execute it
 	if err := cmd.Run(); err != nil {
 		errCommand := fmt.Errorf("error while executing command: %s; err: %w", command, err)
-		logrus.Error(errCommand)
+		util.Log(slog.LevelError, "error while executing command", util.Err(errCommand))
 		return errCommand
 	}
 	return nil

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path"
 	"time"
@@ -9,7 +10,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 // GetRepo returns an existing GitRepository at the path provided
@@ -80,7 +81,8 @@ func CommitAll(repo *git.Repository, commitMessage string) error {
 	if status.IsClean() {
 		return fmt.Errorf("cannot create commit since there are no files to be committed")
 	}
-	logrus.Infof("Committing the following modified files:\n%s", status)
+
+	util.Log(slog.LevelDebug, "committing modified files", slog.String("status", status.String()))
 	if _, err = wt.Add("."); err != nil {
 		return err
 	}

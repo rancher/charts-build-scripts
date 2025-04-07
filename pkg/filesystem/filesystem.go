@@ -7,6 +7,7 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,7 +18,6 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/osfs"
-	"github.com/sirupsen/logrus"
 )
 
 // GetFilesystem returns a filesystem rooted at the provided path
@@ -46,6 +46,8 @@ func GetRelativePath(fs billy.Filesystem, abspath string) (string, error) {
 // PathExists checks if a path exists on the filesystem or returns an error
 func PathExists(fs billy.Filesystem, path string) (bool, error) {
 	absPath := GetAbsPath(fs, path)
+	util.Log(slog.LevelDebug, "checking if path exists", slog.String("absPath", absPath))
+
 	_, err := os.Stat(absPath)
 	if err == nil {
 		return true, nil
@@ -432,14 +434,14 @@ func compareTars(leftFile, rightFile io.Reader) (bool, error) {
 		// Check if both archives contain the files
 		switch {
 		case len(hashes[0]) == 0:
-			logrus.Debugf("%s does not exist in left tar", filename)
+			util.Log(slog.LevelDebug, "file does not exist in left tar", slog.String("filename", filename))
 			identical = false
 		case len(hashes[1]) == 0:
-			logrus.Debugf("%s does not exist in right tar", filename)
+			util.Log(slog.LevelDebug, "file does not exist in right tar", slog.String("filename", filename))
 			identical = false
 		case hashes[0] != hashes[1]:
 			// Hashes do not match
-			logrus.Debugf("hash does not match for file %v: %s != %s", filename, hashes[0], hashes[1])
+			util.Log(slog.LevelWarn, "hashes do not match", slog.String("filename", filename), slog.String("leftHash", hashes[0]), slog.String("rightHash", hashes[1]))
 			identical = false
 		}
 	}
@@ -452,20 +454,22 @@ func compareTars(leftFile, rightFile io.Reader) (bool, error) {
 		// Check if both archives contain the files
 		switch {
 		case tars[0] == nil:
-			logrus.Debugf("%s does not exist in left tar", filename)
+			util.Log(slog.LevelDebug, "file does not exist in left tar", slog.String("filename", filename))
 			identical = false
 		case tars[1] == nil:
-			logrus.Debugf("%s does not exist in right tar", filename)
+			util.Log(slog.LevelDebug, "file does not exist in right tar", slog.String("filename", filename))
 			identical = false
 		default:
 			// Deep compare tars
-			logrus.Debugf("comparing contents of %s", filename)
+			util.Log(slog.LevelDebug, "deep compare contents of tar file", slog.String("filename", filename))
+
 			matches, err := compareTars(tars[0], tars[1])
 			if err != nil {
 				return false, fmt.Errorf("could not compare contents of %s: %s", filename, err)
 			}
+
 			if !matches {
-				logrus.Debugf("contents do not match for tar file %v", filename)
+				util.Log(slog.LevelWarn, "contents do not match for tar file", slog.String("filename", filename))
 				identical = false
 			}
 		}
@@ -479,29 +483,34 @@ func compareTars(leftFile, rightFile io.Reader) (bool, error) {
 		// Check if both archives contain the files
 		switch {
 		case tgzs[0] == nil:
-			logrus.Debugf("%s does not exist in left tgz", filename)
+			util.Log(slog.LevelDebug, "file does not exist in left tgz", slog.String("filename", filename))
 			identical = false
 		case tgzs[1] == nil:
-			logrus.Debugf("%s does not exist in right tgz", filename)
+			util.Log(slog.LevelDebug, "file does not exist in right tgz", slog.String("filename", filename))
 			identical = false
 		default:
 			// Deep compare tars
-			logrus.Debugf("comparing contents of %s", filename)
+			util.Log(slog.LevelDebug, "deep compare contents of tgz file", slog.String("filename", filename))
+
 			matches, err := compareTgzs(tgzs[0], tgzs[1])
 			if err != nil {
 				return false, fmt.Errorf("could not compare contents of %s: %s", filename, err)
 			}
+
 			if !matches {
-				logrus.Debugf("contents do not match for tgz file %v", filename)
+				util.Log(slog.LevelWarn, "contents do not match for tgz file", slog.String("filename", filename))
 				identical = false
 			}
 		}
 	}
+
 	return identical, nil
 }
 
 // ArchiveDir archives a directory or a file into a tgz file and put it at destTgzPath which should end with .tgz
 func ArchiveDir(fs billy.Filesystem, srcPath, destTgzPath string) error {
+	util.Log(slog.LevelDebug, "archive directory inside .tgz", slog.String("srcPath", srcPath), slog.String("destTgzPath", destTgzPath))
+
 	if !strings.HasSuffix(destTgzPath, ".tgz") {
 		return fmt.Errorf("cannot archive %s to %s since the archive path does not end with '.tgz'", srcPath, destTgzPath)
 	}
@@ -565,7 +574,8 @@ func WalkDir(fs billy.Filesystem, dirPath string, doFunc RelativePathFunc) error
 			if !util.IsSoftErrorOn() {
 				return err
 			}
-			logrus.Error(err)
+			// Log the error if soft errors are enabled
+			util.Log(slog.LevelError, "", util.Err(err))
 		}
 		path, err := GetRelativePath(fs, abspath)
 		if err != nil {
@@ -575,7 +585,7 @@ func WalkDir(fs billy.Filesystem, dirPath string, doFunc RelativePathFunc) error
 		if !util.IsSoftErrorOn() {
 			return walkFuncRes
 		} else if walkFuncRes != nil {
-			logrus.Error(walkFuncRes)
+			util.Log(slog.LevelError, "error walkFunc", util.Err(walkFuncRes))
 		}
 		return nil
 	})
@@ -583,18 +593,23 @@ func WalkDir(fs billy.Filesystem, dirPath string, doFunc RelativePathFunc) error
 
 // CopyDir copies all files from srcDir to dstDir
 func CopyDir(fs billy.Filesystem, srcDir string, dstDir string) error {
+	util.Log(slog.LevelDebug, "copying files", slog.String("srcDir", srcDir), slog.String("dstDir", dstDir))
+
 	return WalkDir(fs, srcDir, func(fs billy.Filesystem, srcPath string, isDir bool) error {
 		dstPath, err := MovePath(srcPath, srcDir, dstDir)
 		if err != nil {
 			return err
 		}
+
 		if isDir {
 			return fs.MkdirAll(dstPath, os.ModePerm)
 		}
+
 		data, err := os.ReadFile(GetAbsPath(fs, srcPath))
 		if err != nil {
 			return err
 		}
+
 		return os.WriteFile(GetAbsPath(fs, dstPath), data, os.ModePerm)
 	})
 }
@@ -633,6 +648,8 @@ func MakeSubdirectoryRoot(fs billy.Filesystem, path, subdirectory string) error 
 // It execute leftOnlyFunc on paths that only exist on the leftDirpath and rightOnlyFunc on paths that only exist on rightDirpath
 // It executes bothFunc on paths that exist on both the left and the right. Order will be preserved in the function arguments
 func CompareDirs(fs billy.Filesystem, leftDirpath, rightDirpath string, leftOnlyFunc, rightOnlyFunc RelativePathFunc, bothFunc RelativePathPairFunc) error {
+	util.Log(slog.LevelDebug, "compare directories", slog.String("leftDirpath", leftDirpath), slog.String("rightDirpath", rightDirpath))
+
 	applyLeftOnlyOrBoth := func(fs billy.Filesystem, leftPath string, isDir bool) error {
 		rightPath, err := MovePath(leftPath, leftDirpath, rightDirpath)
 		if err != nil {
@@ -647,6 +664,7 @@ func CompareDirs(fs billy.Filesystem, leftDirpath, rightDirpath string, leftOnly
 		}
 		return bothFunc(fs, leftPath, rightPath, isDir)
 	}
+
 	applyRightOnly := func(fs billy.Filesystem, rightPath string, isDir bool) error {
 		leftPath, err := MovePath(rightPath, rightDirpath, leftDirpath)
 		if err != nil {
@@ -661,14 +679,18 @@ func CompareDirs(fs billy.Filesystem, leftDirpath, rightDirpath string, leftOnly
 		}
 		return nil
 	}
+
 	if err := WalkDir(fs, leftDirpath, applyLeftOnlyOrBoth); err != nil {
 		return err
 	}
+
 	return WalkDir(fs, rightDirpath, applyRightOnly)
 }
 
 // GetRootPath returns the first directory in a given path
 func GetRootPath(path string) (string, error) {
+	util.Log(slog.LevelDebug, "get root path", slog.String("path", path))
+
 	rootPathList := strings.SplitN(path, "/", 2)
 	if len(rootPathList) == 0 {
 		return "", fmt.Errorf("unable to get root path of %s", path)
@@ -678,9 +700,12 @@ func GetRootPath(path string) (string, error) {
 
 // MovePath takes a path that is contained within fromDir and returns the same path contained within toDir
 func MovePath(path string, fromDir string, toDir string) (string, error) {
+	util.Log(slog.LevelDebug, "moving path", slog.String("path", path))
+
 	if !strings.HasPrefix(path, fromDir) {
 		return "", fmt.Errorf("path %s does not contain directory %s", path, fromDir)
 	}
+
 	relativePath := strings.TrimPrefix(path, fromDir)
 	relativePath = strings.TrimPrefix(relativePath, "/")
 	return filepath.Join(toDir, relativePath), nil

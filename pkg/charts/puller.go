@@ -2,12 +2,13 @@ package charts
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 // LocalPackage represents source that is a package
@@ -35,7 +36,7 @@ func (u LocalPackage) Pull(rootFs, fs billy.Filesystem, path string) error {
 		return fmt.Errorf("encountered error while checking if package %s was already prepared: %s", u.Name, err)
 	}
 	if packageAlreadyPrepared {
-		logrus.Infof("Package %s seems to be already prepared, skipping prepare", u.Name)
+		util.Log(slog.LevelInfo, "package already prepared", slog.String("name", u.Name))
 	} else {
 		if err := pkg.Prepare(); err != nil {
 			return err

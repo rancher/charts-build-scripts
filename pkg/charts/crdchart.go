@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,7 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 	"gopkg.in/yaml.v2"
 )
 
@@ -55,7 +56,8 @@ func GenerateCRDChartFromTemplate(fs billy.Filesystem, dstHelmChartPath, templat
 // AddCRDValidationToChart adds the validate-install-crd.yaml to helmChartPathWithoutCRDs based on CRDs located in crdsDir within helmChartPathWithCRDs
 func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helmChartPathWithCRDs, crdsDir string) error {
 	// Get the CRDs
-	logrus.Infof("Adding %s to main chart", path.ChartValidateInstallCRDFile)
+	util.Log(slog.LevelDebug, "adding CRD validation to main chart", slog.String("ChartValidateInstallCRDFile", path.ChartValidateInstallCRDFile))
+
 	crdsDirpath := filepath.Join(helmChartPathWithCRDs, crdsDir)
 	var crdGVKs []string
 	type k8sCRDResource struct {

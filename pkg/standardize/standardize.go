@@ -2,14 +2,15 @@ package standardize
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/path"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 	"github.com/rancher/charts-build-scripts/pkg/zip"
-	"github.com/sirupsen/logrus"
 
 	helmChart "helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
@@ -48,18 +49,20 @@ func standardizeAssetsFromCharts(repoFs billy.Filesystem) error {
 		}
 		return nil
 	}
-	logrus.Infof("Collecting valid charts from %s", path.RepositoryChartsDir)
+	// Collect all charts from charts directory
+	util.Log(slog.LevelInfo, "collecting valid charts", slog.String("RepositoryChartsDir", path.RepositoryChartsDir))
+
 	if err := filesystem.WalkDir(repoFs, path.RepositoryChartsDir, collectAllValidCharts); err != nil {
 		return fmt.Errorf("encountered error while trying to find Helm charts in repository: %s", err)
 	}
 	// Ensure you do not collect subcharts defined within charts
-	logrus.Infof("Removing collected subcharts")
+	util.Log(slog.LevelInfo, "removing collected subcharts")
 	for chartPath := range targetChartPaths {
 		chartPathDir := chartPath
 		for {
 			chartPathDir = filepath.Dir(chartPathDir)
 			if chartPathDir == "." {
-				logrus.Debugf("Identified chart at path %s", chartPath)
+				util.Log(slog.LevelDebug, "identified chart", slog.String("chartPath", chartPath))
 				break
 			}
 			_, ok := targetChartPaths[chartPathDir]
@@ -71,7 +74,7 @@ func standardizeAssetsFromCharts(repoFs billy.Filesystem) error {
 		}
 	}
 	// Ensure that charts names + versions are unique
-	logrus.Infof("Ensuring chart versions are unique")
+	util.Log(slog.LevelInfo, "ensuring chart versions are unique")
 	targetChartsVersions := make(map[string]string)
 	for chartPath, chart := range targetChartPaths {
 		chartVersion := fmt.Sprintf("%s-%s", chart.Metadata.Name, chart.Metadata.Version)
@@ -80,6 +83,9 @@ func standardizeAssetsFromCharts(repoFs billy.Filesystem) error {
 			targetChartsVersions[chartVersion] = chartPath
 			continue
 		}
+
+		util.Log(slog.LevelError, "chart version conflict", slog.String("chart.Metadata.Name", chart.Metadata.Name), slog.String("chart.Metadata.Version", chart.Metadata.Version))
+		util.Log(slog.LevelError, "chart version conflict", slog.String("currChartPath", currChartPath), slog.String("chartPath", chartPath))
 		return fmt.Errorf("chart %s at version %s is declared in %s and %s", chart.Metadata.Name, chart.Metadata.Version, currChartPath, chartPath)
 	}
 	// Archive charts into assets

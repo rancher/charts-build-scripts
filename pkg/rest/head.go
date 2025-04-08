@@ -43,7 +43,9 @@ func Head(ctx context.Context, url, token string) error {
 		switch response.StatusCode {
 		case http.StatusOK:
 			requestRemaining := response.Header.Get("X-RateLimit-Remaining")
-			logger.Log(ctx, slog.LevelDebug, "request remaining", slog.String("requestRemaining", requestRemaining))
+			if requestRemaining != "" {
+				logger.Log(ctx, slog.LevelDebug, "request remaining", slog.String("requestRemaining", requestRemaining))
+			}
 			return nil
 
 		case http.StatusTooManyRequests:
@@ -61,12 +63,20 @@ func Head(ctx context.Context, url, token string) error {
 			continue
 
 		case http.StatusNotFound:
+			logger.Log(ctx, slog.LevelDebug, "resource not found", slog.String("url", url))
 			return fmt.Errorf("not found")
 
 		default:
+			if response.StatusCode >= 500 && response.StatusCode < 600 {
+				logger.Log(ctx, slog.LevelWarn, "received server error, trying again in 5 seconds", slog.String("status", response.Status))
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
 			return fmt.Errorf("received unexpected status code %d with message: %v", response.StatusCode, response.Body)
 		}
 	}
 
+	logger.Log(ctx, slog.LevelError, "max retries reached")
 	return fmt.Errorf("max retries reached: %v", maxRetries)
 }

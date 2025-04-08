@@ -259,12 +259,18 @@ func (g *Git) StatusProcelain(ctx context.Context) (bool, error) {
 // equivalent to: git add -A && git commit -m message
 func (g *Git) AddAndCommit(message string) error {
 	// Stage all changes, including deletions
-	if err := exec.Command("git", "-C", g.Dir, "add", "-A").Run(); err != nil {
+	cmd := exec.Command("git", "-C", g.Dir, "add", "-A")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
 		return err
 	}
 
 	// Commit the staged changes
-	return exec.Command("git", "commit", "-m", message).Run()
+	cmd2 := exec.Command("git", "commit", "-m", message)
+	cmd2.Stdout = os.Stdout
+	cmd2.Stderr = os.Stderr
+	return cmd2.Run()
 }
 
 // PushBranch pushes the current branch to a given remote name

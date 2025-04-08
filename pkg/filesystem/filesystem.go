@@ -48,7 +48,6 @@ func GetRelativePath(fs billy.Filesystem, abspath string) (string, error) {
 // PathExists checks if a path exists on the filesystem or returns an error
 func PathExists(ctx context.Context, fs billy.Filesystem, path string) (bool, error) {
 	absPath := GetAbsPath(fs, path)
-	logger.Log(ctx, slog.LevelDebug, "checking if path exists", slog.String("absPath", absPath))
 
 	_, err := os.Stat(absPath)
 	if err == nil {

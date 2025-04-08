@@ -60,7 +60,6 @@ func ListPackages(ctx context.Context, repoRoot string, specificPackage string) 
 		if len(specificPackage) > 0 {
 			packagePrefix := filepath.Join(path.RepositoryPackagesDir, specificPackage)
 			if dirPath != packagePrefix && !strings.HasPrefix(dirPath, packagePrefix+"/") {
-				logger.Log(ctx, slog.LevelDebug, "ignore package based on prefix", slog.String("dirPath", dirPath), slog.String("packagePrefix", packagePrefix))
 				// Ignore packages not selected by specificPackage
 				return nil
 			}
@@ -77,6 +76,8 @@ func ListPackages(ctx context.Context, repoRoot string, specificPackage string) 
 			return err
 		}
 		packageList = append(packageList, packageName)
+		logger.Log(ctx, slog.LevelDebug, "package list", slog.Any("packageList", packageList))
+
 		return nil
 	}
 

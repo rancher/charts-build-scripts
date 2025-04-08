@@ -240,6 +240,11 @@ func (b *Bump) BumpChart(ctx context.Context) error {
 		return err
 	}
 
+	if err := git.Status(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
+		return err
+	}
+
 	if err := git.AddAndCommit("make prepare"); err != nil {
 		logger.Log(ctx, slog.LevelError, "error while adding and committing after make prepare", logger.Err(err))
 		return err
@@ -251,6 +256,11 @@ func (b *Bump) BumpChart(ctx context.Context) error {
 			logger.Log(ctx, slog.LevelError, "error while downloading icon", logger.Err(err))
 			return err
 		}
+	}
+
+	if err := git.Status(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
+		return err
 	}
 
 	if clean, _ := git.StatusProcelain(ctx); !clean {
@@ -272,6 +282,11 @@ func (b *Bump) BumpChart(ctx context.Context) error {
 		return err
 	}
 
+	if err := git.Status(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
+		return err
+	}
+
 	if clean, _ := git.StatusProcelain(ctx); !clean {
 		if err := git.AddAndCommit("make patch"); err != nil {
 			return err
@@ -284,9 +299,19 @@ func (b *Bump) BumpChart(ctx context.Context) error {
 		return err
 	}
 
+	if err := git.Status(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
+		return err
+	}
+
 	// make charts - generate new assets and charts overwriting logo
 	if err := b.Pkg.GenerateCharts(ctx, b.configOptions.OmitBuildMetadataOnExport); err != nil {
 		logger.Log(ctx, slog.LevelError, "error while generating charts", logger.Err(err))
+		return err
+	}
+
+	if err := git.Status(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
 		return err
 	}
 
@@ -318,9 +343,19 @@ func (b *Bump) BumpChart(ctx context.Context) error {
 		}
 	}
 
+	if err := git.Status(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
+		return err
+	}
+
 	// modify the release.yaml
 	if err := b.updateReleaseYaml(ctx, targetCharts); err != nil {
 		logger.Log(ctx, slog.LevelError, "error while updating release.yaml", logger.Err(err))
+		return err
+	}
+
+	if err := git.Status(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
 		return err
 	}
 

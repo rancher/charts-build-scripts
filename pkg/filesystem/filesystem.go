@@ -691,8 +691,6 @@ func CompareDirs(ctx context.Context, fs billy.Filesystem, leftDirpath, rightDir
 
 // GetRootPath returns the first directory in a given path
 func GetRootPath(ctx context.Context, path string) (string, error) {
-	logger.Log(ctx, slog.LevelDebug, "get root path", slog.String("path", path))
-
 	rootPathList := strings.SplitN(path, "/", 2)
 	if len(rootPathList) == 0 {
 		return "", fmt.Errorf("unable to get root path of %s", path)
@@ -702,8 +700,6 @@ func GetRootPath(ctx context.Context, path string) (string, error) {
 
 // MovePath takes a path that is contained within fromDir and returns the same path contained within toDir
 func MovePath(ctx context.Context, path string, fromDir string, toDir string) (string, error) {
-	logger.Log(ctx, slog.LevelDebug, "moving path", slog.String("path", path))
-
 	if !strings.HasPrefix(path, fromDir) {
 		return "", fmt.Errorf("path %s does not contain directory %s", path, fromDir)
 	}

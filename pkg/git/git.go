@@ -341,3 +341,14 @@ func (g *Git) getUpstreamRemote() (string, error) {
 
 	return upstreamRemote, nil
 }
+
+// Status prints the status of the git repository
+// equivalent to: git status --untracked-files=all --short
+func (g *Git) Status(ctx context.Context) error {
+	logger.Log(ctx, slog.LevelDebug, "git status -u -s")
+
+	cmd := exec.Command("git", "-C", g.Dir, "status", "--untracked-files=all", "--short")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}

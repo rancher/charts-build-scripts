@@ -1,4 +1,4 @@
-package util
+package logger
 
 import (
 	"context"
@@ -22,11 +22,13 @@ func Log(lvl slog.Level, msg string, attrs ...slog.Attr) {
 	f, _ := fs.Next()
 
 	record := slog.NewRecord(time.Now(), lvl, msg, f.PC)
+
 	// Add any attributes passed to the Log function to the record
 	record.AddAttrs(attrs...)
-	_ = logger.Handler().Handle(ctx, record)
+	logger.Handler().Handle(ctx, record)
 }
 
+// Err - log error with a message
 func Err(err error) slog.Attr {
 	return slog.Any("error", err)
 }

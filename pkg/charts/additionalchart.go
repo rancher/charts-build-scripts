@@ -10,10 +10,10 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/change"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 // AdditionalChart represents any additional charts packaged along with the main chart in a package
@@ -111,7 +111,7 @@ func (c *AdditionalChart) Prepare(rootFs, pkgFs billy.Filesystem, mainChartUpstr
 		return fmt.Errorf("no options provided to prepare additional chart")
 	}
 	if c.Upstream != nil && (*c.Upstream).IsWithinPackage() {
-		util.Log(slog.LevelInfo, "local chart does not need to be patched")
+		logger.Log(slog.LevelInfo, "local chart does not need to be patched")
 		// Ensure local charts standardize the Chart.yaml on prepare
 		if err := helm.StandardizeChartYaml(pkgFs, c.WorkingDir); err != nil {
 			return err
@@ -193,7 +193,7 @@ func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 		return fmt.Errorf("no options provided to prepare additional chart")
 	}
 	if c.Upstream != nil && (*c.Upstream).IsWithinPackage() {
-		util.Log(slog.LevelInfo, "local chart does not need to be patched")
+		logger.Log(slog.LevelInfo, "local chart does not need to be patched")
 		return nil
 	}
 	if exists, err := filesystem.PathExists(pkgFs, c.WorkingDir); err != nil {
@@ -203,7 +203,7 @@ func (c *AdditionalChart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 	}
 
 	if c.CRDChartOptions != nil {
-		util.Log(slog.LevelWarn, "patches are not supported for CRD charts using CRDChartOptions. Any local changes will be overridden; please make the changes directly at %s", slog.String("TemplateDirectory", filepath.Join(path.PackageTemplatesDir, c.CRDChartOptions.TemplateDirectory)))
+		logger.Log(slog.LevelWarn, "patches are not supported for CRD charts using CRDChartOptions. Any local changes will be overridden; please make the changes directly at %s", slog.String("TemplateDirectory", filepath.Join(path.PackageTemplatesDir, c.CRDChartOptions.TemplateDirectory)))
 		return nil
 	}
 

@@ -11,9 +11,9 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 	helmChart "helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 	helmCli "helm.sh/helm/v3/pkg/cli"
@@ -24,7 +24,7 @@ import (
 
 // PrepareDependencies prepares all of the dependencies of a given chart and regenerates the requirements.yaml or Chart.yaml
 func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDir string, ignoreDependencies []string) error {
-	util.Log(slog.LevelInfo, "loading dependencies")
+	logger.Log(slog.LevelInfo, "loading dependencies")
 
 	ignoreDependencyMap := make(map[string]bool)
 	for _, dep := range ignoreDependencies {
@@ -65,7 +65,7 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 		absDependencyChartDestPath := filesystem.GetAbsPath(pkgFs, filepath.Join(dependenciesDestPath, dependencyName))
 
 		if dependency.Upstream.IsWithinPackage() {
-			util.Log(slog.LevelInfo, "copying dependencies")
+			logger.Log(slog.LevelInfo, "copying dependencies")
 
 			// Copy the local chart into dependencyDestPath
 			repositoryDependencyChartsSrcPath, err := filesystem.GetRelativePath(rootFs, absDependencyChartSrcPath)
@@ -165,7 +165,7 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 			return err
 		}
 		if dependencyExists {
-			util.Log(slog.LevelInfo, "skipping dependency", slog.String("dependencyName", dependencyName))
+			logger.Log(slog.LevelInfo, "skipping dependency", slog.String("dependencyName", dependencyName))
 			continue
 		}
 		subdirectory := filepath.Join(filepath.Dir(strings.TrimPrefix(dependency.Repository, "file://")), dependencyName)
@@ -197,11 +197,11 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 			return err
 		}
 		if dependencyExists {
-			util.Log(slog.LevelInfo, "skipping dependency", slog.String("dependencyName", dependencyName))
+			logger.Log(slog.LevelInfo, "skipping dependency", slog.String("dependencyName", dependencyName))
 			continue
 		}
 
-		util.Log(slog.LevelDebug, "looking for dependency", slog.String("dependencyName", dependencyName), slog.String("repository", dependency.Repository))
+		logger.Log(slog.LevelDebug, "looking for dependency", slog.String("dependencyName", dependencyName), slog.String("repository", dependency.Repository))
 
 		dependencyURL, err := helmRepo.FindChartInRepoURL(
 			dependency.Repository,
@@ -264,7 +264,7 @@ func GetDependencyMap(pkgFs billy.Filesystem, gcRootDir string) (map[string]*Cha
 // UpdateHelmMetadataWithDependencies updates either the requirements.yaml or Chart.yaml for the dependencies provided
 // For each dependency in dependencies, it will replace the entry in the requirements.yaml / Chart.yaml with a URL pointing to the local chart archive
 func UpdateHelmMetadataWithDependencies(fs billy.Filesystem, mainHelmChartPath string, dependencyMap map[string]*Chart) error {
-	util.Log(slog.LevelInfo, "updating chart metadata with dependencies")
+	logger.Log(slog.LevelInfo, "updating chart metadata with dependencies")
 
 	// Check if Helm chart is valid
 	chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, mainHelmChartPath))
@@ -309,7 +309,7 @@ func UpdateHelmMetadataWithDependencies(fs billy.Filesystem, mainHelmChartPath s
 	var data interface{}
 	if chart.Metadata.APIVersion == "v2" {
 		// TODO(aiyengar2): fully test apiVersion V2 charts and remove this warning
-		util.Log(slog.LevelWarn, "detected apiVersion:v2 within Chart.yaml; these types of charts require additional testing")
+		logger.Log(slog.LevelWarn, "detected apiVersion:v2 within Chart.yaml; these types of charts require additional testing")
 		path = filepath.Join(mainHelmChartPath, "Chart.yaml")
 		data = chart.Metadata
 	} else {

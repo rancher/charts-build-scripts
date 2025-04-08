@@ -8,8 +8,8 @@ import (
 	"mime"
 	"net/http"
 
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 
 	"github.com/go-git/go-billy/v5"
 	"helm.sh/helm/v3/pkg/chart"
@@ -22,7 +22,7 @@ import (
 func Download(rootFs billy.Filesystem, metadata *chart.Metadata) (string, error) {
 	icon, err := http.Get(metadata.Icon)
 	if err != nil {
-		util.Log(slog.LevelError, "failed to download icon", slog.String("icon", metadata.Icon), util.Err(err))
+		logger.Log(slog.LevelError, "failed to download icon", slog.String("icon", metadata.Icon), logger.Err(err))
 		return "", err
 	}
 
@@ -33,14 +33,14 @@ func Download(rootFs billy.Filesystem, metadata *chart.Metadata) (string, error)
 	path := fmt.Sprintf("%s/%s%s", path.RepositoryLogosDir, metadata.Name, byType[0])
 	create, err := rootFs.Create(path)
 	if err != nil {
-		util.Log(slog.LevelError, "failed to create icon", slog.String("icon", metadata.Icon), util.Err(err))
+		logger.Log(slog.LevelError, "failed to create icon", slog.String("icon", metadata.Icon), logger.Err(err))
 		return "", err
 	}
 	defer create.Close()
 	_, err = io.Copy(create, icon.Body)
 	defer icon.Body.Close()
 	if err != nil {
-		util.Log(slog.LevelError, "failed to write icon", slog.String("icon", metadata.Icon), util.Err(err))
+		logger.Log(slog.LevelError, "failed to write icon", slog.String("icon", metadata.Icon), logger.Err(err))
 		return "", err
 	}
 	return path, nil

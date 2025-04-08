@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/rancher/charts-build-scripts/pkg/util"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
 // Logs is a struct that holds the file and file path of the log file
@@ -29,7 +29,7 @@ func CreateLogs(fileName, detail string) (*Logs, error) {
 	// Create the logs directory if it doesn't exist
 	err := os.MkdirAll("logs", 0755)
 	if err != nil {
-		util.Log(slog.LevelError, "failed to create logs directory", util.Err(err))
+		logger.Log(slog.LevelError, "failed to create logs directory", logger.Err(err))
 		return nil, err
 	}
 
@@ -61,7 +61,7 @@ func (l *Logs) WriteHEAD(versionRules *VersionRules, title string) {
 
 	rulesJSON, err := json.MarshalIndent(rules, "", "    ")
 	if err != nil {
-		util.Log(slog.LevelError, "failed to marshal rules to JSON", util.Err(err))
+		logger.Log(slog.LevelError, "failed to marshal rules to JSON", logger.Err(err))
 		l.Write(fmt.Sprintf("rules: %v\n", versionRules.Rules), "INFO")
 	} else {
 		l.Write(fmt.Sprintf("rules: %s\n", rulesJSON), "INFO")
@@ -73,27 +73,27 @@ func (l *Logs) Write(data string, logType string) {
 	switch logType {
 	case "INFO":
 		if _, err := l.File.WriteString("INFO=" + data + "\n"); err != nil {
-			util.Log(slog.LevelError, "failed to write logs", util.Err(err))
+			logger.Log(slog.LevelError, "failed to write logs", logger.Err(err))
 		}
 	case "WARN":
 		if _, err := l.File.WriteString("WARN=" + data + "\n"); err != nil {
-			util.Log(slog.LevelError, "failed to write logs", util.Err(err))
+			logger.Log(slog.LevelError, "failed to write logs", logger.Err(err))
 		}
 	case "ERROR":
 		if _, err := l.File.WriteString("ERROR=" + data + "\n"); err != nil {
-			util.Log(slog.LevelError, "failed to write logs", util.Err(err))
+			logger.Log(slog.LevelError, "failed to write logs", logger.Err(err))
 		}
 	case "SEPARATE":
 		if _, err := l.File.WriteString(separator); err != nil {
-			util.Log(slog.LevelError, "failed to write logs", util.Err(err))
+			logger.Log(slog.LevelError, "failed to write logs", logger.Err(err))
 		}
 	case "END":
 		if _, err := l.File.WriteString("\n" + ender + "\n"); err != nil {
-			util.Log(slog.LevelError, "failed to write logs", util.Err(err))
+			logger.Log(slog.LevelError, "failed to write logs", logger.Err(err))
 		}
 	default:
 		if _, err := l.File.WriteString(data + "\n"); err != nil {
-			util.Log(slog.LevelError, "failed to write logs", util.Err(err))
+			logger.Log(slog.LevelError, "failed to write logs", logger.Err(err))
 		}
 	}
 }

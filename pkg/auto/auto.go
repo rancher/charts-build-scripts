@@ -13,7 +13,7 @@ import (
 	"github.com/Masterminds/semver"
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
-	"github.com/rancher/charts-build-scripts/pkg/util"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
 /**
@@ -60,13 +60,13 @@ func whichYQCommand() (string, error) {
 	cmd := exec.Command("which", "yq")
 	output, err := cmd.Output() // Capture the output instead of printing it
 	if err != nil {
-		util.Log(slog.LevelError, "error while getting yq path", util.Err(err))
+		logger.Log(slog.LevelError, "error while getting yq path", logger.Err(err))
 		return "", err
 	}
 	yqPath := strings.TrimSpace(string(output)) // Convert output to string and trim whitespace
 	if yqPath == "" {
 		errYq := errors.New("yq command not found")
-		util.Log(slog.LevelError, "yq command not found", util.Err(errYq))
+		logger.Log(slog.LevelError, "yq command not found", logger.Err(errYq))
 		return "", errYq
 	}
 	// Extract the directory from the yqPath and append the yq directory to the PATH
@@ -99,12 +99,12 @@ func (f *ForwardPort) createForwardPortCommands(chart string) ([]Command, error)
 		if commands[i].Chart == commands[j].Chart {
 			vi, err := semver.NewVersion(commands[i].Version)
 			if err != nil {
-				util.Log(slog.LevelError, "error parsing version", util.Err(err))
+				logger.Log(slog.LevelError, "error parsing version", logger.Err(err))
 				return false
 			}
 			vj, err := semver.NewVersion(commands[j].Version)
 			if err != nil {
-				util.Log(slog.LevelError, "error parsing version", util.Err(err))
+				logger.Log(slog.LevelError, "error parsing version", logger.Err(err))
 				return false
 			}
 			return vi.LessThan(vj)
@@ -237,7 +237,7 @@ func prepareReleaseYaml() error {
 		return errTruncate
 	}
 
-	util.Log(slog.LevelInfo, "content of release.yaml erased successfully.")
+	logger.Log(slog.LevelInfo, "content of release.yaml erased successfully.")
 	return nil
 }
 
@@ -254,7 +254,7 @@ func executeCommand(command []string, yqPath string) error {
 	// Execute it
 	if err := cmd.Run(); err != nil {
 		errCommand := fmt.Errorf("error while executing command: %s; err: %w", command, err)
-		util.Log(slog.LevelError, "error while executing command", util.Err(errCommand))
+		logger.Log(slog.LevelError, "error while executing command", logger.Err(errCommand))
 		return errCommand
 	}
 	return nil

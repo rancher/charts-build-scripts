@@ -11,8 +11,8 @@ import (
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 	helmAction "helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
@@ -68,7 +68,7 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 		return err
 	}
 
-	util.Log(slog.LevelInfo, "exported chart", slog.String("chartChartsDirPath", chartChartsDirpath), slog.String("tgzPath", tgzPath))
+	logger.Log(slog.LevelInfo, "exported chart", slog.String("chartChartsDirPath", chartChartsDirpath), slog.String("tgzPath", tgzPath))
 	return nil
 }
 
@@ -83,7 +83,7 @@ func removeOrigFiles(dir string) error {
 				return err
 			}
 
-			util.Log(slog.LevelDebug, "removed file", slog.String("path", path))
+			logger.Log(slog.LevelDebug, "removed file", slog.String("path", path))
 		}
 		return nil
 	})
@@ -198,9 +198,9 @@ func GenerateArchive(rootFs, fs billy.Filesystem, helmChartPath, chartAssetsDirp
 	}
 	if shouldUpdateArchive {
 		filesystem.CopyFile(rootFs, tempTgzPath, tgzPath)
-		util.Log(slog.LevelInfo, "generated archive", slog.String("tgzPath", tgzPath))
+		logger.Log(slog.LevelInfo, "generated archive", slog.String("tgzPath", tgzPath))
 	} else {
-		util.Log(slog.LevelInfo, "archive is up-to-date", slog.String("tgzPath", tgzPath))
+		logger.Log(slog.LevelInfo, "archive is up-to-date", slog.String("tgzPath", tgzPath))
 	}
 	return tgzPath, nil
 }

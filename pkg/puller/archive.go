@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 const chartArchiveFilepath = "chart.tgz"
@@ -23,7 +23,7 @@ type Archive struct {
 
 // Pull grabs the archive
 func (u Archive) Pull(rootFs, fs billy.Filesystem, path string) error {
-	util.Log(slog.LevelInfo, "pulling from upstream", slog.String("URL", u.URL), slog.String("path", path))
+	logger.Log(slog.LevelInfo, "pulling from upstream", slog.String("URL", u.URL), slog.String("path", path))
 
 	if err := filesystem.GetChartArchive(fs, u.URL, chartArchiveFilepath); err != nil {
 		return err

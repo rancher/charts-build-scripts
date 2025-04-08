@@ -11,8 +11,8 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 	"gopkg.in/yaml.v2"
 )
 
@@ -56,7 +56,7 @@ func GenerateCRDChartFromTemplate(fs billy.Filesystem, dstHelmChartPath, templat
 // AddCRDValidationToChart adds the validate-install-crd.yaml to helmChartPathWithoutCRDs based on CRDs located in crdsDir within helmChartPathWithCRDs
 func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helmChartPathWithCRDs, crdsDir string) error {
 	// Get the CRDs
-	util.Log(slog.LevelDebug, "adding CRD validation to main chart", slog.String("ChartValidateInstallCRDFile", path.ChartValidateInstallCRDFile))
+	logger.Log(slog.LevelDebug, "adding CRD validation to main chart", slog.String("ChartValidateInstallCRDFile", path.ChartValidateInstallCRDFile))
 
 	crdsDirpath := filepath.Join(helmChartPathWithCRDs, crdsDir)
 	var crdGVKs []string

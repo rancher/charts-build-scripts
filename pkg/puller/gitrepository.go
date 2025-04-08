@@ -10,9 +10,9 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 const (
@@ -88,24 +88,24 @@ func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
 			return err
 		}
 		if pulledFromCache {
-			util.Log(slog.LevelInfo, "pulled from cache", slog.String("repo", r.name), slog.String("path", path))
+			logger.Log(slog.LevelInfo, "pulled from cache", slog.String("repo", r.name), slog.String("path", path))
 			return nil
 		}
 	}
 
-	util.Log(slog.LevelInfo, "pulling from upstream")
+	logger.Log(slog.LevelInfo, "pulling from upstream")
 	if r.Commit == nil && r.branch == nil {
-		util.Log(slog.LevelError, "if you are pulling from a Git repository, a commit or a branch is required in the package.yaml")
+		logger.Log(slog.LevelError, "if you are pulling from a Git repository, a commit or a branch is required in the package.yaml")
 		return fmt.Errorf("no commit or branch specified")
 	}
 
 	cloneOptions := git.CloneOptions{
 		URL: r.GetHTTPSURL(),
 	}
-	util.Log(slog.LevelDebug, "", slog.String("url", cloneOptions.URL))
+	logger.Log(slog.LevelDebug, "", slog.String("url", cloneOptions.URL))
 
 	if r.branch != nil {
-		util.Log(slog.LevelDebug, "", slog.String("branch", *r.branch))
+		logger.Log(slog.LevelDebug, "", slog.String("branch", *r.branch))
 		cloneOptions.ReferenceName = repository.GetLocalBranchRefName(*r.branch)
 		cloneOptions.SingleBranch = true
 	}
@@ -116,7 +116,7 @@ func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
 	}
 
 	if r.Commit != nil {
-		util.Log(slog.LevelDebug, "", slog.String("commit", *r.Commit))
+		logger.Log(slog.LevelDebug, "", slog.String("commit", *r.Commit))
 
 		wt, err := repo.Worktree()
 		if err != nil {
@@ -142,7 +142,7 @@ func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
 	}
 
 	if r.Subdirectory != nil {
-		util.Log(slog.LevelDebug, "", slog.String("subdirectory", *r.Subdirectory))
+		logger.Log(slog.LevelDebug, "", slog.String("subdirectory", *r.Subdirectory))
 		if len(*r.Subdirectory) > 0 {
 			if err := filesystem.MakeSubdirectoryRoot(fs, path, *r.Subdirectory); err != nil {
 				return err
@@ -156,7 +156,7 @@ func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
 			return err
 		}
 		if addedToCache {
-			util.Log(slog.LevelInfo, "cached", slog.String("repo", r.name), slog.String("path", path))
+			logger.Log(slog.LevelInfo, "cached", slog.String("repo", r.name), slog.String("path", path))
 		}
 	}
 

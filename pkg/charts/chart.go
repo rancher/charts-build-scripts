@@ -9,9 +9,9 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/change"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 // Chart represents the main chart in a given package
@@ -45,29 +45,29 @@ func (c *Chart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 	defer func() { c.UpstreamChartVersion = &upstreamChartVersion }()
 
 	if c.Upstream.IsWithinPackage() {
-		util.Log(slog.LevelInfo, "local chart does not need to be prepared")
+		logger.Log(slog.LevelInfo, "local chart does not need to be prepared")
 
 		// Ensure local charts standardize the Chart.yaml on prepare
 		if err := helm.StandardizeChartYaml(pkgFs, c.WorkingDir); err != nil {
-			util.Log(slog.LevelError, "failed to standardize chart", slog.String("WorkingDir", c.WorkingDir), util.Err(err))
+			logger.Log(slog.LevelError, "failed to standardize chart", slog.String("WorkingDir", c.WorkingDir), logger.Err(err))
 			return err
 		}
 		if err := PrepareDependencies(rootFs, pkgFs, c.WorkingDir, c.GeneratedChangesRootDir(), c.IgnoreDependencies); err != nil {
-			util.Log(slog.LevelError, "failed while preparing dependencies", slog.String("WorkingDir", c.WorkingDir), util.Err(err))
+			logger.Log(slog.LevelError, "failed while preparing dependencies", slog.String("WorkingDir", c.WorkingDir), logger.Err(err))
 			return err
 		}
 		return nil
 	}
 
 	// clean
-	util.Log(slog.LevelInfo, "cleaning up packages before preparing", slog.String("WorkingDir", c.WorkingDir))
+	logger.Log(slog.LevelInfo, "cleaning up packages before preparing", slog.String("WorkingDir", c.WorkingDir))
 	if err := filesystem.RemoveAll(pkgFs, c.WorkingDir); err != nil {
-		util.Log(slog.LevelError, "failed to clean up before preparing", slog.String("WorkingDir", c.WorkingDir), util.Err(err))
+		logger.Log(slog.LevelError, "failed to clean up before preparing", slog.String("WorkingDir", c.WorkingDir), logger.Err(err))
 		return err
 	}
 	// pull
 	if err := c.Upstream.Pull(rootFs, pkgFs, c.WorkingDir); err != nil {
-		util.Log(slog.LevelError, "failed to pull upstream", slog.String("WorkingDir", c.WorkingDir), util.Err(err))
+		logger.Log(slog.LevelError, "failed to pull upstream", slog.String("WorkingDir", c.WorkingDir), logger.Err(err))
 		return err
 	}
 
@@ -97,7 +97,7 @@ func (c *Chart) Prepare(rootFs, pkgFs billy.Filesystem) error {
 // GeneratePatch generates a patch on a forked Helm chart based on local changes
 func (c *Chart) GeneratePatch(rootFs, pkgFs billy.Filesystem) error {
 	if c.Upstream.IsWithinPackage() {
-		util.Log(slog.LevelInfo, "local chart does not need to be patched")
+		logger.Log(slog.LevelInfo, "local chart does not need to be patched")
 		return nil
 	}
 	if exists, err := filesystem.PathExists(pkgFs, c.WorkingDir); err != nil {

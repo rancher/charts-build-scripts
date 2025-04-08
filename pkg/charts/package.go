@@ -11,8 +11,8 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/icons"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
@@ -45,10 +45,10 @@ type Package struct {
 
 // Prepare pulls in a package based on the spec to the local git repository
 func (p *Package) Prepare() error {
-	util.Log(slog.LevelInfo, "make prepare")
+	logger.Log(slog.LevelInfo, "make prepare")
 
 	if err := p.Chart.Prepare(p.rootFs, p.fs); err != nil {
-		util.Log(slog.LevelError, "encountered error while preparing chart", slog.String("path", p.Chart.WorkingDir), util.Err(err))
+		logger.Log(slog.LevelError, "encountered error while preparing chart", slog.String("path", p.Chart.WorkingDir), logger.Err(err))
 		return err
 	}
 
@@ -68,7 +68,7 @@ func (p *Package) Prepare() error {
 			}
 		}
 	}
-	util.Log(slog.LevelInfo, "preparing additional charts")
+	logger.Log(slog.LevelInfo, "preparing additional charts")
 	for _, additionalChart := range p.AdditionalCharts {
 		if err := additionalChart.Prepare(p.rootFs, p.fs, p.Chart.UpstreamChartVersion); err != nil {
 			return fmt.Errorf("encountered error while preparing additional chart %s: %s", additionalChart.WorkingDir, err)
@@ -82,7 +82,7 @@ func (p *Package) Prepare() error {
 
 // GeneratePatch generates a patch on a forked Helm chart based on local changes
 func (p *Package) GeneratePatch() error {
-	util.Log(slog.LevelInfo, "make patch")
+	logger.Log(slog.LevelInfo, "make patch")
 
 	for _, additionalChart := range p.AdditionalCharts {
 		if err := additionalChart.RevertMainChanges(p.fs); err != nil {
@@ -109,14 +109,14 @@ func (p *Package) GeneratePatch() error {
 // DownloadIcon Downloads the icon from the charts.yaml file to the assets/logos folder
 // and changes the chart.yaml file to use it
 func (p *Package) DownloadIcon() error {
-	util.Log(slog.LevelInfo, "make icon")
+	logger.Log(slog.LevelInfo, "make icon")
 
 	exists, err := filesystem.PathExists(p.fs, path.RepositoryChartsDir)
 	if err != nil {
 		return fmt.Errorf("failed to check for charts dir. Err: %w", err)
 	}
 	if !exists {
-		util.Log(slog.LevelError, "charts dir does not exist, run make prepare first", slog.String("path", path.RepositoryChartsDir))
+		logger.Log(slog.LevelError, "charts dir does not exist, run make prepare first", slog.String("path", path.RepositoryChartsDir))
 		return nil
 	}
 
@@ -128,14 +128,14 @@ func (p *Package) DownloadIcon() error {
 
 	u, err := url.Parse(chart.Metadata.Icon)
 	if err == nil && (u.Scheme == "http" || u.Scheme == "https") {
-		util.Log(slog.LevelDebug, "chart icon is pointing to a remote url", slog.String("url", chart.Metadata.Icon))
+		logger.Log(slog.LevelDebug, "chart icon is pointing to a remote url", slog.String("url", chart.Metadata.Icon))
 
 		// download icon and change the icon property to point to it
 		p, err := icons.Download(p.rootFs, chart.Metadata)
 		if err == nil { // managed to download the icon and save it locally
 			chart.Metadata.Icon = fmt.Sprintf("file://%s", p)
 		} else {
-			util.Log(slog.LevelError, "failed to download icon", util.Err(err))
+			logger.Log(slog.LevelError, "failed to download icon", logger.Err(err))
 		}
 
 		chartYamlPath := fmt.Sprintf("%s/Chart.yaml", absHelmChartPath)
@@ -149,10 +149,10 @@ func (p *Package) DownloadIcon() error {
 
 // GenerateCharts creates Helm chart archives for each chart after preparing it
 func (p *Package) GenerateCharts(omitBuildMetadataOnExport bool) error {
-	util.Log(slog.LevelInfo, "make charts")
+	logger.Log(slog.LevelInfo, "make charts")
 
 	if p.DoNotRelease {
-		util.Log(slog.LevelInfo, "skipping package marked doNotRelease")
+		logger.Log(slog.LevelInfo, "skipping package marked doNotRelease")
 		return nil
 	}
 	if err := p.Prepare(); err != nil {
@@ -180,7 +180,7 @@ func (p *Package) GenerateCharts(omitBuildMetadataOnExport bool) error {
 
 // Clean removes all other files except for the package.yaml, patch, and overlay/ files from a package
 func (p *Package) Clean() error {
-	util.Log(slog.LevelInfo, "make clean")
+	logger.Log(slog.LevelInfo, "make clean")
 
 	chartPathsToClean := []string{p.Chart.OriginalDir()}
 	if !p.Chart.Upstream.IsWithinPackage() {

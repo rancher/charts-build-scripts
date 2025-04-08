@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/rancher/charts-build-scripts/pkg/util"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
 const maxRetries = 5
@@ -42,7 +42,7 @@ func Head(url, token string) error {
 		switch response.StatusCode {
 		case http.StatusOK:
 			requestRemaining := response.Header.Get("X-RateLimit-Remaining")
-			util.Log(slog.LevelDebug, "request remaining", slog.String("requestRemaining", requestRemaining))
+			logger.Log(slog.LevelDebug, "request remaining", slog.String("requestRemaining", requestRemaining))
 			return nil
 
 		case http.StatusTooManyRequests:
@@ -54,7 +54,7 @@ func Head(url, token string) error {
 			retryAfter := time.Unix(retryAfterMillisInt, 0)
 			timeUntilRetry := time.Until(retryAfter)
 
-			util.Log(slog.LevelWarn, "request was rate limited", slog.String("timeUntilRetry", timeUntilRetry.String()))
+			logger.Log(slog.LevelWarn, "request was rate limited", slog.String("timeUntilRetry", timeUntilRetry.String()))
 			time.Sleep(timeUntilRetry)
 
 			continue

@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 	helmRepo "helm.sh/helm/v3/pkg/repo"
 )
 
@@ -47,7 +47,7 @@ func CreateOrUpdateHelmIndex(rootFs billy.Filesystem) error {
 	helmIndexFile, upToDate := UpdateIndex(helmIndexFile, newHelmIndexFile)
 
 	if upToDate {
-		util.Log(slog.LevelInfo, "index.yaml is up-to-date")
+		logger.Log(slog.LevelInfo, "index.yaml is up-to-date")
 		return nil
 	}
 
@@ -57,7 +57,7 @@ func CreateOrUpdateHelmIndex(rootFs billy.Filesystem) error {
 		return fmt.Errorf("encountered error while trying to write updated Helm index into index.yaml: %s", err)
 	}
 
-	util.Log(slog.LevelInfo, "generated index.yaml")
+	logger.Log(slog.LevelInfo, "generated index.yaml")
 	return nil
 }
 
@@ -75,7 +75,7 @@ func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) 
 			if !original.Has(chartName, version) {
 				// Keep the newly generated chart version as-is
 				upToDate = false
-				util.Log(slog.LevelDebug, "chart has introduced a new version", slog.String("chartName", chartName), slog.String("version", version))
+				logger.Log(slog.LevelDebug, "chart has introduced a new version", slog.String("chartName", chartName), slog.String("version", version))
 				continue
 			}
 			// Get original chart version
@@ -92,7 +92,7 @@ func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) 
 				new.Entries[chartName][i].Created = originalChartVersion.Created
 			} else {
 				upToDate = false
-				util.Log(slog.LevelDebug, "chart has been modified", slog.String("chartName", chartName), slog.String("version", version))
+				logger.Log(slog.LevelDebug, "chart has been modified", slog.String("chartName", chartName), slog.String("version", version))
 			}
 		}
 	}
@@ -102,7 +102,7 @@ func UpdateIndex(original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) 
 			if !new.Has(chartName, chartVersion.Version) {
 				// Chart was removed
 				upToDate = false
-				util.Log(slog.LevelDebug, "chart has been removed", slog.String("chartName", chartName), slog.String("version", chartVersion.Version))
+				logger.Log(slog.LevelDebug, "chart has been removed", slog.String("chartName", chartName), slog.String("version", chartVersion.Version))
 				continue
 			}
 		}

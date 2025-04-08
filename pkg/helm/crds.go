@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
@@ -31,7 +31,7 @@ func CopyCRDsFromChart(fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHel
 		return os.ErrNotExist
 	}
 
-	util.Log(slog.LevelInfo, "copying CRDs", slog.String("srcCRDsDirpath", srcCRDsDirpath), slog.String("dstCRDsDirpath", dstCRDsDirpath))
+	logger.Log(slog.LevelInfo, "copying CRDs", slog.String("srcCRDsDirpath", srcCRDsDirpath), slog.String("dstCRDsDirpath", dstCRDsDirpath))
 
 	return filesystem.CopyDir(fs, srcCRDsDirpath, dstCRDsDirpath)
 }
@@ -49,7 +49,7 @@ func DeleteCRDsFromChart(fs billy.Filesystem, helmChartPath string) error {
 			return err
 		}
 		if exists {
-			util.Log(slog.LevelDebug, "deleting CRD", slog.String("crdFilepath", crdFilepath))
+			logger.Log(slog.LevelDebug, "deleting CRD", slog.String("crdFilepath", crdFilepath))
 
 			if err := fs.Remove(crdFilepath); err != nil {
 				return err
@@ -73,6 +73,6 @@ func ArchiveCRDs(fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHelmChart
 	srcCRDsDirPath := filepath.Join(srcHelmChartPath, srcCRDsDir)
 	dstFilePath := filepath.Join(dstHelmChartPath, destCRDsDir, path.ChartCRDTgzFilename)
 
-	util.Log(slog.LevelDebug, "compressing CRDs", slog.String("srcCRDsDirPath", srcCRDsDirPath), slog.String("dstFilePath", dstFilePath))
+	logger.Log(slog.LevelDebug, "compressing CRDs", slog.String("srcCRDsDirPath", srcCRDsDirPath), slog.String("dstFilePath", dstFilePath))
 	return filesystem.ArchiveDir(fs, srcCRDsDirPath, dstFilePath)
 }

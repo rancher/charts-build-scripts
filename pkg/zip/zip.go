@@ -9,8 +9,8 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
@@ -88,7 +88,7 @@ func DumpAssets(repoRoot string, specificAsset string) error {
 		}
 
 		// Unarchive Tgz file
-		util.Log(slog.LevelInfo, "unarchiving", slog.String("tgzPath", tgzPath))
+		logger.Log(slog.LevelInfo, "unarchiving", slog.String("tgzPath", tgzPath))
 
 		// Get path to unarchive tgz to
 		foundAsset = true
@@ -109,7 +109,7 @@ func DumpAssets(repoRoot string, specificAsset string) error {
 			return err
 		}
 
-		util.Log(slog.LevelInfo, "generated chart", slog.String("chartChartsDirpath", chartChartsDirpath))
+		logger.Log(slog.LevelInfo, "generated chart", slog.String("chartChartsDirpath", chartChartsDirpath))
 		return nil
 	}
 

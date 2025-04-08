@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/regsync"
 	"github.com/rancher/charts-build-scripts/pkg/rest"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 const (
@@ -43,20 +43,20 @@ func CheckImages() error {
 	// Get a token to access the Docker Hub API
 	token, err := retrieveToken()
 	if err != nil {
-		util.Log(slog.LevelWarn, "failed to retrieve token, requests will be unauthenticated", util.Err(err))
+		logger.Log(slog.LevelWarn, "failed to retrieve token, requests will be unauthenticated", logger.Err(err))
 	}
 
 	// Loop through all images and tags to check if they exist
 	for image := range imageTagMap {
 		if len(image) == 0 {
-			util.Log(slog.LevelWarn, "found blank image, skipping tag check")
+			logger.Log(slog.LevelWarn, "found blank image, skipping tag check")
 			continue
 		}
 
 		// Split image into namespace and repository
 		location := strings.Split(image, "/")
 		if len(location) != 2 {
-			util.Log(slog.LevelError, "failed to split image into namespace and repository", slog.String("image", image))
+			logger.Log(slog.LevelError, "failed to split image into namespace and repository", slog.String("image", image))
 			return fmt.Errorf("failed to generate namespace and repository for image: %s", image)
 		}
 
@@ -71,8 +71,8 @@ func CheckImages() error {
 
 	// If there are any images that have failed the check, log them and return an error
 	if len(failedImages) > 0 || len(imagesOutsideNamespace) > 0 {
-		util.Log(slog.LevelError, "found images outside the rancher namespace", slog.Any("imagesOutsideNamespace", imagesOutsideNamespace))
-		util.Log(slog.LevelError, "images that are not on Docker Hub", slog.Any("failedImages", failedImages))
+		logger.Log(slog.LevelError, "found images outside the rancher namespace", slog.Any("imagesOutsideNamespace", imagesOutsideNamespace))
+		logger.Log(slog.LevelError, "images that are not on Docker Hub", slog.Any("failedImages", failedImages))
 		return errors.New("image check has failed")
 	}
 
@@ -85,7 +85,7 @@ func checkPattern(imageTagMap map[string][]string) []string {
 
 	for image := range imageTagMap {
 		if len(image) == 0 {
-			util.Log(slog.LevelWarn, "found blank image, skipping image namespace check")
+			logger.Log(slog.LevelWarn, "found blank image, skipping image namespace check")
 			continue
 		}
 
@@ -99,18 +99,18 @@ func checkPattern(imageTagMap map[string][]string) []string {
 
 // checkTag checks if a tag exists in a namespace/repository
 func checkTag(namespace, repository, tag, token string) error {
-	util.Log(slog.LevelDebug, "checking tag", slog.String("namespace", namespace), slog.String("repository", repository), slog.String("tag", tag))
+	logger.Log(slog.LevelDebug, "checking tag", slog.String("namespace", namespace), slog.String("repository", repository), slog.String("tag", tag))
 
 	url := fmt.Sprintf("https://hub.docker.com/v2/namespaces/%s/repositories/%s/tags/%s", namespace, repository, tag)
 
 	// Sends HEAD request to check if namespace/repository:tag exists
 	err := rest.Head(url, token)
 	if err != nil {
-		util.Log(slog.LevelError, "failed to check tag", util.Err(err))
+		logger.Log(slog.LevelError, "failed to check tag", logger.Err(err))
 		return err
 	}
 
-	util.Log(slog.LevelInfo, "tag found", slog.String("repository", repository), slog.String("tag", tag))
+	logger.Log(slog.LevelInfo, "tag found", slog.String("repository", repository), slog.String("tag", tag))
 	return nil
 }
 
@@ -120,7 +120,7 @@ func retrieveToken() (string, error) {
 	// Retrieve credentials from environment variables
 	credentials := retrieveCredentials()
 	if credentials == nil {
-		util.Log(slog.LevelWarn, "no credentials found, requests will be unauthenticated")
+		logger.Log(slog.LevelWarn, "no credentials found, requests will be unauthenticated")
 		return "", nil
 	}
 
@@ -142,12 +142,12 @@ func retrieveCredentials() *TokenRequest {
 	password := os.Getenv("DOCKER_PASSWORD")
 
 	if strings.Compare(username, "") == 0 {
-		util.Log(slog.LevelError, "DOCKER_USERNAME not set", slog.String("username", username))
+		logger.Log(slog.LevelError, "DOCKER_USERNAME not set", slog.String("username", username))
 		return nil
 	}
 
 	if strings.Compare(password, "") == 0 {
-		util.Log(slog.LevelError, "DOCKER_PASSWORD not set", slog.String("password", password))
+		logger.Log(slog.LevelError, "DOCKER_PASSWORD not set", slog.String("password", password))
 		return nil
 	}
 

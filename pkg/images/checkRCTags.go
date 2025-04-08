@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/regsync"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 // CheckRCTags checks for any images that have RC tags
@@ -16,17 +16,17 @@ func CheckRCTags(repoRoot string) map[string][]string {
 
 	// Get the release options from the release.yaml file
 	releaseOptions := getReleaseOptions(repoRoot)
-	util.Log(slog.LevelInfo, "checking for RC tags in charts", slog.Any("releaseOptions", releaseOptions))
+	logger.Log(slog.LevelInfo, "checking for RC tags in charts", slog.Any("releaseOptions", releaseOptions))
 
 	rcImageTagMap := make(map[string][]string, 0)
 
 	// Get required tags for all images
 	imageTagMap, err := regsync.GenerateFilteredImageTagMap(releaseOptions)
 	if err != nil {
-		util.Fatal(fmt.Errorf("failed to generate image tag map: %s", err).Error())
+		logger.Fatal(fmt.Errorf("failed to generate image tag map: %s", err).Error())
 	}
 
-	util.Log(slog.LevelInfo, "checking for RC tags in all collected images")
+	logger.Log(slog.LevelInfo, "checking for RC tags in all collected images")
 
 	// Grab all images that contain RC tags
 	for image := range imageTagMap {
@@ -48,7 +48,7 @@ func getReleaseOptions(repoRoot string) options.ReleaseOptions {
 	// Load the release options from the release.yaml file
 	releaseOptions, err := options.LoadReleaseOptionsFromFile(repoFs, "release.yaml")
 	if err != nil {
-		util.Fatal(fmt.Errorf("unable to unmarshall release.yaml: %s", err).Error())
+		logger.Fatal(fmt.Errorf("unable to unmarshall release.yaml: %s", err).Error())
 	}
 
 	return releaseOptions

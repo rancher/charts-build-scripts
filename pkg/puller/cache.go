@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/rancher/charts-build-scripts/pkg/util"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
 // RootCache is the cache at the root of the repository
@@ -19,7 +19,7 @@ func InitRootCache(repoRoot string, cacheMode bool, path string) error {
 		return nil
 	}
 
-	util.Log(slog.LevelInfo, "setting up cache", slog.String("path", path))
+	logger.Log(slog.LevelInfo, "setting up cache", slog.String("path", path))
 	// Get repository filesystem
 	rootFs := filesystem.GetFilesystem(repoRoot)
 

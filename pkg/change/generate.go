@@ -9,8 +9,8 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/diff"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 const (
@@ -19,7 +19,7 @@ const (
 
 // GenerateChanges generates the change between fromDir and toDir and places it in the appropriate directories within gcDir
 func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string, replacePaths []string) error {
-	util.Log(slog.LevelInfo, "generating changes", slog.String("GeneratedChangesDir", path.GeneratedChangesDir))
+	logger.Log(slog.LevelInfo, "generating changes", slog.String("GeneratedChangesDir", path.GeneratedChangesDir))
 
 	// gcRootDir should always end with path.GeneratedChangesDir
 	if !strings.HasSuffix(gcRootDir, path.GeneratedChangesDir) {
@@ -44,7 +44,7 @@ func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string, repl
 			return err
 		}
 
-		util.Log(slog.LevelInfo, "overlay", slog.String("toPath", toPath))
+		logger.Log(slog.LevelInfo, "overlay", slog.String("toPath", toPath))
 		return nil
 	}
 	generateExcludeFile := func(fs billy.Filesystem, fromPath string, isDir bool) error {
@@ -59,7 +59,7 @@ func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string, repl
 			return err
 		}
 
-		util.Log(slog.LevelInfo, "exclude", slog.String("fromPath", fromPath))
+		logger.Log(slog.LevelInfo, "exclude", slog.String("fromPath", fromPath))
 		return nil
 	}
 	generatePatchFile := func(fs billy.Filesystem, fromPath, toPath string, isDir bool) error {
@@ -89,7 +89,7 @@ func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string, repl
 			return err
 		}
 		if generatedPatch {
-			util.Log(slog.LevelInfo, "patch", slog.String("patchPath", patchPath))
+			logger.Log(slog.LevelInfo, "patch", slog.String("patchPath", patchPath))
 		}
 
 		return nil

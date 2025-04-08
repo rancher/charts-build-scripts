@@ -9,10 +9,10 @@ import (
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 	"helm.sh/helm/v3/pkg/registry"
 )
 
@@ -59,7 +59,7 @@ func ListPackages(repoRoot string, specificPackage string) ([]string, error) {
 		if len(specificPackage) > 0 {
 			packagePrefix := filepath.Join(path.RepositoryPackagesDir, specificPackage)
 			if dirPath != packagePrefix && !strings.HasPrefix(dirPath, packagePrefix+"/") {
-				util.Log(slog.LevelDebug, "ignore package based on prefix", slog.String("dirPath", dirPath), slog.String("packagePrefix", packagePrefix))
+				logger.Log(slog.LevelDebug, "ignore package based on prefix", slog.String("dirPath", dirPath), slog.String("packagePrefix", packagePrefix))
 				// Ignore packages not selected by specificPackage
 				return nil
 			}

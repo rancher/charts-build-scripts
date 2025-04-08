@@ -13,8 +13,8 @@ import (
 	"strings"
 
 	"github.com/rancher/charts-build-scripts/pkg/git"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 )
@@ -102,19 +102,19 @@ func GenerateConfigFile() error {
 
 	// Must add and commit the initial changes to the regsync.yaml file
 	if clean, _ := git.StatusProcelain(); clean {
-		util.Log(slog.LevelError, "FATAL: should have changes to commit")
+		logger.Log(slog.LevelError, "FATAL: should have changes to commit")
 		return errors.New("FATAL: should have changes to commit")
 	}
 
 	if err := git.AddAndCommit("regsync: images and tags present on the current release"); err != nil {
-		util.Log(slog.LevelError, "failed to add/commit images and tags on the current release", util.Err(err))
+		logger.Log(slog.LevelError, "failed to add/commit images and tags on the current release", logger.Err(err))
 		return err
 	}
 
 	// Use skopeo lits-tags to retrieve ALL tags for the images at prime registry
 	primeImgTags, err := checkPrimeImageTags(imageTagMap)
 	if err != nil {
-		util.Log(slog.LevelError, "failed to check prime image tags", util.Err(err))
+		logger.Log(slog.LevelError, "failed to check prime image tags", logger.Err(err))
 		return err
 	}
 
@@ -123,25 +123,25 @@ func GenerateConfigFile() error {
 
 	// Update the regsync config file excluding the prime images and tags
 	if err := createRegSyncConfigFile(syncImgTags); err != nil {
-		util.Log(slog.LevelError, "failed to create regsync config file", util.Err(err))
+		logger.Log(slog.LevelError, "failed to create regsync config file", logger.Err(err))
 		return err
 	}
 
 	// Must add and commit the final changes to the regsync.yaml file
 	if clean, _ := git.StatusProcelain(); clean {
-		util.Log(slog.LevelError, "FATAL: should have changes to commit")
+		logger.Log(slog.LevelError, "FATAL: should have changes to commit")
 		return errors.New("FATAL: should have changes to commit")
 	}
 
 	if err := git.AddAndCommit("regsync: images to be synced"); err != nil {
-		util.Log(slog.LevelError, "failed to add/commit images to be synced", util.Err(err))
+		logger.Log(slog.LevelError, "failed to add/commit images to be synced", logger.Err(err))
 		return err
 	}
 
 	// Final state read of regsync.yaml
 	finalConfig, err := readAllowTagsFromRegsyncYaml()
 	if err != nil {
-		util.Log(slog.LevelError, "failed to read final regsync.yaml", util.Err(err))
+		logger.Log(slog.LevelError, "failed to read final regsync.yaml", logger.Err(err))
 		return err
 	}
 

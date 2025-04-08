@@ -7,8 +7,8 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/git"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 var (
@@ -69,7 +69,7 @@ func InitDependencies(repoRoot string, rootFs billy.Filesystem, branchVersion st
 	if err != nil {
 		return nil, err
 	}
-	util.Log(slog.LevelDebug, "version rules loaded", slog.Any("dep.VR.Rules[branchVersion]", dep.VR.Rules[branchVersion]))
+	logger.Log(slog.LevelDebug, "version rules loaded", slog.Any("dep.VR.Rules[branchVersion]", dep.VR.Rules[branchVersion]))
 
 	if err := checkFilePaths(dep.RootFs); err != nil {
 		return nil, err

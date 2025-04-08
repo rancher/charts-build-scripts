@@ -11,8 +11,8 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 var (
@@ -163,7 +163,7 @@ func (v *VersionRules) CheckChartVersionForLifecycle(chartVersion string) bool {
 func (v *VersionRules) CheckChartVersionToRelease(chartVersion string) (bool, error) {
 	chartVersionInt, err := strconv.Atoi(strings.Split(chartVersion, ".")[0])
 	if err != nil {
-		util.Log(slog.LevelError, "failed to check version to release for chartVersion", slog.String("chartVersion", chartVersion), util.Err(err))
+		logger.Log(slog.LevelError, "failed to check version to release for chartVersion", slog.String("chartVersion", chartVersion), logger.Err(err))
 		return false, err
 	}
 	return chartVersionInt == (v.MaxVersion - 1), nil

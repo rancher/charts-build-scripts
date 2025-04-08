@@ -10,7 +10,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/rancher/charts-build-scripts/pkg/util"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
 // GetRepo returns an existing GitRepository at the path provided
@@ -82,7 +82,7 @@ func CommitAll(repo *git.Repository, commitMessage string) error {
 		return fmt.Errorf("cannot create commit since there are no files to be committed")
 	}
 
-	util.Log(slog.LevelDebug, "committing modified files", slog.String("status", status.String()))
+	logger.Log(slog.LevelDebug, "committing modified files", slog.String("status", status.String()))
 	if _, err = wt.Add("."); err != nil {
 		return err
 	}

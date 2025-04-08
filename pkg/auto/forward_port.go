@@ -6,7 +6,7 @@ import (
 
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
-	"github.com/rancher/charts-build-scripts/pkg/util"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
 /**
@@ -17,7 +17,7 @@ import (
 // CreateForwardPortStructure will create the ForwardPort struct with access to the necessary dependencies.
 // It will also check if yq command is installed on the system.
 func CreateForwardPortStructure(ld *lifecycle.Dependencies, assetsToPort map[string][]lifecycle.Asset, forkURL string) (*ForwardPort, error) {
-	util.Log(slog.LevelInfo, "preparing forward port data")
+	logger.Log(slog.LevelInfo, "preparing forward port data")
 
 	// is yq installed?
 	yqPath, err := whichYQCommand()
@@ -49,7 +49,7 @@ func CreateForwardPortStructure(ld *lifecycle.Dependencies, assetsToPort map[str
 
 // ExecuteForwardPort will execute all steps to organize and create the forward-port PRs
 func (f *ForwardPort) ExecuteForwardPort(chart string) error {
-	util.Log(slog.LevelInfo, "starting forward port")
+	logger.Log(slog.LevelInfo, "starting forward port")
 
 	// Get the forward port script commands
 	commands, err := f.createForwardPortCommands(chart)

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/rancher/charts-build-scripts/pkg/util"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"golang.org/x/exp/slices"
 )
 
@@ -60,7 +60,7 @@ func walkFilteredAssetsFolder(imageTagMap, filter map[string][]string) error {
 				if strings.Compare(chartName, chart) == 0 {
 					for _, version := range versions {
 						if strings.Compare(chartVersion, version) == 0 {
-							util.Log(slog.LevelInfo, "collecting images and tags for chart", slog.String("chartName", chartName), slog.String("chartVersion", chartVersion))
+							logger.Log(slog.LevelInfo, "collecting images and tags for chart", slog.String("chartName", chartName), slog.String("chartVersion", chartVersion))
 
 							// There can be multiple values yaml files for single chart. So, making a for loop.
 							for _, valuesYaml := range valuesYamlMaps {

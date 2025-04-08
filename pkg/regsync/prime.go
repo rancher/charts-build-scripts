@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"os/exec"
 
-	"github.com/rancher/charts-build-scripts/pkg/util"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
 type skopeo struct {
@@ -18,19 +18,19 @@ type skopeo struct {
 func checkPrimeImageTags(imageTags map[string][]string) (map[string][]string, error) {
 	var primeImageTags map[string][]string = make(map[string][]string)
 
-	util.Log(slog.LevelInfo, "checking prime image tags")
+	logger.Log(slog.LevelInfo, "checking prime image tags")
 	for image := range imageTags {
 		if image == "" {
 			continue
 		}
 
-		util.Log(slog.LevelDebug, "", slog.String("image", image))
+		logger.Log(slog.LevelDebug, "", slog.String("image", image))
 		tags, err := skopeoListTags(image)
 		if err != nil {
 			return nil, err
 		}
 
-		util.Log(slog.LevelDebug, "", slog.Any("tags", tags))
+		logger.Log(slog.LevelDebug, "", slog.Any("tags", tags))
 		primeImageTags[image] = tags
 	}
 
@@ -73,7 +73,7 @@ func removePrimeImageTags(imageTagMap, newPrimeImgTags map[string][]string) map[
 			primeTags := newPrimeImgTags[image]
 			if exist := primeTagFinder(tag, primeTags); !exist {
 				syncImgTags[image] = append(syncImgTags[image], tag)
-				util.Log(slog.LevelDebug, "", slog.Any("syncImgTags", syncImgTags))
+				logger.Log(slog.LevelDebug, "", slog.Any("syncImgTags", syncImgTags))
 			}
 		}
 	}

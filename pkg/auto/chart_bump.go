@@ -1,8 +1,11 @@
 package auto
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
@@ -11,6 +14,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 )
@@ -24,6 +28,12 @@ type Bump struct {
 	releaseYaml       *Release
 	versionRules      *lifecycle.VersionRules
 	assetsVersionsMap map[string][]lifecycle.Asset
+}
+
+// BumpOutput defines the structure that will be written to bump.json
+type BumpOutput struct {
+	Charts     []string `json:"charts"`      // List of charts processed
+	NewVersion string   `json:"new_version"` // The single version applied
 }
 
 var (
@@ -60,7 +70,7 @@ var (
  */
 
 // SetupBump TODO: add description
-func SetupBump(repoRoot, targetPackage, targetBranch string, chScriptOpts *options.ChartsScriptOptions) (*Bump, error) {
+func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string, chScriptOpts *options.ChartsScriptOptions) (*Bump, error) {
 	bump := &Bump{
 		configOptions: chScriptOpts,
 	}
@@ -70,6 +80,7 @@ func SetupBump(repoRoot, targetPackage, targetBranch string, chScriptOpts *optio
 	if err != nil {
 		return nil, err
 	}
+	logger.Log(ctx, slog.LevelDebug, "", slog.String("branch-line", branch))
 
 	// Load and check the chart name from the target given package
 	if err := bump.parseChartFromPackage(targetPackage); err != nil {
@@ -77,7 +88,7 @@ func SetupBump(repoRoot, targetPackage, targetBranch string, chScriptOpts *optio
 	}
 
 	//Initialize the lifecycle dependencies because of the versioning rules and the index.yaml mapping.
-	dependencies, err := lifecycle.InitDependencies(repoRoot, filesystem.GetFilesystem(repoRoot), branch, bump.targetChart)
+	dependencies, err := lifecycle.InitDependencies(ctx, repoRoot, filesystem.GetFilesystem(repoRoot), branch, bump.targetChart)
 	if err != nil {
 		err = fmt.Errorf("failure at SetupBump: %w ", err)
 		return bump, err
@@ -87,7 +98,7 @@ func SetupBump(repoRoot, targetPackage, targetBranch string, chScriptOpts *optio
 	bump.assetsVersionsMap = dependencies.AssetsVersionsMap
 
 	// Load object with target package information
-	packages, err := charts.GetPackages(repoRoot, targetPackage)
+	packages, err := charts.GetPackages(ctx, repoRoot, targetPackage)
 	if err != nil {
 		return nil, err
 	}
@@ -207,104 +218,128 @@ func checkUpstreamOptions(options *options.UpstreamOptions) error {
 
 // BumpChart will execute a similar approach as the defined development workflow for chartowners.
 // The main difference is that between the steps: (make prepare and make patch) we will calculate the next version to release.
-func (b *Bump) BumpChart() error {
-
+func (b *Bump) BumpChart(ctx context.Context) error {
+	// List the possible target charts
 	targetCharts, err := chartsTargets(b.targetChart)
 	if err != nil {
+		logger.Log(ctx, slog.LevelError, "error while getting target charts", slog.String("targetChart", b.targetChart))
 		return err
 	}
+	logger.Log(ctx, slog.LevelInfo, "", slog.Any("targetCharts", targetCharts))
 
-	git, err := git.OpenGitRepo(".")
+	// Open local git repository
+	git, err := git.OpenGitRepo(ctx, ".")
 	if err != nil {
+		logger.Log(ctx, slog.LevelError, "error while opening git repository", logger.Err(err))
 		return err
 	}
 
 	// make prepare
-	if err := b.Pkg.Prepare(); err != nil {
-		err = fmt.Errorf("error while preparing package: %w", err)
+	if err := b.Pkg.Prepare(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while preparing package", logger.Err(err))
 		return err
 	}
 
 	if err := git.AddAndCommit("make prepare"); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while adding and committing after make prepare", logger.Err(err))
 		return err
 	}
 
 	// Download logo at assets/logos (webhook and fleet are exceptions)
 	if b.targetChart != "fleet" && b.targetChart != "rancher-webhook" {
-		if err := b.Pkg.DownloadIcon(); err != nil {
-			err = fmt.Errorf("error while downloading icon: %w", err)
+		if err := b.Pkg.DownloadIcon(ctx); err != nil {
+			logger.Log(ctx, slog.LevelError, "error while downloading icon", logger.Err(err))
 			return err
 		}
 	}
 
-	if clean, _ := git.StatusProcelain(); !clean {
+	if clean, _ := git.StatusProcelain(ctx); !clean {
+		logger.Log(ctx, slog.LevelDebug, "git is not clean - icon downloaded")
 		if err := git.AddAndCommit("make icon"); err != nil {
+			logger.Log(ctx, slog.LevelError, "error while add/commit icon", logger.Err(err))
 			return err
 		}
 	}
 
 	// Calculate the next version to release
-	if err := b.calculateNextVersion(); err != nil {
+	if err := b.calculateNextVersion(ctx); err != nil {
 		return err
 	}
 
 	// make patch - overwriting logo path
-	if err := b.Pkg.GeneratePatch(); err != nil {
+	if err := b.Pkg.GeneratePatch(ctx); err != nil {
 		err = fmt.Errorf("error while patching package: %w", err)
 		return err
 	}
 
-	if clean, _ := git.StatusProcelain(); !clean {
+	if clean, _ := git.StatusProcelain(ctx); !clean {
 		if err := git.AddAndCommit("make patch"); err != nil {
 			return err
 		}
 	}
 
 	// make clean
-	if err := b.Pkg.Clean(); err != nil {
-		err = fmt.Errorf("error while cleaning package: %w", err)
+	if err := b.Pkg.Clean(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while cleaning package", logger.Err(err))
 		return err
 	}
 
 	// make charts - generate new assets and charts overwriting logo
-	if err := b.Pkg.GenerateCharts(b.configOptions.OmitBuildMetadataOnExport); err != nil {
-		err = fmt.Errorf("error while generating chart: %w", err)
+	if err := b.Pkg.GenerateCharts(ctx, b.configOptions.OmitBuildMetadataOnExport); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while generating charts", logger.Err(err))
 		return err
 	}
 
+	if clean, _ := git.StatusProcelain(ctx); clean {
+		logger.Log(ctx, slog.LevelError, "make charts did not generate any changes")
+		return errors.New("make charts did not generate any changes")
+	}
+
 	if err := git.AddAndCommit("make chart"); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while adding and committing after make chart", logger.Err(err))
 		return err
 	}
 
 	bumpVersion := b.Pkg.AutoGeneratedBumpVersion.String()
 	newBranch := "auto-bump-" + b.targetChart + "-" + bumpVersion
+	logger.Log(ctx, slog.LevelInfo, "", slog.String("newBranch", newBranch))
+
 	if err := git.CreateAndCheckoutBranch(newBranch); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while creating and checking out new branch", logger.Err(err))
 		return err
 	}
 
+	// TODO: Create option to skip removal of -RC (rancher-webhook for example)
 	if strings.Contains(b.versions.latest.txt, "-rc") {
+		logger.Log(ctx, slog.LevelInfo, "removing last -RC version", slog.String("latestVersion", b.versions.latest.txt))
 		if err := b.makeRemove(targetCharts, git); err != nil {
+			logger.Log(ctx, slog.LevelError, "error while removing -RC version", logger.Err(err))
 			return err
 		}
 	}
 
 	// modify the release.yaml
-	if err := b.updateReleaseYaml(targetCharts); err != nil {
-		err = fmt.Errorf("error while updating release.yaml: %w", err)
+	if err := b.updateReleaseYaml(ctx, targetCharts); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while updating release.yaml", logger.Err(err))
 		return err
+	}
+
+	if clean, _ := git.StatusProcelain(ctx); clean {
+		logger.Log(ctx, slog.LevelError, "update release.yaml did not generate any changes")
+		return errors.New("update release.yaml did not generate any changes")
 	}
 
 	if err := git.AddAndCommit("update release.yaml"); err != nil {
 		return err
 	}
 
-	// This will be used by the GHA job to update the auto generated Pull Request
-	fmt.Printf("\n%s", bumpVersion)
-
-	return nil
+	logger.Log(ctx, slog.LevelInfo, "bump version", slog.String("bumpVersion", bumpVersion))
+	return writeBumpJSON(targetCharts, bumpVersion)
 }
 
-func (b *Bump) updateReleaseYaml(targetCharts []string) error {
+func (b *Bump) updateReleaseYaml(ctx context.Context, targetCharts []string) error {
+	logger.Log(ctx, slog.LevelInfo, "update release.yaml")
+
 	for _, chart := range targetCharts {
 		b.releaseYaml.Chart = chart
 		if err := b.releaseYaml.UpdateReleaseYaml(); err != nil {
@@ -422,5 +457,25 @@ func (b *Bump) makeRemove(targetCharts []string, g *git.Git) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// writeBumpJSON will write the bump.json file with the new version auto bumped
+func writeBumpJSON(targetCharts []string, bumpVersion string) error {
+
+	dataToWrite := BumpOutput{
+		Charts:     targetCharts,
+		NewVersion: bumpVersion,
+	}
+
+	jsonData, err := json.MarshalIndent(dataToWrite, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(path.BumpVersionFile, jsonData, 0644); err != nil {
+		return err
+	}
+
 	return nil
 }

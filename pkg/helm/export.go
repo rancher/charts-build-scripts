@@ -1,7 +1,9 @@
 package helm
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
@@ -10,8 +12,8 @@ import (
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/sirupsen/logrus"
 	helmAction "helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
@@ -29,9 +31,9 @@ var (
 
 // ExportHelmChart creates a Helm chart archive and an unarchived Helm chart at RepositoryAssetDirpath and RepositoryChartDirPath
 // helmChartPath is a relative path (rooted at the package level) that contains the chart.
-func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageVersion *int, version *semver.Version, autoGenBumpVersion *semver.Version, upstreamChartVersion string, omitBuildMetadata bool) error {
+func ExportHelmChart(ctx context.Context, rootFs, fs billy.Filesystem, helmChartPath string, packageVersion *int, version *semver.Version, autoGenBumpVersion *semver.Version, upstreamChartVersion string, omitBuildMetadata bool) error {
 
-	if err := removeOrigFiles(filesystem.GetAbsPath(fs, helmChartPath)); err != nil {
+	if err := removeOrigFiles(ctx, filesystem.GetAbsPath(fs, helmChartPath)); err != nil {
 		return fmt.Errorf("failed to remove .orig files: %s", err)
 	}
 
@@ -55,23 +57,24 @@ func ExportHelmChart(rootFs, fs billy.Filesystem, helmChartPath string, packageV
 	if err := handleDirStructure(rootFs, chartAssetsDirpath, chartChartsDirpath); err != nil {
 		return err
 	}
-	defer filesystem.PruneEmptyDirsInPath(rootFs, chartAssetsDirpath)
-	defer filesystem.PruneEmptyDirsInPath(rootFs, chartChartsDirpath)
+	defer filesystem.PruneEmptyDirsInPath(ctx, rootFs, chartAssetsDirpath)
+	defer filesystem.PruneEmptyDirsInPath(ctx, rootFs, chartChartsDirpath)
 
-	tgzPath, err := GenerateArchive(rootFs, fs, helmChartPath, chartAssetsDirpath, &chartVersion)
+	tgzPath, err := GenerateArchive(ctx, rootFs, fs, helmChartPath, chartAssetsDirpath, &chartVersion)
 	if err != nil {
 		return err
 	}
 	// Unarchive the generated package
-	if err := filesystem.UnarchiveTgz(rootFs, tgzPath, "", chartChartsDirpath, true); err != nil {
+	if err := filesystem.UnarchiveTgz(ctx, rootFs, tgzPath, "", chartChartsDirpath, true); err != nil {
 		return err
 	}
-	logrus.Infof("Generated chart: %s", chartChartsDirpath)
+
+	logger.Log(ctx, slog.LevelInfo, "exported chart", slog.String("chartChartsDirPath", chartChartsDirpath), slog.String("tgzPath", tgzPath))
 	return nil
 }
 
 // removeOrigFiles removes all files ending with .orig in the specified directory
-func removeOrigFiles(dir string) error {
+func removeOrigFiles(ctx context.Context, dir string) error {
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -80,7 +83,8 @@ func removeOrigFiles(dir string) error {
 			if err := os.Remove(path); err != nil {
 				return err
 			}
-			logrus.Infof("Removed file: %s", path)
+
+			logger.Log(ctx, slog.LevelDebug, "removed file", slog.String("path", path))
 		}
 		return nil
 	})
@@ -156,7 +160,7 @@ func handleDirStructure(rootFs billy.Filesystem, chartAssetsDirpath, chartCharts
 
 // GenerateArchive produces a Helm chart archive. If an archive exists at that path already, it does a deep check of the internal
 // contents of the archive and only updates the archive if something within it has been changed.
-func GenerateArchive(rootFs, fs billy.Filesystem, helmChartPath, chartAssetsDirpath string, chartVersion *string) (string, error) {
+func GenerateArchive(ctx context.Context, rootFs, fs billy.Filesystem, helmChartPath, chartAssetsDirpath string, chartVersion *string) (string, error) {
 	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
 	// Run helm package
 	pkg := helmAction.NewPackage()
@@ -178,7 +182,7 @@ func GenerateArchive(rootFs, fs billy.Filesystem, helmChartPath, chartAssetsDirp
 	// Path where we expect the tgz file to be deposited
 	tgzPath := filepath.Join(chartAssetsDirpath, filepath.Base(tempTgzPath))
 	// Check if original tgz existed
-	exists, err := filesystem.PathExists(rootFs, tgzPath)
+	exists, err := filesystem.PathExists(ctx, rootFs, tgzPath)
 	if err != nil {
 		return "", err
 	}
@@ -186,7 +190,7 @@ func GenerateArchive(rootFs, fs billy.Filesystem, helmChartPath, chartAssetsDirp
 	shouldUpdateArchive := !exists
 	if exists {
 		// Check if the tgz has been modified
-		identical, err := filesystem.CompareTgzs(rootFs, tgzPath, tempTgzPath)
+		identical, err := filesystem.CompareTgzs(ctx, rootFs, tgzPath, tempTgzPath)
 		if err != nil {
 			return "", fmt.Errorf("encountered error while trying to compare contents of %s against %s: %v", tgzPath, tempTgzPath, err)
 		}
@@ -194,10 +198,10 @@ func GenerateArchive(rootFs, fs billy.Filesystem, helmChartPath, chartAssetsDirp
 		shouldUpdateArchive = !identical
 	}
 	if shouldUpdateArchive {
-		filesystem.CopyFile(rootFs, tempTgzPath, tgzPath)
-		logrus.Infof("Generated archive: %s", tgzPath)
+		filesystem.CopyFile(ctx, rootFs, tempTgzPath, tgzPath)
+		logger.Log(ctx, slog.LevelInfo, "generated archive", slog.String("tgzPath", tgzPath))
 	} else {
-		logrus.Infof("Archive is up-to-date: %s", tgzPath)
+		logger.Log(ctx, slog.LevelInfo, "archive is up-to-date", slog.String("tgzPath", tgzPath))
 	}
 	return tgzPath, nil
 }

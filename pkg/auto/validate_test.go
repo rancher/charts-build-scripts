@@ -1,6 +1,7 @@
 package auto
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -301,9 +302,11 @@ func Test_validateReleaseYaml(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.i.validation.validateReleaseYaml(tt.i.releaseOpts)
+			err := tt.i.validation.validateReleaseYaml(ctx, tt.i.releaseOpts)
 			if tt.ex.err == nil {
 				assert.Nil(t, err, "expected nil error")
 			} else {
@@ -552,9 +555,10 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.i.validation.checkMinorPatchVersion(tt.i.version, tt.i.releasedVersions)
+			err := tt.i.validation.checkMinorPatchVersion(ctx, tt.i.version, tt.i.releasedVersions)
 			if tt.ex.err == nil {
 				assert.Nil(t, err, "expected nil error")
 			} else {

@@ -1,6 +1,7 @@
 package lifecycle
 
 import (
+	"context"
 	"testing"
 
 	"github.com/go-git/go-billy/v5"
@@ -55,7 +56,7 @@ func Test_rules(t *testing.T) {
 			i: input{
 				fs:            fs,
 				branchVersion: "99.99",
-				mockLoad: func(fs billy.Filesystem) (*VersionRules, error) {
+				mockLoad: func(ctx context.Context, fs billy.Filesystem) (*VersionRules, error) {
 					return &VersionRules{
 						Rules: map[string]Version{
 							"2.9": {Min: "101", Max: "105"},
@@ -73,7 +74,7 @@ func Test_rules(t *testing.T) {
 			i: input{
 				fs:            fs,
 				branchVersion: "2.9",
-				mockLoad: func(fs billy.Filesystem) (*VersionRules, error) {
+				mockLoad: func(ctx context.Context, fs billy.Filesystem) (*VersionRules, error) {
 					return &VersionRules{
 						Rules: map[string]Version{
 							"2.9": {Min: "104.0.0", Max: "105.0.0"},
@@ -104,7 +105,7 @@ func Test_rules(t *testing.T) {
 			i: input{
 				fs:            fs,
 				branchVersion: "2.9",
-				mockLoad: func(fs billy.Filesystem) (*VersionRules, error) {
+				mockLoad: func(ctx context.Context, fs billy.Filesystem) (*VersionRules, error) {
 					return &VersionRules{
 						Rules: map[string]Version{
 							"2.9": {Min: "104.0.0", Max: "105.0.0"},
@@ -139,7 +140,7 @@ func Test_rules(t *testing.T) {
 			i: input{
 				fs:            fs,
 				branchVersion: "2.10",
-				mockLoad: func(fs billy.Filesystem) (*VersionRules, error) {
+				mockLoad: func(ctx context.Context, fs billy.Filesystem) (*VersionRules, error) {
 					return &VersionRules{
 						Rules: map[string]Version{
 							"2.10": {Min: "105.0.0", Max: "106.0.0"},
@@ -176,7 +177,7 @@ func Test_rules(t *testing.T) {
 			i: input{
 				fs:            fs,
 				branchVersion: "2.7",
-				mockLoad: func(fs billy.Filesystem) (*VersionRules, error) {
+				mockLoad: func(ctx context.Context, fs billy.Filesystem) (*VersionRules, error) {
 					return &VersionRules{
 						Rules: map[string]Version{
 							"2.10": {Min: "105.0.0", Max: "106.0.0"},
@@ -217,7 +218,7 @@ func Test_rules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := &Dependencies{RootFs: tt.i.fs}
-			vr, err := d.rules(tt.i.branchVersion, tt.i.mockLoad)
+			vr, err := d.rules(context.Background(), tt.i.branchVersion, tt.i.mockLoad)
 			if tt.ex.err == nil {
 				assert.Nil(t, err, "Expected nil error")
 			} else {

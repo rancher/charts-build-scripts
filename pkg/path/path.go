@@ -63,18 +63,24 @@ const (
 	// RepositoryLogosDir is a directory on your Staging/Live branch that contains the files with the logos of each chart
 	RepositoryLogosDir = "assets/logos"
 
-	// RepositoryStateFile is a file to hold the current status of the released and developed assets versions
-	RepositoryStateFile = "state.json"
-
 	// RepositoryReleaseYaml is the file on your Staging/Live branch that contains the release information
 	RepositoryReleaseYaml = "release.yaml"
 
-	// VersionRulesFile is the file that contains the version rules for the current branch on charts-build-scripts
-	VersionRulesFile = "version_rules.json"
-
-	// RegsyncYamlFile file is the file that contains the regsync configuration
-	RegsyncYamlFile = "regsync.yaml"
-
 	// SignedImagesFile is the file that contains the signed images that were bypassed in the last release
 	SignedImagesFile = "signed-images.txt"
+
+	// VersionRulesFile is the file that contains the version rules for the current branch on charts-build-scripts
+	VersionRulesFile = "config/version_rules.json"
+
+	// RepositoryStateFile is a file to hold the current status of the released and developed assets versions
+	RepositoryStateFile = "config/state.json"
+
+	// BumpVersionFile is a file to hold the version that was bumped
+	BumpVersionFile = "config/bump_version.json"
+
+	// ConfigurationYamlFile is the file that contains the configuration for the charts-build-scripts
+	ConfigurationYamlFile = "config/configuration.yaml"
+
+	// RegsyncYamlFile file is the file that contains the regsync configuration
+	RegsyncYamlFile = "config/regsync.yaml"
 )

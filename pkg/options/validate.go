@@ -1,6 +1,7 @@
 package options
 
 import (
+	"context"
 	"os"
 
 	"github.com/hashicorp/go-version"
@@ -67,9 +68,9 @@ func (r ReleaseOptions) Merge(new ReleaseOptions) ReleaseOptions {
 }
 
 // LoadReleaseOptionsFromFile unmarshalls the struct found at the file to YAML and reads it into memory
-func LoadReleaseOptionsFromFile(fs billy.Filesystem, path string) (ReleaseOptions, error) {
+func LoadReleaseOptionsFromFile(ctx context.Context, fs billy.Filesystem, path string) (ReleaseOptions, error) {
 	var releaseOptions ReleaseOptions
-	exists, err := filesystem.PathExists(fs, path)
+	exists, err := filesystem.PathExists(ctx, fs, path)
 	if err != nil {
 		return releaseOptions, err
 	}
@@ -113,14 +114,14 @@ func CompareVersions(a string, b string) int {
 }
 
 // WriteToFile marshals the struct to yaml and writes it into the path specified
-func (r ReleaseOptions) WriteToFile(fs billy.Filesystem, path string) error {
+func (r ReleaseOptions) WriteToFile(ctx context.Context, fs billy.Filesystem, path string) error {
 	r.SortBySemver()
 
 	releaseOptionsBytes, err := yaml.Marshal(r)
 	if err != nil {
 		return err
 	}
-	exists, err := filesystem.PathExists(fs, path)
+	exists, err := filesystem.PathExists(ctx, fs, path)
 	if err != nil {
 		return err
 	}

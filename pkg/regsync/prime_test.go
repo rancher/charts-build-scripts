@@ -1,6 +1,7 @@
 package regsync
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -169,10 +170,10 @@ func Test_removePrimeImageTags(t *testing.T) {
 			},
 		},
 	}
-
+	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			notPrimeImageTags := removePrimeImageTags(tt.input.imageTagMap, tt.input.primeImageTags)
+			notPrimeImageTags := removePrimeImageTags(ctx, tt.input.imageTagMap, tt.input.primeImageTags)
 			require.Equal(t, tt.expected.result, notPrimeImageTags)
 		})
 	}

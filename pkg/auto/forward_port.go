@@ -1,11 +1,13 @@
 package auto
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
 /**
@@ -15,25 +17,24 @@ import (
 
 // CreateForwardPortStructure will create the ForwardPort struct with access to the necessary dependencies.
 // It will also check if yq command is installed on the system.
-func CreateForwardPortStructure(ld *lifecycle.Dependencies, assetsToPort map[string][]lifecycle.Asset, forkURL string) (*ForwardPort, error) {
+func CreateForwardPortStructure(ctx context.Context, ld *lifecycle.Dependencies, assetsToPort map[string][]lifecycle.Asset, forkURL string) (*ForwardPort, error) {
+	logger.Log(ctx, slog.LevelInfo, "preparing forward port data")
+
 	// is yq installed?
-	yqPath, err := whichYQCommand()
+	yqPath, err := whichYQCommand(ctx)
 	if err != nil {
-		logrus.Error("go install github.com/mikefarah/yq/v4@latest")
 		return nil, err
 	}
 
 	_, ok := ld.Git.Remotes[forkURL]
 	if !ok {
 		errGitRemote := fmt.Errorf("Remote %s not found in git remotes, you need to configure your fork on your git remote references", forkURL)
-		logrus.Error(errGitRemote)
 		return nil, errGitRemote
 	}
 
 	isForkRemoteConfigured := git.CheckForValidForkRemote(chartsRepoURL, forkURL, chartsRepoName)
 	if !isForkRemoteConfigured {
 		errRemoteConfig := fmt.Errorf("Remote %s not configured correctly, you need to configure your fork on your git remote references", forkURL)
-		logrus.Error(errRemoteConfig)
 		return nil, errRemoteConfig
 	}
 
@@ -48,17 +49,18 @@ func CreateForwardPortStructure(ld *lifecycle.Dependencies, assetsToPort map[str
 }
 
 // ExecuteForwardPort will execute all steps to organize and create the forward-port PRs
-func (f *ForwardPort) ExecuteForwardPort(chart string) error {
+func (f *ForwardPort) ExecuteForwardPort(ctx context.Context, chart string) error {
+	logger.Log(ctx, slog.LevelInfo, "starting forward port")
+
 	// Get the forward port script commands
-	commands, err := f.createForwardPortCommands(chart)
+	commands, err := f.createForwardPortCommands(ctx, chart)
 	if err != nil {
-		logrus.Errorf("Error while creating forward-port commands: %v", err)
 		return err
 	}
 	// Organize the commands into pull requests grouping by chart with it's dependencies
 	f.organizePullRequestsByChart(commands)
 	// Execute the forward port commands
-	return f.executeForwardPorts()
+	return f.executeForwardPorts(ctx)
 }
 
 // organizePullRequests will organize the commands into pull requests
@@ -93,71 +95,63 @@ func (f *ForwardPort) organizePullRequestsByChart(commands []Command) {
 // After each forward-port execution it will add and commit the changes to the git repository.
 // It will push the branch to the remote repository and delete the local branch before moving,
 // to the next Pull Request.
-func (f *ForwardPort) executeForwardPorts() error {
+func (f *ForwardPort) executeForwardPorts(ctx context.Context) error {
 	// save the original branch to change back after forward-port
 	originalBranch := f.git.Branch
 
 	// create log file
-	fpLogs, err := lifecycle.CreateLogs("forward-ported", "")
+	fpLogs, err := lifecycle.CreateLogs(ctx, "forward-ported", "")
 	if err != nil {
 		return err
 	}
 	defer fpLogs.File.Close()
 
 	// write log title and header
-	fpLogs.WriteHEAD(f.VR, "Forward-Ported Assets")
+	fpLogs.WriteHEAD(ctx, f.VR, "Forward-Ported Assets")
 
 	for asset, pr := range f.pullRequests {
-		fpLogs.Write(asset, "INFO")
+		fpLogs.Write(ctx, asset, "INFO")
 
 		// open and check if it is clean the git repo
-		if err := f.createNewBranchToForwardPort(pr.branch); err != nil {
-			logrus.Errorf("failure at createNewBranchToForwardPort; err: %v", err)
+		if err := f.createNewBranchToForwardPort(ctx, pr.branch); err != nil {
 			return err
 		}
 		// clean release.yaml in the new branch
-		if err := prepareReleaseYaml(); err != nil {
-			logrus.Errorf("failure at prepareReleaseYaml; err: %v", err)
+		if err := prepareReleaseYaml(ctx); err != nil {
 			return err
 		}
 		// git add && commit cleaned release.yaml
 		if err := f.git.AddAndCommit("cleaning release.yaml"); err != nil {
-			logrus.Errorf("failure at AddAndCommit; err: %v", err)
 			return err
 		}
 
-		fpLogs.Write("Branch: "+pr.branch, "INFO")
+		fpLogs.Write(ctx, "Branch: "+pr.branch, "INFO")
 
 		for _, command := range pr.commands {
 			// execute make forward-port
-			if err := executeCommand(command.Command, f.yqPath); err != nil {
-				logrus.Errorf("failure at executeCommand; err: %v", err)
+			if err := executeCommand(ctx, command.Command, f.yqPath); err != nil {
 				return err
 			}
 			// git add && commit the changes
 			msg := "forward-port " + command.Chart + " " + command.Version
 			if err := f.git.AddAndCommit(msg); err != nil {
-				logrus.Errorf("failure at AddAndCommit; err: %v", err)
 				return err
 			}
 			// Log this so later we can merge the PRs
-			fpLogs.Write(msg, "")
+			fpLogs.Write(ctx, msg, "")
 		}
 		// push branch
 		if err := f.git.PushBranch(f.git.Remotes[f.forkRemoteURL], pr.branch); err != nil {
-			logrus.Errorf("failure at PushBranch; err: %v", err)
 			return err
 		}
 		// save to log file branch
-		fpLogs.Write("PUSHED", "INFO")
+		fpLogs.Write(ctx, "PUSHED", "INFO")
 		// Change back to the original branch to avoid conflicts
 		if err := f.git.CheckoutBranch(originalBranch); err != nil {
-			logrus.Errorf("failure at CheckoutBranch; err: %v", err)
 			return err
 		}
 		// delete local created and pushed branch
 		if err := f.git.DeleteBranch(pr.branch); err != nil {
-			logrus.Errorf("failure at DeleteBranch; err: %v", err)
 			return err
 		}
 	}

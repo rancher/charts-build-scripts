@@ -1,6 +1,7 @@
 package update
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"os"
@@ -25,7 +26,7 @@ var (
 )
 
 // ApplyUpstreamTemplate updates a charts-build-scripts repository based on the Go templates tracked in this repository
-func ApplyUpstreamTemplate(rootFs billy.Filesystem, chartsScriptOptions options.ChartsScriptOptions) error {
+func ApplyUpstreamTemplate(ctx context.Context, rootFs billy.Filesystem, chartsScriptOptions options.ChartsScriptOptions) error {
 	for _, dir := range []string{"template", "generated"} {
 		if err := rootFs.MkdirAll(dir, os.ModePerm); err != nil {
 			return fmt.Errorf("unable to create empty directory at %s: %v", filesystem.GetAbsPath(rootFs, dir), err)
@@ -33,20 +34,20 @@ func ApplyUpstreamTemplate(rootFs billy.Filesystem, chartsScriptOptions options.
 		defer filesystem.RemoveAll(rootFs, dir)
 	}
 
-	err := pullUpstream(rootFs, rootFs, "template")
+	err := pullUpstream(ctx, rootFs, rootFs, "template")
 	if err != nil {
 		return err
 	}
 
-	err = applyTemplate(rootFs, chartsScriptOptions, "template", "generated")
+	err = applyTemplate(ctx, rootFs, chartsScriptOptions, "template", "generated")
 	if err != nil {
 		return fmt.Errorf("could not apply template: %v", err)
 	}
 
-	return filesystem.CopyDir(rootFs, "generated", ".")
+	return filesystem.CopyDir(ctx, rootFs, "generated", ".")
 }
 
-func pullUpstream(rootFs billy.Filesystem, pkgFs billy.Filesystem, templateDir string) error {
+func pullUpstream(ctx context.Context, rootFs billy.Filesystem, pkgFs billy.Filesystem, templateDir string) error {
 	upstreamTemplateDir := filepath.Join(ChartsBuildScriptRepositoryTemplatesDirectory, ChartsBuildScriptRepositoryTemplateDirectory)
 
 	// Get upstream contents at templates/template
@@ -61,20 +62,20 @@ func pullUpstream(rootFs billy.Filesystem, pkgFs billy.Filesystem, templateDir s
 	}
 
 	// Pull them into the templateDir specified
-	err = templateRepository.Pull(rootFs, pkgFs, templateDir)
+	err = templateRepository.Pull(ctx, rootFs, pkgFs, templateDir)
 	if err != nil {
 		return fmt.Errorf("unable to pull the charts build script repository: %s", err)
 	}
 	return nil
 }
 
-func applyTemplate(pkgFs billy.Filesystem, chartsScriptOptions options.ChartsScriptOptions, templateDir string, generatedDir string) error {
+func applyTemplate(ctx context.Context, pkgFs billy.Filesystem, chartsScriptOptions options.ChartsScriptOptions, templateDir string, generatedDir string) error {
 	tempFs := filesystem.GetFilesystem(filesystem.GetAbsPath(pkgFs, generatedDir))
-	applySingleTemplate := func(fs billy.Filesystem, path string, isDir bool) error {
+	applySingleTemplate := func(ctx context.Context, fs billy.Filesystem, path string, isDir bool) error {
 		if isDir {
 			return nil
 		}
-		repoPath, err := filesystem.MovePath(path, templateDir, "")
+		repoPath, err := filesystem.MovePath(ctx, path, templateDir, "")
 		if err != nil {
 			return fmt.Errorf("unable to get path of %s within %s: %s", repoPath, templateDir, err)
 		}
@@ -92,5 +93,5 @@ func applyTemplate(pkgFs billy.Filesystem, chartsScriptOptions options.ChartsScr
 		}
 		return nil
 	}
-	return filesystem.WalkDir(pkgFs, templateDir, applySingleTemplate)
+	return filesystem.WalkDir(ctx, pkgFs, templateDir, applySingleTemplate)
 }

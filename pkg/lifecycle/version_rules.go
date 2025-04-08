@@ -1,17 +1,19 @@
 package lifecycle
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -39,12 +41,12 @@ type VersionRules struct {
 
 // rules will check and convert the provided branch version,
 // create the hard-coded rules for the charts repository and calculate the minimum and maximum versions according to the branch version.
-func (d *Dependencies) rules(branchVersion string, jsonLoad jsonLoader) (*VersionRules, error) {
+func (d *Dependencies) rules(ctx context.Context, branchVersion string, jsonLoad jsonLoader) (*VersionRules, error) {
 	if branchVersion == "" {
 		return nil, errorNoBranchVersion
 	}
 
-	v, err := jsonLoad(d.RootFs)
+	v, err := jsonLoad(ctx, d.RootFs)
 	if err != nil {
 		return v, err
 	}
@@ -66,15 +68,15 @@ func (d *Dependencies) rules(branchVersion string, jsonLoad jsonLoader) (*Versio
 	return v, nil
 }
 
-type jsonLoader func(fs billy.Filesystem) (*VersionRules, error)
+type jsonLoader func(ctx context.Context, fs billy.Filesystem) (*VersionRules, error)
 
 // loadFromJSON will load the version rules from version_rules.json file at charts repository
-func loadFromJSON(fs billy.Filesystem) (*VersionRules, error) {
+func loadFromJSON(ctx context.Context, fs billy.Filesystem) (*VersionRules, error) {
 	vr := &VersionRules{
 		Rules: make(map[string]Version),
 	}
 
-	if exist, err := filesystem.PathExists(fs, path.VersionRulesFile); err != nil || !exist {
+	if exist, err := filesystem.PathExists(ctx, fs, path.VersionRulesFile); err != nil || !exist {
 		return nil, err
 	}
 
@@ -159,10 +161,10 @@ func (v *VersionRules) CheckChartVersionForLifecycle(chartVersion string) bool {
 }
 
 // CheckChartVersionToRelease will return if the current versyion being analyzed is the one to be released or not
-func (v *VersionRules) CheckChartVersionToRelease(chartVersion string) (bool, error) {
+func (v *VersionRules) CheckChartVersionToRelease(ctx context.Context, chartVersion string) (bool, error) {
 	chartVersionInt, err := strconv.Atoi(strings.Split(chartVersion, ".")[0])
 	if err != nil {
-		logrus.Errorf("failed to check version to release for chartVersion:%s with error:%v", chartVersion, err)
+		logger.Log(ctx, slog.LevelError, "failed to check version to release for chartVersion", slog.String("chartVersion", chartVersion), logger.Err(err))
 		return false, err
 	}
 	return chartVersionInt == (v.MaxVersion - 1), nil

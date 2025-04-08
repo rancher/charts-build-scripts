@@ -3,15 +3,19 @@ package regsync
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/rancher/charts-build-scripts/pkg/git"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 )
@@ -39,7 +43,7 @@ type Config struct {
 }
 
 func readAllowTagsFromRegsyncYaml() (map[string][]string, error) {
-	f, err := os.Open("regsync.yaml")
+	f, err := os.Open(path.RegsyncYamlFile)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +78,7 @@ var chartsToIgnoreTags = map[string]string{
 }
 
 // GenerateConfigFile creates a regsync config file out of the current branch.
-func GenerateConfigFile() error {
+func GenerateConfigFile(ctx context.Context) error {
 	// Read the initial regsync.yaml file
 	initialConfig, err := readAllowTagsFromRegsyncYaml()
 	if err != nil {
@@ -92,62 +96,63 @@ func GenerateConfigFile() error {
 		return err
 	}
 
-	git, err := git.OpenGitRepo(".")
+	git, err := git.OpenGitRepo(ctx, ".")
 	if err != nil {
 		return err
 	}
 
 	// Must add and commit the initial changes to the regsync.yaml file
-	if clean, _ := git.StatusProcelain(); clean {
-		fmt.Println("FATAL: should have changes to commit")
+	if clean, _ := git.StatusProcelain(ctx); clean {
+		logger.Log(ctx, slog.LevelError, "FATAL: should have changes to commit")
 		return errors.New("FATAL: should have changes to commit")
 	}
 
 	if err := git.AddAndCommit("regsync: images and tags present on the current release"); err != nil {
-		fmt.Println(err.Error())
+		logger.Log(ctx, slog.LevelError, "failed to add/commit images and tags on the current release", logger.Err(err))
 		return err
 	}
 
 	// Use skopeo lits-tags to retrieve ALL tags for the images at prime registry
-	primeImgTags, err := checkPrimeImageTags(imageTagMap)
+	primeImgTags, err := checkPrimeImageTags(ctx, imageTagMap)
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Log(ctx, slog.LevelError, "failed to check prime image tags", logger.Err(err))
 		return err
 	}
 
 	// Remove the prime image tags from the imageTagMap
-	syncImgTags := removePrimeImageTags(imageTagMap, primeImgTags)
+	syncImgTags := removePrimeImageTags(ctx, imageTagMap, primeImgTags)
 
 	// Update the regsync config file excluding the prime images and tags
 	if err := createRegSyncConfigFile(syncImgTags); err != nil {
-		fmt.Println(err.Error())
+		logger.Log(ctx, slog.LevelError, "failed to create regsync config file", logger.Err(err))
 		return err
 	}
 
 	// Must add and commit the final changes to the regsync.yaml file
-	if clean, _ := git.StatusProcelain(); clean {
-		fmt.Println("FATAL: should have changes to commit")
+	if clean, _ := git.StatusProcelain(ctx); clean {
+		logger.Log(ctx, slog.LevelError, "FATAL: should have changes to commit")
 		return errors.New("FATAL: should have changes to commit")
 	}
 
 	if err := git.AddAndCommit("regsync: images to be synced"); err != nil {
-		fmt.Println(err.Error())
+		logger.Log(ctx, slog.LevelError, "failed to add/commit images to be synced", logger.Err(err))
 		return err
 	}
 
 	// Final state read of regsync.yaml
 	finalConfig, err := readAllowTagsFromRegsyncYaml()
 	if err != nil {
-		fmt.Println(err.Error())
+		logger.Log(ctx, slog.LevelError, "failed to read final regsync.yaml", logger.Err(err))
 		return err
 	}
 
 	// Compare the initial and final config to see if there are any changes
 	if !allowedTagsChanged(initialConfig, finalConfig) {
+		// TODO: Change the way this is handled
 		fmt.Println("NO")
 		return nil
 	}
-
+	// TODO: Change the way this is handled
 	fmt.Println("YES")
 	return nil
 }
@@ -240,7 +245,7 @@ func walkAssetsFolder(imageTagMap map[string][]string) error {
 
 // createRegSyncConfigFile create the regsync configuration file from the image list map provided.
 func createRegSyncConfigFile(imageTagMap map[string][]string) error {
-	filename := "regsync.yaml"
+	filename := path.RegsyncYamlFile
 
 	file, err := os.Create(filename)
 	if err != nil {

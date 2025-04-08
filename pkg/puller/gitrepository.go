@@ -1,7 +1,9 @@
 package puller
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
@@ -9,9 +11,9 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -22,13 +24,16 @@ const (
 // GetGithubRepository gets a GitHub repository from options
 func GetGithubRepository(upstreamOptions options.UpstreamOptions, branch *string) (GithubRepository, error) {
 	var githubRepo GithubRepository
+
 	if !strings.HasSuffix(upstreamOptions.URL, ".git") {
 		return githubRepo, fmt.Errorf("URL does not seem to point to a Git repository: %s", upstreamOptions.URL)
 	}
+
 	splitURL := strings.Split(strings.TrimSuffix(upstreamOptions.URL, ".git"), "/")
 	if len(splitURL) < 2 {
 		return githubRepo, fmt.Errorf("URL does not seem to be valid for a Git repository: %s", upstreamOptions.URL)
 	}
+
 	return GithubRepository{
 		Subdirectory: upstreamOptions.Subdirectory,
 		Commit:       upstreamOptions.Commit,
@@ -77,33 +82,43 @@ func (r GithubRepository) GetSSHURL() string {
 }
 
 // Pull grabs the repository
-func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
+func (r GithubRepository) Pull(ctx context.Context, rootFs, fs billy.Filesystem, path string) error {
 	if r.IsCacheable() {
-		pulledFromCache, err := RootCache.Get(r.CacheKey(), fs, path)
+		pulledFromCache, err := RootCache.Get(ctx, r.CacheKey(), fs, path)
 		if err != nil {
 			return err
 		}
 		if pulledFromCache {
-			logrus.Infof("Pulled %s from cache into %s", r, path)
+			logger.Log(ctx, slog.LevelInfo, "pulled from cache", slog.String("repo", r.name), slog.String("path", path))
 			return nil
 		}
 	}
-	logrus.Infof("Pulling %s from upstream into %s", r, path)
+
+	logger.Log(ctx, slog.LevelInfo, "pulling from upstream")
 	if r.Commit == nil && r.branch == nil {
-		return fmt.Errorf("if you are pulling from a Git repository, a commit is required in the package.yaml")
+		logger.Log(ctx, slog.LevelError, "if you are pulling from a Git repository, a commit or a branch is required in the package.yaml")
+		return fmt.Errorf("no commit or branch specified")
 	}
+
 	cloneOptions := git.CloneOptions{
 		URL: r.GetHTTPSURL(),
 	}
+	logger.Log(ctx, slog.LevelDebug, "", slog.String("url", cloneOptions.URL))
+
 	if r.branch != nil {
+		logger.Log(ctx, slog.LevelDebug, "", slog.String("branch", *r.branch))
 		cloneOptions.ReferenceName = repository.GetLocalBranchRefName(*r.branch)
 		cloneOptions.SingleBranch = true
 	}
+
 	repo, err := git.PlainClone(filesystem.GetAbsPath(fs, path), false, &cloneOptions)
 	if err != nil {
 		return err
 	}
+
 	if r.Commit != nil {
+		logger.Log(ctx, slog.LevelDebug, "", slog.String("commit", *r.Commit))
+
 		wt, err := repo.Worktree()
 		if err != nil {
 			return err
@@ -122,23 +137,30 @@ func (r GithubRepository) Pull(rootFs, fs billy.Filesystem, path string) error {
 			return fmt.Errorf("unable to checkout commit %s, may not be a valid commit hash from upstream", *r.Commit)
 		}
 	}
+
 	if err := filesystem.RemoveAll(fs, filepath.Join(path, ".git")); err != nil {
 		return err
 	}
-	if r.Subdirectory != nil && len(*r.Subdirectory) > 0 {
-		if err := filesystem.MakeSubdirectoryRoot(fs, path, *r.Subdirectory); err != nil {
-			return err
+
+	if r.Subdirectory != nil {
+		logger.Log(ctx, slog.LevelDebug, "", slog.String("subdirectory", *r.Subdirectory))
+		if len(*r.Subdirectory) > 0 {
+			if err := filesystem.MakeSubdirectoryRoot(ctx, fs, path, *r.Subdirectory); err != nil {
+				return err
+			}
 		}
 	}
+
 	if r.IsCacheable() {
-		addedToCache, err := RootCache.Add(r.CacheKey(), fs, path)
+		addedToCache, err := RootCache.Add(ctx, r.CacheKey(), fs, path)
 		if err != nil {
 			return err
 		}
 		if addedToCache {
-			logrus.Infof("Cached %s", r)
+			logger.Log(ctx, slog.LevelInfo, "cached", slog.String("repo", r.name), slog.String("path", path))
 		}
 	}
+
 	return nil
 }
 

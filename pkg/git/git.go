@@ -2,13 +2,15 @@ package git
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
 
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
 // Git struct holds necessary data to work with the current git repository
@@ -21,27 +23,29 @@ type Git struct {
 // CloneAtDir clones a repository at a given directory.
 // Equivalent to: git clone <url> <dir>
 // It will return a Git struct with the repository's branch and remotes populated.
-func CloneAtDir(url, dir string) (*Git, error) {
+func CloneAtDir(ctx context.Context, url, dir string) (*Git, error) {
 	var err error
-	logrus.Infof("Cloning repository %s into %s", url, dir)
+
+	logger.Log(ctx, slog.LevelInfo, "cloning repository", slog.String("url", url), slog.String("dir", dir))
+
 	cmd := exec.Command("git", "clone", "--depth", "1", url, dir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		logrus.Errorf("error while cloning repository: %s; err: %v", url, err)
-		return nil, fmt.Errorf("error while cloning repository: %s", err)
+		logger.Log(ctx, slog.LevelError, "error while cloning repository", slog.String("url", url), slog.String("dir", dir), logger.Err(err))
+		return nil, err
 	}
 
 	git := &Git{
 		Dir: dir,
 	}
 
-	git.Branch, err = git.getGitBranch()
+	git.Branch, err = git.getGitBranch(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	git.Remotes, err = git.getGitRemotes()
+	git.Remotes, err = git.getGitRemotes(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -50,13 +54,13 @@ func CloneAtDir(url, dir string) (*Git, error) {
 }
 
 // OpenGitRepo TODO: Docs
-func OpenGitRepo(workingDir string) (*Git, error) {
-	logrus.Debugf("Opening git repository at %s", workingDir)
+func OpenGitRepo(ctx context.Context, workingDir string) (*Git, error) {
+	logger.Log(ctx, slog.LevelDebug, "opening git repo")
 
 	gitFolder := fmt.Sprintf("%s/.git", workingDir)
 	_, err := os.Stat(gitFolder)
 	if os.IsNotExist(err) {
-		logrus.Errorf("%s is not a git repository", workingDir)
+		logger.Log(ctx, slog.LevelError, "not a git repo", logger.Err(err))
 		return nil, fmt.Errorf("%s is not a git repository", workingDir)
 	}
 	if err != nil {
@@ -67,21 +71,23 @@ func OpenGitRepo(workingDir string) (*Git, error) {
 		Dir: workingDir,
 	}
 
-	git.Branch, err = git.getGitBranch()
+	git.Branch, err = git.getGitBranch(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	git.Remotes, err = git.getGitRemotes()
+	git.Remotes, err = git.getGitRemotes(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	logger.Log(ctx, slog.LevelDebug, "git repo opened", slog.String("branch", git.Branch))
+	logger.Log(ctx, slog.LevelDebug, "git remotes", slog.Any("remotes", git.Remotes))
 	return git, nil
 }
 
 // getGitBranch returns the current branch of the git repository
-func (g *Git) getGitBranch() (string, error) {
+func (g *Git) getGitBranch(ctx context.Context) (string, error) {
 	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
 	cmd.Dir = g.Dir // Set the working directory
 
@@ -90,15 +96,15 @@ func (g *Git) getGitBranch() (string, error) {
 
 	err := cmd.Run()
 	if err != nil {
-		logrus.Errorf("error while getting git branch: %s", err)
-		return "", fmt.Errorf("error while getting git branch: %s", err)
+		logger.Log(ctx, slog.LevelError, "failed to get git branch", logger.Err(err))
+		return "", err
 	}
 
 	return strings.TrimSpace(out.String()), nil
 }
 
 // getGitRemotes returns the remotes of the git repository as a map
-func (g *Git) getGitRemotes() (map[string]string, error) {
+func (g *Git) getGitRemotes(ctx context.Context) (map[string]string, error) {
 	cmd := exec.Command("git", "remote", "-v")
 	cmd.Dir = g.Dir // Set the working directory
 
@@ -107,8 +113,8 @@ func (g *Git) getGitRemotes() (map[string]string, error) {
 
 	err := cmd.Run()
 	if err != nil {
-		logrus.Errorf("error while getting git remotes: %s", err)
-		return nil, fmt.Errorf("error while getting git remotes; err: %v", err)
+		logger.Log(ctx, slog.LevelError, "failed to get git remotes", logger.Err(err))
+		return nil, err
 	}
 
 	remotes := make(map[string]string)
@@ -135,8 +141,9 @@ func (g *Git) getGitRemotes() (map[string]string, error) {
 }
 
 // FetchAndPullBranch fetches and pulls a branch
-func (g *Git) FetchAndPullBranch(branch string) error {
-	logrus.Infof("Fetching and pulling branch %s", branch)
+func (g *Git) FetchAndPullBranch(ctx context.Context, branch string) error {
+	logger.Log(ctx, slog.LevelInfo, "fetching and pulling branch", slog.String("branch", branch))
+
 	upstreamRemote, err := g.getUpstreamRemote()
 	if err != nil {
 		return err
@@ -158,8 +165,9 @@ func (g *Git) FetchAndPullBranch(branch string) error {
 }
 
 // FetchAndCheckoutBranch fetches and checks out a branch
-func (g *Git) FetchAndCheckoutBranch(branch string) error {
-	logrus.Infof("Fetching and checking out at: %s", g.Branch)
+func (g *Git) FetchAndCheckoutBranch(ctx context.Context, branch string) error {
+	logger.Log(ctx, slog.LevelInfo, "fetching and checking out branch", slog.String("branch", branch))
+
 	err := g.FetchBranch(branch)
 	if err != nil {
 		return err
@@ -214,14 +222,14 @@ func (g *Git) CreateAndCheckoutBranch(branch string) error {
 
 // IsClean checks if the git repository is clean and,
 // returns nil if it is clean, throws an error otherwise
-func (g *Git) IsClean() error {
-	clean, err := g.StatusProcelain()
+func (g *Git) IsClean(ctx context.Context) error {
+	clean, err := g.StatusProcelain(ctx)
 	if err != nil {
-		logrus.Errorf("error while checking if git is clean: %s", err)
-		return fmt.Errorf("error while checking if git is clean: %s", err)
+		logger.Log(ctx, slog.LevelError, "failed to check git status", logger.Err(err))
+		return err
 	}
 	if !clean {
-		logrus.Errorf("git must be clean to forward-port")
+		logger.Log(ctx, slog.LevelError, "git repo should be clean")
 		return fmt.Errorf("git repo should be clean")
 	}
 	return nil
@@ -229,7 +237,9 @@ func (g *Git) IsClean() error {
 
 // StatusProcelain checks if the git repository is clean and,
 // returns true if it is clean, false otherwise
-func (g *Git) StatusProcelain() (bool, error) {
+func (g *Git) StatusProcelain(ctx context.Context) (bool, error) {
+	logger.Log(ctx, slog.LevelDebug, "check if git is clean")
+
 	cmd := exec.Command("git", "-C", g.Dir, "status", "--porcelain")
 
 	output, err := cmd.CombinedOutput()
@@ -237,8 +247,11 @@ func (g *Git) StatusProcelain() (bool, error) {
 		return false, err
 	}
 	if len(output) > 0 {
+		logger.Log(ctx, slog.LevelDebug, "git is not clean")
 		return false, nil
 	}
+
+	logger.Log(ctx, slog.LevelDebug, "git is clean")
 	return true, nil
 }
 

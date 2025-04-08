@@ -1,6 +1,7 @@
 package auto
 
 import (
+	"context"
 	"testing"
 
 	"github.com/blang/semver"
@@ -198,12 +199,12 @@ func Test_parsePackageYaml(t *testing.T) {
 			UseTarArchive:               false,
 			AddCRDValidationToMainChart: true,
 		}
-
-		validUpstream, err := charts.GetUpstream(validUpstreamOpts)
+		ctx := context.Background()
+		validUpstream, err := charts.GetUpstream(ctx, validUpstreamOpts)
 		if err != nil {
 			panic(err)
 		}
-		validCRDUpstream, err := charts.GetUpstream(validCRDUpstreamOpts)
+		validCRDUpstream, err := charts.GetUpstream(ctx, validCRDUpstreamOpts)
 		if err != nil {
 			panic(err)
 		}
@@ -228,7 +229,7 @@ func Test_parsePackageYaml(t *testing.T) {
 	}
 
 	newInvalidUpstreamFunc := func(opts options.UpstreamOptions) puller.Puller {
-		invalidUpstream, err := charts.GetUpstream(opts)
+		invalidUpstream, err := charts.GetUpstream(context.Background(), opts)
 		if err != nil {
 			panic(err)
 		}

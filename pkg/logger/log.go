@@ -8,9 +8,7 @@ import (
 	"time"
 )
 
-func Log(lvl slog.Level, msg string, attrs ...slog.Attr) {
-	// internal context because it is a limited CLI app
-	ctx := context.Background()
+func Log(ctx context.Context, lvl slog.Level, msg string, attrs ...slog.Attr) {
 	logger := slog.Default()
 	if !logger.Enabled(ctx, lvl) {
 		return
@@ -34,7 +32,7 @@ func Err(err error) slog.Attr {
 }
 
 // Fatal - log error and exit with code 1
-func Fatal(msg string) {
-	Log(slog.LevelError, msg)
+func Fatal(ctx context.Context, msg string) {
+	Log(ctx, slog.LevelError, msg)
 	os.Exit(1)
 }

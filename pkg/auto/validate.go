@@ -78,7 +78,7 @@ func loadPullRequestValidation(token, prNum string, dep *lifecycle.Dependencies)
 //   - Checkpoint 0: release.yaml file is valid
 //   - TODO: Checkpoint 1: Compare contents of assets/ to charts/
 //   - TODO: Checkpoint 2: Compare assets against index.yaml
-func ValidatePullRequest(token, prNum string, dep *lifecycle.Dependencies) error {
+func ValidatePullRequest(ctx context.Context, token, prNum string, dep *lifecycle.Dependencies) error {
 
 	v, err := loadPullRequestValidation(token, prNum, dep)
 	if err != nil {
@@ -86,11 +86,11 @@ func ValidatePullRequest(token, prNum string, dep *lifecycle.Dependencies) error
 	}
 
 	// Checkpoint 0
-	releaseOpts, err := options.LoadReleaseOptionsFromFile(dep.RootFs, path.RepositoryReleaseYaml)
+	releaseOpts, err := options.LoadReleaseOptionsFromFile(ctx, dep.RootFs, path.RepositoryReleaseYaml)
 	if err != nil {
 		return err
 	}
-	if err := v.validateReleaseYaml(releaseOpts); err != nil {
+	if err := v.validateReleaseYaml(ctx, releaseOpts); err != nil {
 		return err
 	}
 
@@ -101,7 +101,7 @@ func ValidatePullRequest(token, prNum string, dep *lifecycle.Dependencies) error
 //   - each chart version in release.yaml does not modify an already released chart.
 //   - each chart version in release.yaml is exactly 1 more patch/minor version than the previous chart version if the chart is being released.
 //   - each chart version in release.yaml that is being forward-ported is within the range of the current branch version.
-func (v *validation) validateReleaseYaml(releaseOpts options.ReleaseOptions) error {
+func (v *validation) validateReleaseYaml(ctx context.Context, releaseOpts options.ReleaseOptions) error {
 	assetFilePaths := make(map[string]string, len(releaseOpts))
 
 	for chart, versions := range releaseOpts {
@@ -116,7 +116,7 @@ func (v *validation) validateReleaseYaml(releaseOpts options.ReleaseOptions) err
 				continue // net-new chart
 			}
 
-			if err := v.checkMinorPatchVersion(version, releasedVersions); err != nil {
+			if err := v.checkMinorPatchVersion(ctx, version, releasedVersions); err != nil {
 				return err
 			}
 		}
@@ -126,12 +126,12 @@ func (v *validation) validateReleaseYaml(releaseOpts options.ReleaseOptions) err
 }
 
 // checkMinorPatchVersion will check if the chart version is exactly 1 more patch/minor version than the previous chart version or if the chart is being released. If the chart is being forward-ported, this validation is skipped.
-func (v *validation) checkMinorPatchVersion(version string, releasedVersions []lifecycle.Asset) error {
+func (v *validation) checkMinorPatchVersion(ctx context.Context, version string, releasedVersions []lifecycle.Asset) error {
 
 	latestReleasedVersion := releasedVersions[0].Version
 
 	// check if the chart version is being released or forward-ported
-	release, err := v.dep.VR.CheckChartVersionToRelease(version)
+	release, err := v.dep.VR.CheckChartVersionToRelease(ctx, version)
 	if err != nil {
 		return err
 	}
@@ -212,9 +212,9 @@ func (v *validation) checkNeverModifyReleasedChart(assetFilePaths map[string]str
 }
 
 // CompareIndexFiles will load the current index.yaml file from the root filesystem and compare it with the index.yaml file from charts.rancher.io
-func CompareIndexFiles(rootFs billy.Filesystem) error {
+func CompareIndexFiles(ctx context.Context, rootFs billy.Filesystem) error {
 	// verify, search & open current index.yaml file
-	localIndexYaml, err := helm.OpenIndexYaml(rootFs)
+	localIndexYaml, err := helm.OpenIndexYaml(ctx, rootFs)
 	if err != nil {
 		return err
 	}
@@ -255,7 +255,7 @@ func CompareIndexFiles(rootFs billy.Filesystem) error {
 
 	// compare both index.yaml files
 	if diff := cmp.Diff(localIndexYaml, tempIndexYaml); diff != "" {
-		logger.Log(slog.LevelDebug, "index.yaml files are different", slog.String("diff", diff))
+		logger.Log(ctx, slog.LevelDebug, "index.yaml files are different", slog.String("diff", diff))
 		return errors.New("index.yaml files are different at git repository and charts.rancher.io")
 	}
 	return nil

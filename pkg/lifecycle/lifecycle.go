@@ -1,6 +1,7 @@
 package lifecycle
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 
@@ -33,17 +34,17 @@ type Dependencies struct {
 }
 
 // WalkDirFunc is a function type that will be used to walk through the filesystem
-type WalkDirFunc func(fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error
+type WalkDirFunc func(ctx context.Context, fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error
 
 // InitDependencies will check the filesystem, branch version,
 // git status, initialize the Dependencies struct and populate it.
 // If anything fails the operation will be aborted.
-func InitDependencies(repoRoot string, rootFs billy.Filesystem, branchVersion string, currentChart string) (*Dependencies, error) {
+func InitDependencies(ctx context.Context, repoRoot string, rootFs billy.Filesystem, branchVersion string, currentChart string) (*Dependencies, error) {
 	var err error
 
 	workDir := repoRoot
 
-	git, err := git.OpenGitRepo(workDir)
+	git, err := git.OpenGitRepo(ctx, workDir)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +57,7 @@ func InitDependencies(repoRoot string, rootFs billy.Filesystem, branchVersion st
 	}
 
 	// Git tree must be clean before proceeding with removing charts
-	clean, err := git.StatusProcelain()
+	clean, err := git.StatusProcelain(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -65,13 +66,13 @@ func InitDependencies(repoRoot string, rootFs billy.Filesystem, branchVersion st
 	}
 
 	// Initialize, load, and check version rules for the current branch
-	dep.VR, err = dep.rules(branchVersion, loadFromJSON)
+	dep.VR, err = dep.rules(ctx, branchVersion, loadFromJSON)
 	if err != nil {
 		return nil, err
 	}
-	logger.Log(slog.LevelDebug, "version rules loaded", slog.Any("dep.VR.Rules[branchVersion]", dep.VR.Rules[branchVersion]))
+	logger.Log(ctx, slog.LevelDebug, "version rules loaded", slog.Any("dep.VR.Rules[branchVersion]", dep.VR.Rules[branchVersion]))
 
-	if err := checkFilePaths(dep.RootFs); err != nil {
+	if err := checkFilePaths(ctx, dep.RootFs); err != nil {
 		return nil, err
 	}
 
@@ -88,16 +89,16 @@ func InitDependencies(repoRoot string, rootFs billy.Filesystem, branchVersion st
 	return dep, nil
 }
 
-func checkFilePaths(rootFs billy.Filesystem) error {
+func checkFilePaths(ctx context.Context, rootFs billy.Filesystem) error {
 	// Check if the assets folder and Helm index file exists in the repository
-	exists, err := filesystem.PathExists(rootFs, path.RepositoryAssetsDir)
+	exists, err := filesystem.PathExists(ctx, rootFs, path.RepositoryAssetsDir)
 	if err != nil {
 		return err
 	}
 	if !exists {
 		return errChartRepository
 	}
-	exists, err = filesystem.PathExists(rootFs, path.RepositoryHelmIndexFile)
+	exists, err = filesystem.PathExists(ctx, rootFs, path.RepositoryHelmIndexFile)
 	if err != nil {
 		return err
 	}

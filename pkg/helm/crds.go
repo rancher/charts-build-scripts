@@ -1,6 +1,7 @@
 package helm
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,7 +15,7 @@ import (
 )
 
 // CopyCRDsFromChart copies the CRDs from a chart to another chart
-func CopyCRDsFromChart(fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHelmChartPath, destCRDsDir string) error {
+func CopyCRDsFromChart(ctx context.Context, fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHelmChartPath, destCRDsDir string) error {
 	if err := filesystem.RemoveAll(fs, filepath.Join(dstHelmChartPath, destCRDsDir)); err != nil {
 		return err
 	}
@@ -24,38 +25,38 @@ func CopyCRDsFromChart(fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHel
 	srcCRDsDirpath := filepath.Join(srcHelmChartPath, srcCRDsDir)
 	dstCRDsDirpath := filepath.Join(dstHelmChartPath, destCRDsDir)
 
-	exists, err := filesystem.PathExists(fs, srcCRDsDirpath)
+	exists, err := filesystem.PathExists(ctx, fs, srcCRDsDirpath)
 	if err != nil {
 		return fmt.Errorf("error checking if CRDs directory exists: %s", err)
 	} else if !exists {
 		return os.ErrNotExist
 	}
 
-	logger.Log(slog.LevelInfo, "copying CRDs", slog.String("srcCRDsDirpath", srcCRDsDirpath), slog.String("dstCRDsDirpath", dstCRDsDirpath))
+	logger.Log(ctx, slog.LevelInfo, "copying CRDs", slog.String("srcCRDsDirpath", srcCRDsDirpath), slog.String("dstCRDsDirpath", dstCRDsDirpath))
 
-	return filesystem.CopyDir(fs, srcCRDsDirpath, dstCRDsDirpath)
+	return filesystem.CopyDir(ctx, fs, srcCRDsDirpath, dstCRDsDirpath)
 }
 
 // DeleteCRDsFromChart deletes all the CRDs loaded by a chart
-func DeleteCRDsFromChart(fs billy.Filesystem, helmChartPath string) error {
+func DeleteCRDsFromChart(ctx context.Context, fs billy.Filesystem, helmChartPath string) error {
 	chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, helmChartPath))
 	if err != nil {
 		return fmt.Errorf("could not load Helm chart: %s", err)
 	}
 	for _, crd := range chart.CRDObjects() {
 		crdFilepath := filepath.Join(helmChartPath, crd.File.Name)
-		exists, err := filesystem.PathExists(fs, crdFilepath)
+		exists, err := filesystem.PathExists(ctx, fs, crdFilepath)
 		if err != nil {
 			return err
 		}
 		if exists {
-			logger.Log(slog.LevelDebug, "deleting CRD", slog.String("crdFilepath", crdFilepath))
+			logger.Log(ctx, slog.LevelDebug, "deleting CRD", slog.String("crdFilepath", crdFilepath))
 
 			if err := fs.Remove(crdFilepath); err != nil {
 				return err
 			}
 		}
-		if err := filesystem.PruneEmptyDirsInPath(fs, crdFilepath); err != nil {
+		if err := filesystem.PruneEmptyDirsInPath(ctx, fs, crdFilepath); err != nil {
 			return err
 		}
 	}
@@ -63,7 +64,7 @@ func DeleteCRDsFromChart(fs billy.Filesystem, helmChartPath string) error {
 }
 
 // ArchiveCRDs bundles, compresses and saves the CRD files from the source to the destination
-func ArchiveCRDs(fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHelmChartPath, destCRDsDir string) error {
+func ArchiveCRDs(ctx context.Context, fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHelmChartPath, destCRDsDir string) error {
 	if err := filesystem.RemoveAll(fs, filepath.Join(dstHelmChartPath, destCRDsDir)); err != nil {
 		return err
 	}
@@ -73,6 +74,6 @@ func ArchiveCRDs(fs billy.Filesystem, srcHelmChartPath, srcCRDsDir, dstHelmChart
 	srcCRDsDirPath := filepath.Join(srcHelmChartPath, srcCRDsDir)
 	dstFilePath := filepath.Join(dstHelmChartPath, destCRDsDir, path.ChartCRDTgzFilename)
 
-	logger.Log(slog.LevelDebug, "compressing CRDs", slog.String("srcCRDsDirPath", srcCRDsDirPath), slog.String("dstFilePath", dstFilePath))
-	return filesystem.ArchiveDir(fs, srcCRDsDirPath, dstFilePath)
+	logger.Log(ctx, slog.LevelDebug, "compressing CRDs", slog.String("srcCRDsDirPath", srcCRDsDirPath), slog.String("dstFilePath", dstFilePath))
+	return filesystem.ArchiveDir(ctx, fs, srcCRDsDirPath, dstFilePath)
 }

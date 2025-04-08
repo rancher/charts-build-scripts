@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -69,7 +70,7 @@ func CheckoutBranch(repo *git.Repository, branch string) error {
 }
 
 // CommitAll commits all changes, whether or not they have been staged, and creates a commit
-func CommitAll(repo *git.Repository, commitMessage string) error {
+func CommitAll(ctx context.Context, repo *git.Repository, commitMessage string) error {
 	wt, err := repo.Worktree()
 	if err != nil {
 		return err
@@ -82,7 +83,7 @@ func CommitAll(repo *git.Repository, commitMessage string) error {
 		return fmt.Errorf("cannot create commit since there are no files to be committed")
 	}
 
-	logger.Log(slog.LevelDebug, "committing modified files", slog.String("status", status.String()))
+	logger.Log(ctx, slog.LevelDebug, "committing modified files", slog.String("status", status.String()))
 	if _, err = wt.Add("."); err != nil {
 		return err
 	}
@@ -114,7 +115,7 @@ func GetRepoPath(repo *git.Repository) (string, error) {
 }
 
 // CreateInitialCommit creates an initial commit for a Github repository at the repoPath provided
-func CreateInitialCommit(repo *git.Repository) error {
+func CreateInitialCommit(ctx context.Context, repo *git.Repository) error {
 	repoPath, err := GetRepoPath(repo)
 	if err != nil {
 		return err
@@ -122,7 +123,7 @@ func CreateInitialCommit(repo *git.Repository) error {
 	if err = os.WriteFile(path.Join(repoPath, "README.md"), []byte{}, 0644); err != nil {
 		return err
 	}
-	return CommitAll(repo, "Create initial commit")
+	return CommitAll(ctx, repo, "Create initial commit")
 }
 
 // GetLocalBranchRefName returns the reference name of a given local branch

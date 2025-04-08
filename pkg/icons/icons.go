@@ -1,6 +1,7 @@
 package icons
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -19,10 +20,10 @@ import (
 // From the metadata, gets the icon and name of the chart.
 // It downloads the icon, infers the type using the content-type header from the response
 // and saves the file locally to path.RepositoryLogosDir using the name of the chart as the file name.
-func Download(rootFs billy.Filesystem, metadata *chart.Metadata) (string, error) {
+func Download(ctx context.Context, rootFs billy.Filesystem, metadata *chart.Metadata) (string, error) {
 	icon, err := http.Get(metadata.Icon)
 	if err != nil {
-		logger.Log(slog.LevelError, "failed to download icon", slog.String("icon", metadata.Icon), logger.Err(err))
+		logger.Log(ctx, slog.LevelError, "failed to download icon", slog.String("icon", metadata.Icon), logger.Err(err))
 		return "", err
 	}
 
@@ -33,14 +34,14 @@ func Download(rootFs billy.Filesystem, metadata *chart.Metadata) (string, error)
 	path := fmt.Sprintf("%s/%s%s", path.RepositoryLogosDir, metadata.Name, byType[0])
 	create, err := rootFs.Create(path)
 	if err != nil {
-		logger.Log(slog.LevelError, "failed to create icon", slog.String("icon", metadata.Icon), logger.Err(err))
+		logger.Log(ctx, slog.LevelError, "failed to create icon", slog.String("icon", metadata.Icon), logger.Err(err))
 		return "", err
 	}
 	defer create.Close()
 	_, err = io.Copy(create, icon.Body)
 	defer icon.Body.Close()
 	if err != nil {
-		logger.Log(slog.LevelError, "failed to write icon", slog.String("icon", metadata.Icon), logger.Err(err))
+		logger.Log(ctx, slog.LevelError, "failed to write icon", slog.String("icon", metadata.Icon), logger.Err(err))
 		return "", err
 	}
 	return path, nil

@@ -3,6 +3,7 @@ package regsync
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -77,7 +78,7 @@ var chartsToIgnoreTags = map[string]string{
 }
 
 // GenerateConfigFile creates a regsync config file out of the current branch.
-func GenerateConfigFile() error {
+func GenerateConfigFile(ctx context.Context) error {
 	// Read the initial regsync.yaml file
 	initialConfig, err := readAllowTagsFromRegsyncYaml()
 	if err != nil {
@@ -95,53 +96,53 @@ func GenerateConfigFile() error {
 		return err
 	}
 
-	git, err := git.OpenGitRepo(".")
+	git, err := git.OpenGitRepo(ctx, ".")
 	if err != nil {
 		return err
 	}
 
 	// Must add and commit the initial changes to the regsync.yaml file
-	if clean, _ := git.StatusProcelain(); clean {
-		logger.Log(slog.LevelError, "FATAL: should have changes to commit")
+	if clean, _ := git.StatusProcelain(ctx); clean {
+		logger.Log(ctx, slog.LevelError, "FATAL: should have changes to commit")
 		return errors.New("FATAL: should have changes to commit")
 	}
 
 	if err := git.AddAndCommit("regsync: images and tags present on the current release"); err != nil {
-		logger.Log(slog.LevelError, "failed to add/commit images and tags on the current release", logger.Err(err))
+		logger.Log(ctx, slog.LevelError, "failed to add/commit images and tags on the current release", logger.Err(err))
 		return err
 	}
 
 	// Use skopeo lits-tags to retrieve ALL tags for the images at prime registry
-	primeImgTags, err := checkPrimeImageTags(imageTagMap)
+	primeImgTags, err := checkPrimeImageTags(ctx, imageTagMap)
 	if err != nil {
-		logger.Log(slog.LevelError, "failed to check prime image tags", logger.Err(err))
+		logger.Log(ctx, slog.LevelError, "failed to check prime image tags", logger.Err(err))
 		return err
 	}
 
 	// Remove the prime image tags from the imageTagMap
-	syncImgTags := removePrimeImageTags(imageTagMap, primeImgTags)
+	syncImgTags := removePrimeImageTags(ctx, imageTagMap, primeImgTags)
 
 	// Update the regsync config file excluding the prime images and tags
 	if err := createRegSyncConfigFile(syncImgTags); err != nil {
-		logger.Log(slog.LevelError, "failed to create regsync config file", logger.Err(err))
+		logger.Log(ctx, slog.LevelError, "failed to create regsync config file", logger.Err(err))
 		return err
 	}
 
 	// Must add and commit the final changes to the regsync.yaml file
-	if clean, _ := git.StatusProcelain(); clean {
-		logger.Log(slog.LevelError, "FATAL: should have changes to commit")
+	if clean, _ := git.StatusProcelain(ctx); clean {
+		logger.Log(ctx, slog.LevelError, "FATAL: should have changes to commit")
 		return errors.New("FATAL: should have changes to commit")
 	}
 
 	if err := git.AddAndCommit("regsync: images to be synced"); err != nil {
-		logger.Log(slog.LevelError, "failed to add/commit images to be synced", logger.Err(err))
+		logger.Log(ctx, slog.LevelError, "failed to add/commit images to be synced", logger.Err(err))
 		return err
 	}
 
 	// Final state read of regsync.yaml
 	finalConfig, err := readAllowTagsFromRegsyncYaml()
 	if err != nil {
-		logger.Log(slog.LevelError, "failed to read final regsync.yaml", logger.Err(err))
+		logger.Log(ctx, slog.LevelError, "failed to read final regsync.yaml", logger.Err(err))
 		return err
 	}
 

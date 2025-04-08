@@ -1,6 +1,7 @@
 package puller
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -22,8 +23,8 @@ type Archive struct {
 }
 
 // Pull grabs the archive
-func (u Archive) Pull(rootFs, fs billy.Filesystem, path string) error {
-	logger.Log(slog.LevelInfo, "pulling from upstream", slog.String("URL", u.URL), slog.String("path", path))
+func (u Archive) Pull(ctx context.Context, rootFs, fs billy.Filesystem, path string) error {
+	logger.Log(ctx, slog.LevelInfo, "pulling from upstream", slog.String("URL", u.URL), slog.String("path", path))
 
 	if err := filesystem.GetChartArchive(fs, u.URL, chartArchiveFilepath); err != nil {
 		return err
@@ -32,12 +33,12 @@ func (u Archive) Pull(rootFs, fs billy.Filesystem, path string) error {
 	if err := fs.MkdirAll(path, os.ModePerm); err != nil {
 		return err
 	}
-	defer filesystem.PruneEmptyDirsInPath(fs, path)
+	defer filesystem.PruneEmptyDirsInPath(ctx, fs, path)
 	var subdirectory string
 	if u.Subdirectory != nil {
 		subdirectory = *u.Subdirectory
 	}
-	if err := filesystem.UnarchiveTgz(fs, chartArchiveFilepath, subdirectory, path, true); err != nil {
+	if err := filesystem.UnarchiveTgz(ctx, fs, chartArchiveFilepath, subdirectory, path, true); err != nil {
 		return err
 	}
 	return nil

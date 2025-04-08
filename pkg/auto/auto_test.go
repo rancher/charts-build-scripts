@@ -1,6 +1,7 @@
 package auto
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -209,7 +210,7 @@ func Test_createForwardPortCommands(t *testing.T) {
 				assetsToBeForwardPorted: tt.fields.assetsToBeForwardPorted,
 			}
 
-			got, err := fp.createForwardPortCommands(tt.args.chart)
+			got, err := fp.createForwardPortCommands(context.Background(), tt.args.chart)
 			if tt.wantErr != nil {
 				if err == nil {
 					t.Errorf("createForwardPortCommands() error = %v, wantErr %v", err, tt.wantErr)

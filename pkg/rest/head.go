@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,7 +14,7 @@ import (
 const maxRetries = 5
 
 // Head sends a HEAD request to the given URL and returns an error if the request fails
-func Head(url, token string) error {
+func Head(ctx context.Context, url, token string) error {
 
 	// Retry until max retries reached
 	for retries := 0; retries <= maxRetries; retries++ {
@@ -42,7 +43,7 @@ func Head(url, token string) error {
 		switch response.StatusCode {
 		case http.StatusOK:
 			requestRemaining := response.Header.Get("X-RateLimit-Remaining")
-			logger.Log(slog.LevelDebug, "request remaining", slog.String("requestRemaining", requestRemaining))
+			logger.Log(ctx, slog.LevelDebug, "request remaining", slog.String("requestRemaining", requestRemaining))
 			return nil
 
 		case http.StatusTooManyRequests:
@@ -54,7 +55,7 @@ func Head(url, token string) error {
 			retryAfter := time.Unix(retryAfterMillisInt, 0)
 			timeUntilRetry := time.Until(retryAfter)
 
-			logger.Log(slog.LevelWarn, "request was rate limited", slog.String("timeUntilRetry", timeUntilRetry.String()))
+			logger.Log(ctx, slog.LevelWarn, "request was rate limited", slog.String("timeUntilRetry", timeUntilRetry.String()))
 			time.Sleep(timeUntilRetry)
 
 			continue

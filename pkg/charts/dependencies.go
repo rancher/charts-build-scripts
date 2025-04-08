@@ -1,6 +1,7 @@
 package charts
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -23,19 +24,19 @@ import (
 )
 
 // PrepareDependencies prepares all of the dependencies of a given chart and regenerates the requirements.yaml or Chart.yaml
-func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDir string, ignoreDependencies []string) error {
-	logger.Log(slog.LevelInfo, "loading dependencies")
+func PrepareDependencies(ctx context.Context, rootFs, pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDir string, ignoreDependencies []string) error {
+	logger.Log(ctx, slog.LevelInfo, "loading dependencies")
 
 	ignoreDependencyMap := make(map[string]bool)
 	for _, dep := range ignoreDependencies {
 		ignoreDependencyMap[dep] = true
 	}
 
-	if err := LoadDependencies(pkgFs, mainHelmChartPath, gcRootDir, ignoreDependencyMap); err != nil {
+	if err := LoadDependencies(ctx, pkgFs, mainHelmChartPath, gcRootDir, ignoreDependencyMap); err != nil {
 		return err
 	}
 
-	dependencyMap, err := GetDependencyMap(pkgFs, gcRootDir)
+	dependencyMap, err := GetDependencyMap(ctx, pkgFs, gcRootDir)
 	if err != nil {
 		return err
 	}
@@ -65,7 +66,7 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 		absDependencyChartDestPath := filesystem.GetAbsPath(pkgFs, filepath.Join(dependenciesDestPath, dependencyName))
 
 		if dependency.Upstream.IsWithinPackage() {
-			logger.Log(slog.LevelInfo, "copying dependencies")
+			logger.Log(ctx, slog.LevelInfo, "copying dependencies")
 
 			// Copy the local chart into dependencyDestPath
 			repositoryDependencyChartsSrcPath, err := filesystem.GetRelativePath(rootFs, absDependencyChartSrcPath)
@@ -77,11 +78,11 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 				return fmt.Errorf("encountered error while getting absolute path of %s in %s: %s", absDependencyChartDestPath, rootFs.Root(), err)
 			}
 
-			if err = filesystem.CopyDir(rootFs, repositoryDependencyChartsSrcPath, repositoryDependencyChartsDestPath); err != nil {
+			if err = filesystem.CopyDir(ctx, rootFs, repositoryDependencyChartsSrcPath, repositoryDependencyChartsDestPath); err != nil {
 				return fmt.Errorf("encountered while copying local dependency: %s", err)
 			}
 
-			if err = helm.UpdateHelmMetadataWithName(rootFs, repositoryDependencyChartsDestPath, dependencyName); err != nil {
+			if err = helm.UpdateHelmMetadataWithName(ctx, rootFs, repositoryDependencyChartsDestPath, dependencyName); err != nil {
 				return err
 			}
 			continue
@@ -91,7 +92,7 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 			return err
 		}
 
-		if err := dependency.Upstream.Pull(rootFs, dependencyFs, dependency.WorkingDir); err != nil {
+		if err := dependency.Upstream.Pull(ctx, rootFs, dependencyFs, dependency.WorkingDir); err != nil {
 			return err
 		}
 
@@ -100,16 +101,16 @@ func PrepareDependencies(rootFs, pkgFs billy.Filesystem, mainHelmChartPath strin
 			return err
 		}
 
-		if err = helm.UpdateHelmMetadataWithName(pkgFs, filepath.Join(dependenciesDestPath, dependencyName), dependencyName); err != nil {
+		if err = helm.UpdateHelmMetadataWithName(ctx, pkgFs, filepath.Join(dependenciesDestPath, dependencyName), dependencyName); err != nil {
 			return err
 		}
 	}
 
-	return UpdateHelmMetadataWithDependencies(pkgFs, mainHelmChartPath, dependencyMap)
+	return UpdateHelmMetadataWithDependencies(ctx, pkgFs, mainHelmChartPath, dependencyMap)
 }
 
-func getMainChartUpstreamOptions(pkgFs billy.Filesystem, gcRootDir string) (*options.UpstreamOptions, error) {
-	packageOpts, err := options.LoadPackageOptionsFromFile(pkgFs, path.PackageOptionsFile)
+func getMainChartUpstreamOptions(ctx context.Context, pkgFs billy.Filesystem, gcRootDir string) (*options.UpstreamOptions, error) {
+	packageOpts, err := options.LoadPackageOptionsFromFile(ctx, pkgFs, path.PackageOptionsFile)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read %s for PackageOptions: %s", path.PackageOptionsFile, err)
 	}
@@ -121,7 +122,7 @@ func getMainChartUpstreamOptions(pkgFs billy.Filesystem, gcRootDir string) (*opt
 		return nil, fmt.Errorf("unable to figure out main chart options given generated changes root directory at %s", gcRootDir)
 	}
 	// Get additional chart working dir by parsing chart name out of generated-changes/additional-charts/{chart-name}/generated-changes
-	additionalChartWorkingDir, err := filesystem.MovePath(filepath.Dir(gcRootDir), additionalChartPrefix, "")
+	additionalChartWorkingDir, err := filesystem.MovePath(ctx, filepath.Dir(gcRootDir), additionalChartPrefix, "")
 	if err != nil {
 		return nil, err
 	}
@@ -134,9 +135,9 @@ func getMainChartUpstreamOptions(pkgFs billy.Filesystem, gcRootDir string) (*opt
 }
 
 // LoadDependencies takes all existing subcharts in the package and loads them into the gcRootDir as dependencies
-func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDir string, ignoreDependencyMap map[string]bool) error {
+func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDir string, ignoreDependencyMap map[string]bool) error {
 	// Get main chart options
-	mainChartUpstreamOpts, err := getMainChartUpstreamOptions(pkgFs, gcRootDir)
+	mainChartUpstreamOpts, err := getMainChartUpstreamOptions(ctx, pkgFs, gcRootDir)
 	if err != nil {
 		return err
 	}
@@ -160,12 +161,12 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 		}
 		dependencyName := dependency.Name
 		dependencyOptionsPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir, dependencyName, path.DependencyOptionsFile)
-		dependencyExists, err := filesystem.PathExists(pkgFs, dependencyOptionsPath)
+		dependencyExists, err := filesystem.PathExists(ctx, pkgFs, dependencyOptionsPath)
 		if err != nil {
 			return err
 		}
 		if dependencyExists {
-			logger.Log(slog.LevelInfo, "skipping dependency", slog.String("dependencyName", dependencyName))
+			logger.Log(ctx, slog.LevelInfo, "skipping dependency", slog.String("dependencyName", dependencyName))
 			continue
 		}
 		subdirectory := filepath.Join(filepath.Dir(strings.TrimPrefix(dependency.Repository, "file://")), dependencyName)
@@ -179,7 +180,7 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 				Commit:       mainChartUpstreamOpts.Commit,
 			},
 		}
-		if err := dependencyPackageOptions.WriteToFile(pkgFs, dependencyOptionsPath); err != nil {
+		if err := dependencyPackageOptions.WriteToFile(ctx, pkgFs, dependencyOptionsPath); err != nil {
 			return err
 		}
 	}
@@ -192,16 +193,16 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 		dependencyName := dependency.Name
 		dependencyOptionsPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir, dependencyName, path.DependencyOptionsFile)
 		// Check if dependency already exists
-		dependencyExists, err := filesystem.PathExists(pkgFs, dependencyOptionsPath)
+		dependencyExists, err := filesystem.PathExists(ctx, pkgFs, dependencyOptionsPath)
 		if err != nil {
 			return err
 		}
 		if dependencyExists {
-			logger.Log(slog.LevelInfo, "skipping dependency", slog.String("dependencyName", dependencyName))
+			logger.Log(ctx, slog.LevelInfo, "skipping dependency", slog.String("dependencyName", dependencyName))
 			continue
 		}
 
-		logger.Log(slog.LevelDebug, "looking for dependency", slog.String("dependencyName", dependencyName), slog.String("repository", dependency.Repository))
+		logger.Log(ctx, slog.LevelDebug, "looking for dependency", slog.String("dependencyName", dependencyName), slog.String("repository", dependency.Repository))
 
 		dependencyURL, err := helmRepo.FindChartInRepoURL(
 			dependency.Repository,
@@ -218,7 +219,7 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 				URL: dependencyURL,
 			},
 		}
-		if err := dependencyPackageOptions.WriteToFile(pkgFs, dependencyOptionsPath); err != nil {
+		if err := dependencyPackageOptions.WriteToFile(ctx, pkgFs, dependencyOptionsPath); err != nil {
 			return err
 		}
 	}
@@ -226,11 +227,11 @@ func LoadDependencies(pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDi
 }
 
 // GetDependencyMap gets a map between a dependency's name and a Chart representing that dependency for all rooted at gcRootDir
-func GetDependencyMap(pkgFs billy.Filesystem, gcRootDir string) (map[string]*Chart, error) {
+func GetDependencyMap(ctx context.Context, pkgFs billy.Filesystem, gcRootDir string) (map[string]*Chart, error) {
 	dependencyMap := make(map[string]*Chart)
 	// Check whether any dependencies exist
 	dependenciesRootPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir)
-	exists, err := filesystem.PathExists(pkgFs, dependenciesRootPath)
+	exists, err := filesystem.PathExists(ctx, pkgFs, dependenciesRootPath)
 	if err != nil {
 		return nil, err
 	}
@@ -248,11 +249,11 @@ func GetDependencyMap(pkgFs billy.Filesystem, gcRootDir string) (map[string]*Cha
 		}
 		name := fileInfo.Name()
 		dependencyOptionsPath := filepath.Join(dependenciesRootPath, name, path.DependencyOptionsFile)
-		dependencyOptions, err := options.LoadChartOptionsFromFile(pkgFs, dependencyOptionsPath)
+		dependencyOptions, err := options.LoadChartOptionsFromFile(ctx, pkgFs, dependencyOptionsPath)
 		if err != nil {
 			return nil, err
 		}
-		dependencyChart, err := GetChartFromOptions(dependencyOptions)
+		dependencyChart, err := GetChartFromOptions(ctx, dependencyOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -263,8 +264,8 @@ func GetDependencyMap(pkgFs billy.Filesystem, gcRootDir string) (map[string]*Cha
 
 // UpdateHelmMetadataWithDependencies updates either the requirements.yaml or Chart.yaml for the dependencies provided
 // For each dependency in dependencies, it will replace the entry in the requirements.yaml / Chart.yaml with a URL pointing to the local chart archive
-func UpdateHelmMetadataWithDependencies(fs billy.Filesystem, mainHelmChartPath string, dependencyMap map[string]*Chart) error {
-	logger.Log(slog.LevelInfo, "updating chart metadata with dependencies")
+func UpdateHelmMetadataWithDependencies(ctx context.Context, fs billy.Filesystem, mainHelmChartPath string, dependencyMap map[string]*Chart) error {
+	logger.Log(ctx, slog.LevelInfo, "updating chart metadata with dependencies")
 
 	// Check if Helm chart is valid
 	chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, mainHelmChartPath))
@@ -309,7 +310,7 @@ func UpdateHelmMetadataWithDependencies(fs billy.Filesystem, mainHelmChartPath s
 	var data interface{}
 	if chart.Metadata.APIVersion == "v2" {
 		// TODO(aiyengar2): fully test apiVersion V2 charts and remove this warning
-		logger.Log(slog.LevelWarn, "detected apiVersion:v2 within Chart.yaml; these types of charts require additional testing")
+		logger.Log(ctx, slog.LevelWarn, "detected apiVersion:v2 within Chart.yaml; these types of charts require additional testing")
 		path = filepath.Join(mainHelmChartPath, "Chart.yaml")
 		data = chart.Metadata
 	} else {
@@ -322,7 +323,7 @@ func UpdateHelmMetadataWithDependencies(fs billy.Filesystem, mainHelmChartPath s
 	if err != nil {
 		return err
 	}
-	exists, err := filesystem.PathExists(fs, path)
+	exists, err := filesystem.PathExists(ctx, fs, path)
 	if err != nil {
 		return err
 	}

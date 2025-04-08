@@ -1,6 +1,7 @@
 package regsync
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -13,10 +14,10 @@ import (
 )
 
 // GenerateFilteredImageTagMap returns a map of container images and their tags
-func GenerateFilteredImageTagMap(filter map[string][]string) (map[string][]string, error) {
+func GenerateFilteredImageTagMap(ctx context.Context, filter map[string][]string) (map[string][]string, error) {
 	imageTagMap := make(map[string][]string)
 
-	err := walkFilteredAssetsFolder(imageTagMap, filter)
+	err := walkFilteredAssetsFolder(ctx, imageTagMap, filter)
 	if err != nil {
 		return imageTagMap, err
 	}
@@ -27,7 +28,7 @@ func GenerateFilteredImageTagMap(filter map[string][]string) (map[string][]strin
 // walkAssetsFolder walks over the assets folder, untars files if their name matches one of the filter values,
 // stores the values.yaml content into a map and then iterates over the map to collect the image repo and tag values
 // into another map.
-func walkFilteredAssetsFolder(imageTagMap, filter map[string][]string) error {
+func walkFilteredAssetsFolder(ctx context.Context, imageTagMap, filter map[string][]string) error {
 
 	assetErrorMap := make(map[string]error)
 	// Walk through the assets folder of the repo
@@ -60,7 +61,7 @@ func walkFilteredAssetsFolder(imageTagMap, filter map[string][]string) error {
 				if strings.Compare(chartName, chart) == 0 {
 					for _, version := range versions {
 						if strings.Compare(chartVersion, version) == 0 {
-							logger.Log(slog.LevelInfo, "collecting images and tags for chart", slog.String("chartName", chartName), slog.String("chartVersion", chartVersion))
+							logger.Log(ctx, slog.LevelInfo, "collecting images and tags for chart", slog.String("chartName", chartName), slog.String("chartVersion", chartVersion))
 
 							// There can be multiple values yaml files for single chart. So, making a for loop.
 							for _, valuesYaml := range valuesYamlMaps {

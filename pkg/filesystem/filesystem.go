@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha1"
 	"fmt"
 	"io"
@@ -45,9 +46,9 @@ func GetRelativePath(fs billy.Filesystem, abspath string) (string, error) {
 }
 
 // PathExists checks if a path exists on the filesystem or returns an error
-func PathExists(fs billy.Filesystem, path string) (bool, error) {
+func PathExists(ctx context.Context, fs billy.Filesystem, path string) (bool, error) {
 	absPath := GetAbsPath(fs, path)
-	logger.Log(slog.LevelDebug, "checking if path exists", slog.String("absPath", absPath))
+	logger.Log(ctx, slog.LevelDebug, "checking if path exists", slog.String("absPath", absPath))
 
 	_, err := os.Stat(absPath)
 	if err == nil {
@@ -80,9 +81,9 @@ func RemoveAll(fs billy.Filesystem, path string) error {
 }
 
 // PruneEmptyDirsInPath removes all empty directories located within the path
-func PruneEmptyDirsInPath(fs billy.Filesystem, path string) error {
+func PruneEmptyDirsInPath(ctx context.Context, fs billy.Filesystem, path string) error {
 	for len(path) > 0 {
-		exists, err := PathExists(fs, path)
+		exists, err := PathExists(ctx, fs, path)
 		if err != nil {
 			return err
 		}
@@ -90,7 +91,7 @@ func PruneEmptyDirsInPath(fs billy.Filesystem, path string) error {
 			path = filepath.Dir(path)
 			continue
 		}
-		empty, err := IsEmptyDir(fs, path)
+		empty, err := IsEmptyDir(ctx, fs, path)
 		if err != nil {
 			return err
 		}
@@ -106,8 +107,8 @@ func PruneEmptyDirsInPath(fs billy.Filesystem, path string) error {
 }
 
 // IsEmptyDir returns whether the path provided is an empty directory or an error
-func IsEmptyDir(fs billy.Filesystem, path string) (bool, error) {
-	exists, err := PathExists(fs, path)
+func IsEmptyDir(ctx context.Context, fs billy.Filesystem, path string) (bool, error) {
+	exists, err := PathExists(ctx, fs, path)
 	if err != nil {
 		return false, err
 	}
@@ -122,10 +123,10 @@ func IsEmptyDir(fs billy.Filesystem, path string) (bool, error) {
 }
 
 // CopyFile copies a file from srcPath to dstPath within a filesystem. It creates any relevant directories along the way
-func CopyFile(fs billy.Filesystem, srcPath string, dstPath string) error {
+func CopyFile(ctx context.Context, fs billy.Filesystem, srcPath string, dstPath string) error {
 	var srcFile, dstFile billy.File
 	// Get srcFile
-	srcExists, err := PathExists(fs, srcPath)
+	srcExists, err := PathExists(ctx, fs, srcPath)
 	if err != nil {
 		return err
 	}
@@ -138,7 +139,7 @@ func CopyFile(fs billy.Filesystem, srcPath string, dstPath string) error {
 	}
 	defer srcFile.Close()
 	// Get or create dstFile
-	dstExists, err := PathExists(fs, dstPath)
+	dstExists, err := PathExists(ctx, fs, dstPath)
 	if err != nil {
 		return err
 	}
@@ -180,10 +181,10 @@ func GetChartArchive(fs billy.Filesystem, url string, path string) error {
 }
 
 // UnarchiveTgz attempts to unarchive the tgz file found at tgzPath in the filesystem
-func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string, overwrite bool) error {
+func UnarchiveTgz(ctx context.Context, fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string, overwrite bool) error {
 	// Check whether the destPath already exists to avoid overwriting it
 	if !overwrite {
-		exists, err := PathExists(fs, destPath)
+		exists, err := PathExists(ctx, fs, destPath)
 		if err != nil {
 			return err
 		}
@@ -213,7 +214,7 @@ func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string
 		if err != nil {
 			return err
 		}
-		rootPath, err := GetRootPath(h.Name)
+		rootPath, err := GetRootPath(ctx, h.Name)
 		if err != nil {
 			return err
 		}
@@ -222,7 +223,7 @@ func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string
 			continue
 		}
 		subdirectoryFound = true
-		path, err := MovePath(h.Name, rootPathWithSubdir, destPath)
+		path, err := MovePath(ctx, h.Name, rootPathWithSubdir, destPath)
 		if err != nil {
 			return err
 		}
@@ -259,7 +260,7 @@ func UnarchiveTgz(fs billy.Filesystem, tgzPath, tgzSubdirectory, destPath string
 
 // CompareTgzs checks to see if the file contents of the archive found at leftTgzPath matches that of the archive found at rightTgzPath
 // It does this by comparing the sha256sum of the file contents, ignoring any other information (e.g. file modes, timestamps, etc.)
-func CompareTgzs(fs billy.Filesystem, leftTgzPath string, rightTgzPath string) (bool, error) {
+func CompareTgzs(ctx context.Context, fs billy.Filesystem, leftTgzPath string, rightTgzPath string) (bool, error) {
 	// Read left
 	leftFile, err := fs.OpenFile(leftTgzPath, os.O_RDONLY, os.ModePerm)
 	if err != nil {
@@ -272,10 +273,10 @@ func CompareTgzs(fs billy.Filesystem, leftTgzPath string, rightTgzPath string) (
 		return false, err
 	}
 	defer rightFile.Close()
-	return compareTgzs(leftFile, rightFile)
+	return compareTgzs(ctx, leftFile, rightFile)
 }
 
-func compareTgzs(leftFile, rightFile io.Reader) (bool, error) {
+func compareTgzs(ctx context.Context, leftFile, rightFile io.Reader) (bool, error) {
 	leftGzipReader, err := gzip.NewReader(leftFile)
 	if err != nil {
 		return false, fmt.Errorf("unable to read gzip formatted file: %s", err)
@@ -286,10 +287,10 @@ func compareTgzs(leftFile, rightFile io.Reader) (bool, error) {
 		return false, fmt.Errorf("unable to read gzip formatted file: %s", err)
 	}
 	defer rightGzipReader.Close()
-	return compareTars(leftGzipReader, rightGzipReader)
+	return compareTars(ctx, leftGzipReader, rightGzipReader)
 }
 
-func compareTars(leftFile, rightFile io.Reader) (bool, error) {
+func compareTars(ctx context.Context, leftFile, rightFile io.Reader) (bool, error) {
 	leftTarReader := tar.NewReader(leftFile)
 	rightTarReader := tar.NewReader(rightFile)
 	// Get the hashes of all the files
@@ -435,14 +436,14 @@ func compareTars(leftFile, rightFile io.Reader) (bool, error) {
 		// Check if both archives contain the files
 		switch {
 		case len(hashes[0]) == 0:
-			logger.Log(slog.LevelDebug, "file does not exist in left tar", slog.String("filename", filename))
+			logger.Log(ctx, slog.LevelDebug, "file does not exist in left tar", slog.String("filename", filename))
 			identical = false
 		case len(hashes[1]) == 0:
-			logger.Log(slog.LevelDebug, "file does not exist in right tar", slog.String("filename", filename))
+			logger.Log(ctx, slog.LevelDebug, "file does not exist in right tar", slog.String("filename", filename))
 			identical = false
 		case hashes[0] != hashes[1]:
 			// Hashes do not match
-			logger.Log(slog.LevelWarn, "hashes do not match", slog.String("filename", filename), slog.String("leftHash", hashes[0]), slog.String("rightHash", hashes[1]))
+			logger.Log(ctx, slog.LevelWarn, "hashes do not match", slog.String("filename", filename), slog.String("leftHash", hashes[0]), slog.String("rightHash", hashes[1]))
 			identical = false
 		}
 	}
@@ -455,22 +456,22 @@ func compareTars(leftFile, rightFile io.Reader) (bool, error) {
 		// Check if both archives contain the files
 		switch {
 		case tars[0] == nil:
-			logger.Log(slog.LevelDebug, "file does not exist in left tar", slog.String("filename", filename))
+			logger.Log(ctx, slog.LevelDebug, "file does not exist in left tar", slog.String("filename", filename))
 			identical = false
 		case tars[1] == nil:
-			logger.Log(slog.LevelDebug, "file does not exist in right tar", slog.String("filename", filename))
+			logger.Log(ctx, slog.LevelDebug, "file does not exist in right tar", slog.String("filename", filename))
 			identical = false
 		default:
 			// Deep compare tars
-			logger.Log(slog.LevelDebug, "deep compare contents of tar file", slog.String("filename", filename))
+			logger.Log(ctx, slog.LevelDebug, "deep compare contents of tar file", slog.String("filename", filename))
 
-			matches, err := compareTars(tars[0], tars[1])
+			matches, err := compareTars(ctx, tars[0], tars[1])
 			if err != nil {
 				return false, fmt.Errorf("could not compare contents of %s: %s", filename, err)
 			}
 
 			if !matches {
-				logger.Log(slog.LevelWarn, "contents do not match for tar file", slog.String("filename", filename))
+				logger.Log(ctx, slog.LevelWarn, "contents do not match for tar file", slog.String("filename", filename))
 				identical = false
 			}
 		}
@@ -484,22 +485,22 @@ func compareTars(leftFile, rightFile io.Reader) (bool, error) {
 		// Check if both archives contain the files
 		switch {
 		case tgzs[0] == nil:
-			logger.Log(slog.LevelDebug, "file does not exist in left tgz", slog.String("filename", filename))
+			logger.Log(ctx, slog.LevelDebug, "file does not exist in left tgz", slog.String("filename", filename))
 			identical = false
 		case tgzs[1] == nil:
-			logger.Log(slog.LevelDebug, "file does not exist in right tgz", slog.String("filename", filename))
+			logger.Log(ctx, slog.LevelDebug, "file does not exist in right tgz", slog.String("filename", filename))
 			identical = false
 		default:
 			// Deep compare tars
-			logger.Log(slog.LevelDebug, "deep compare contents of tgz file", slog.String("filename", filename))
+			logger.Log(ctx, slog.LevelDebug, "deep compare contents of tgz file", slog.String("filename", filename))
 
-			matches, err := compareTgzs(tgzs[0], tgzs[1])
+			matches, err := compareTgzs(ctx, tgzs[0], tgzs[1])
 			if err != nil {
 				return false, fmt.Errorf("could not compare contents of %s: %s", filename, err)
 			}
 
 			if !matches {
-				logger.Log(slog.LevelWarn, "contents do not match for tgz file", slog.String("filename", filename))
+				logger.Log(ctx, slog.LevelWarn, "contents do not match for tgz file", slog.String("filename", filename))
 				identical = false
 			}
 		}
@@ -509,8 +510,8 @@ func compareTars(leftFile, rightFile io.Reader) (bool, error) {
 }
 
 // ArchiveDir archives a directory or a file into a tgz file and put it at destTgzPath which should end with .tgz
-func ArchiveDir(fs billy.Filesystem, srcPath, destTgzPath string) error {
-	logger.Log(slog.LevelDebug, "archive directory inside .tgz", slog.String("srcPath", srcPath), slog.String("destTgzPath", destTgzPath))
+func ArchiveDir(ctx context.Context, fs billy.Filesystem, srcPath, destTgzPath string) error {
+	logger.Log(ctx, slog.LevelDebug, "archive directory inside .tgz", slog.String("srcPath", srcPath), slog.String("destTgzPath", destTgzPath))
 
 	if !strings.HasSuffix(destTgzPath, ".tgz") {
 		return fmt.Errorf("cannot archive %s to %s since the archive path does not end with '.tgz'", srcPath, destTgzPath)
@@ -527,7 +528,7 @@ func ArchiveDir(fs billy.Filesystem, srcPath, destTgzPath string) error {
 	tarWriter := tar.NewWriter(gz)
 	defer tarWriter.Close()
 
-	return WalkDir(fs, srcPath, func(fs billy.Filesystem, path string, isDir bool) error {
+	return WalkDir(ctx, fs, srcPath, func(ctx context.Context, fs billy.Filesystem, path string, isDir bool) error {
 		info, err := fs.Stat(path)
 		if err != nil {
 			return err
@@ -557,14 +558,14 @@ func ArchiveDir(fs billy.Filesystem, srcPath, destTgzPath string) error {
 }
 
 // RelativePathFunc is a function that is applied on a relative path within the given filesystem
-type RelativePathFunc func(fs billy.Filesystem, path string, isDir bool) error
+type RelativePathFunc func(ctx context.Context, fs billy.Filesystem, path string, isDir bool) error
 
 // RelativePathPairFunc is a function that is applied on a pair of relative paths in a filesystem
-type RelativePathPairFunc func(fs billy.Filesystem, leftPath, rightPath string, isDir bool) error
+type RelativePathPairFunc func(ctx context.Context, fs billy.Filesystem, leftPath, rightPath string, isDir bool) error
 
 // WalkDir walks through a directory given by dirPath rooted in the filesystem and performs doFunc at the path
 // The path on each call will be relative to the filesystem provided.
-func WalkDir(fs billy.Filesystem, dirPath string, doFunc RelativePathFunc) error {
+func WalkDir(ctx context.Context, fs billy.Filesystem, dirPath string, doFunc RelativePathFunc) error {
 	// Create all necessary directories
 	return filepath.Walk(GetAbsPath(fs, dirPath), func(abspath string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -576,28 +577,28 @@ func WalkDir(fs billy.Filesystem, dirPath string, doFunc RelativePathFunc) error
 				return err
 			}
 			// Log the error if soft errors are enabled
-			logger.Log(slog.LevelError, "", logger.Err(err))
+			logger.Log(ctx, slog.LevelError, "", logger.Err(err))
 		}
 		path, err := GetRelativePath(fs, abspath)
 		if err != nil {
 			return err
 		}
-		walkFuncRes := doFunc(fs, path, info.IsDir())
+		walkFuncRes := doFunc(ctx, fs, path, info.IsDir())
 		if !util.IsSoftErrorOn() {
 			return walkFuncRes
 		} else if walkFuncRes != nil {
-			logger.Log(slog.LevelError, "error walkFunc", logger.Err(walkFuncRes))
+			logger.Log(ctx, slog.LevelError, "error walkFunc", logger.Err(walkFuncRes))
 		}
 		return nil
 	})
 }
 
 // CopyDir copies all files from srcDir to dstDir
-func CopyDir(fs billy.Filesystem, srcDir string, dstDir string) error {
-	logger.Log(slog.LevelDebug, "copying files", slog.String("srcDir", srcDir), slog.String("dstDir", dstDir))
+func CopyDir(ctx context.Context, fs billy.Filesystem, srcDir string, dstDir string) error {
+	logger.Log(ctx, slog.LevelDebug, "copying files", slog.String("srcDir", srcDir), slog.String("dstDir", dstDir))
 
-	return WalkDir(fs, srcDir, func(fs billy.Filesystem, srcPath string, isDir bool) error {
-		dstPath, err := MovePath(srcPath, srcDir, dstDir)
+	return WalkDir(ctx, fs, srcDir, func(ctx context.Context, fs billy.Filesystem, srcPath string, isDir bool) error {
+		dstPath, err := MovePath(ctx, srcPath, srcDir, dstDir)
 		if err != nil {
 			return err
 		}
@@ -616,8 +617,8 @@ func CopyDir(fs billy.Filesystem, srcDir string, dstDir string) error {
 }
 
 // MakeSubdirectoryRoot makes a particular subdirectory of a path its main directory
-func MakeSubdirectoryRoot(fs billy.Filesystem, path, subdirectory string) error {
-	exists, err := PathExists(fs, filepath.Join(path, subdirectory))
+func MakeSubdirectoryRoot(ctx context.Context, fs billy.Filesystem, path, subdirectory string) error {
+	exists, err := PathExists(ctx, fs, filepath.Join(path, subdirectory))
 	if err != nil {
 		return err
 	}
@@ -633,7 +634,7 @@ func MakeSubdirectoryRoot(fs billy.Filesystem, path, subdirectory string) error 
 	if err != nil {
 		return err
 	}
-	if err := CopyDir(fs, filepath.Join(path, subdirectory), tempDir); err != nil {
+	if err := CopyDir(ctx, fs, filepath.Join(path, subdirectory), tempDir); err != nil {
 		return err
 	}
 	if err := RemoveAll(fs, path); err != nil {
@@ -648,49 +649,49 @@ func MakeSubdirectoryRoot(fs billy.Filesystem, path, subdirectory string) error 
 // CompareDirs compares the contents of the directory at fromDirpath against that of the directory at toDirpath within a given filesystem
 // It execute leftOnlyFunc on paths that only exist on the leftDirpath and rightOnlyFunc on paths that only exist on rightDirpath
 // It executes bothFunc on paths that exist on both the left and the right. Order will be preserved in the function arguments
-func CompareDirs(fs billy.Filesystem, leftDirpath, rightDirpath string, leftOnlyFunc, rightOnlyFunc RelativePathFunc, bothFunc RelativePathPairFunc) error {
-	logger.Log(slog.LevelDebug, "compare directories", slog.String("leftDirpath", leftDirpath), slog.String("rightDirpath", rightDirpath))
+func CompareDirs(ctx context.Context, fs billy.Filesystem, leftDirpath, rightDirpath string, leftOnlyFunc, rightOnlyFunc RelativePathFunc, bothFunc RelativePathPairFunc) error {
+	logger.Log(ctx, slog.LevelDebug, "compare directories", slog.String("leftDirpath", leftDirpath), slog.String("rightDirpath", rightDirpath))
 
-	applyLeftOnlyOrBoth := func(fs billy.Filesystem, leftPath string, isDir bool) error {
-		rightPath, err := MovePath(leftPath, leftDirpath, rightDirpath)
+	applyLeftOnlyOrBoth := func(ctx context.Context, fs billy.Filesystem, leftPath string, isDir bool) error {
+		rightPath, err := MovePath(ctx, leftPath, leftDirpath, rightDirpath)
 		if err != nil {
 			return err
 		}
-		exists, err := PathExists(fs, rightPath)
+		exists, err := PathExists(ctx, fs, rightPath)
 		if err != nil {
 			return err
 		}
 		if !exists {
-			return leftOnlyFunc(fs, leftPath, isDir)
+			return leftOnlyFunc(ctx, fs, leftPath, isDir)
 		}
-		return bothFunc(fs, leftPath, rightPath, isDir)
+		return bothFunc(ctx, fs, leftPath, rightPath, isDir)
 	}
 
-	applyRightOnly := func(fs billy.Filesystem, rightPath string, isDir bool) error {
-		leftPath, err := MovePath(rightPath, rightDirpath, leftDirpath)
+	applyRightOnly := func(ctx context.Context, fs billy.Filesystem, rightPath string, isDir bool) error {
+		leftPath, err := MovePath(ctx, rightPath, rightDirpath, leftDirpath)
 		if err != nil {
 			return err
 		}
-		exists, err := PathExists(fs, leftPath)
+		exists, err := PathExists(ctx, fs, leftPath)
 		if err != nil {
 			return err
 		}
 		if !exists {
-			return rightOnlyFunc(fs, rightPath, isDir)
+			return rightOnlyFunc(ctx, fs, rightPath, isDir)
 		}
 		return nil
 	}
 
-	if err := WalkDir(fs, leftDirpath, applyLeftOnlyOrBoth); err != nil {
+	if err := WalkDir(ctx, fs, leftDirpath, applyLeftOnlyOrBoth); err != nil {
 		return err
 	}
 
-	return WalkDir(fs, rightDirpath, applyRightOnly)
+	return WalkDir(ctx, fs, rightDirpath, applyRightOnly)
 }
 
 // GetRootPath returns the first directory in a given path
-func GetRootPath(path string) (string, error) {
-	logger.Log(slog.LevelDebug, "get root path", slog.String("path", path))
+func GetRootPath(ctx context.Context, path string) (string, error) {
+	logger.Log(ctx, slog.LevelDebug, "get root path", slog.String("path", path))
 
 	rootPathList := strings.SplitN(path, "/", 2)
 	if len(rootPathList) == 0 {
@@ -700,8 +701,8 @@ func GetRootPath(path string) (string, error) {
 }
 
 // MovePath takes a path that is contained within fromDir and returns the same path contained within toDir
-func MovePath(path string, fromDir string, toDir string) (string, error) {
-	logger.Log(slog.LevelDebug, "moving path", slog.String("path", path))
+func MovePath(ctx context.Context, path string, fromDir string, toDir string) (string, error) {
+	logger.Log(ctx, slog.LevelDebug, "moving path", slog.String("path", path))
 
 	if !strings.HasPrefix(path, fromDir) {
 		return "", fmt.Errorf("path %s does not contain directory %s", path, fromDir)

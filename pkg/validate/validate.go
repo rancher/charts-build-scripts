@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -38,17 +39,17 @@ func (r CompareGeneratedAssetsResponse) PassedValidation() bool {
 }
 
 // LogDiscrepancies produces logs that can be used to pretty-print why a validation might have failed
-func (r CompareGeneratedAssetsResponse) LogDiscrepancies() {
-	logger.Log(slog.LevelError, "new assets introduced", slog.Any("UntrackedInRelease", r.UntrackedInRelease))
-	logger.Log(slog.LevelError, "assets removed", slog.Any("RemovedPostRelease", r.RemovedPostRelease))
-	logger.Log(slog.LevelError, "assets modified", slog.Any("ModifiedPostRelease", r.ModifiedPostRelease))
-	logger.Log(slog.LevelError, "If this was intentional, to allow validation to pass, these charts must be added to the release.yaml.")
+func (r CompareGeneratedAssetsResponse) LogDiscrepancies(ctx context.Context) {
+	logger.Log(ctx, slog.LevelError, "new assets introduced", slog.Any("UntrackedInRelease", r.UntrackedInRelease))
+	logger.Log(ctx, slog.LevelError, "assets removed", slog.Any("RemovedPostRelease", r.RemovedPostRelease))
+	logger.Log(ctx, slog.LevelError, "assets modified", slog.Any("ModifiedPostRelease", r.ModifiedPostRelease))
+	logger.Log(ctx, slog.LevelError, "If this was intentional, to allow validation to pass, these charts must be added to the release.yaml.")
 }
 
 // DumpReleaseYaml takes the response collected by this CompareGeneratedAssetsResponse and automatically creates the appropriate release.yaml,
 // assuming that the user does indeed intend to add, delete, or modify all assets that were marked in this comparison
-func (r CompareGeneratedAssetsResponse) DumpReleaseYaml(repoFs billy.Filesystem) error {
-	releaseYaml, err := options.LoadReleaseOptionsFromFile(repoFs, path.RepositoryReleaseYaml)
+func (r CompareGeneratedAssetsResponse) DumpReleaseYaml(ctx context.Context, repoFs billy.Filesystem) error {
+	releaseYaml, err := options.LoadReleaseOptionsFromFile(ctx, repoFs, path.RepositoryReleaseYaml)
 	if err != nil {
 		return err
 	}
@@ -61,12 +62,12 @@ func (r CompareGeneratedAssetsResponse) DumpReleaseYaml(repoFs billy.Filesystem)
 	releaseYaml.Merge(r.RemovedPostRelease)
 	releaseYaml.Merge(r.ModifiedPostRelease)
 
-	return releaseYaml.WriteToFile(repoFs, path.RepositoryReleaseYaml)
+	return releaseYaml.WriteToFile(ctx, repoFs, path.RepositoryReleaseYaml)
 }
 
 // CompareGeneratedAssets checks to see if current assets and charts match upstream, aside from those indicated in the release.yaml
 // It returns a boolean indicating if the comparison has passed or an error
-func CompareGeneratedAssets(repoRoot string, repoFs billy.Filesystem, u options.UpstreamOptions, branch string, releaseOptions options.ReleaseOptions) (CompareGeneratedAssetsResponse, error) {
+func CompareGeneratedAssets(ctx context.Context, repoRoot string, repoFs billy.Filesystem, u options.UpstreamOptions, branch string, releaseOptions options.ReleaseOptions) (CompareGeneratedAssetsResponse, error) {
 	response := CompareGeneratedAssetsResponse{
 		UntrackedInRelease:  options.ReleaseOptions{},
 		ModifiedPostRelease: options.ReleaseOptions{},
@@ -74,9 +75,9 @@ func CompareGeneratedAssets(repoRoot string, repoFs billy.Filesystem, u options.
 	}
 
 	// Initialize lifecycle package for validating with assets lifecycle rules
-	lifeCycleDep, err := lifecycle.InitDependencies(repoRoot, repoFs, lifecycle.ExtractBranchVersion(branch), "")
+	lifeCycleDep, err := lifecycle.InitDependencies(ctx, repoRoot, repoFs, lifecycle.ExtractBranchVersion(branch), "")
 	if err != nil {
-		logger.Log(slog.LevelError, "failed to initialize lifecycle dependencies", logger.Err(err))
+		logger.Log(ctx, slog.LevelError, "failed to initialize lifecycle dependencies", logger.Err(err))
 		return response, err
 	}
 
@@ -86,25 +87,25 @@ func CompareGeneratedAssets(repoRoot string, repoFs billy.Filesystem, u options.
 		return response, fmt.Errorf("failed to get Github repository pointing to new upstream: %s", err)
 	}
 
-	if err := releasedChartsRepoBranch.Pull(repoFs, repoFs, path.ChartsRepositoryUpstreamBranchDir); err != nil {
+	if err := releasedChartsRepoBranch.Pull(ctx, repoFs, repoFs, path.ChartsRepositoryUpstreamBranchDir); err != nil {
 		return response, fmt.Errorf("failed to pull assets from upstream: %s", err)
 	}
 	defer filesystem.RemoveAll(repoFs, path.ChartsRepositoryUpstreamBranchDir)
 
 	// Standardize the upstream repository
-	logger.Log(slog.LevelInfo, "standardizing upstream repository to compare it against local")
+	logger.Log(ctx, slog.LevelInfo, "standardizing upstream repository to compare it against local")
 
 	releaseFs, err := repoFs.Chroot(path.ChartsRepositoryUpstreamBranchDir)
 	if err != nil {
 		return response, fmt.Errorf("failed to get filesystem for %s: %s", path.ChartsRepositoryUpstreamBranchDir, err)
 	}
 
-	if err := standardize.RestructureChartsAndAssets(releaseFs); err != nil {
+	if err := standardize.RestructureChartsAndAssets(ctx, releaseFs); err != nil {
 		return response, fmt.Errorf("failed to standardize upstream: %s", err)
 	}
 
 	// Walk through directories and execute release logic
-	localOnly := func(fs billy.Filesystem, localPath string, isDir bool) error {
+	localOnly := func(ctx context.Context, fs billy.Filesystem, localPath string, isDir bool) error {
 		if isDir {
 			// We only care about original files
 			return nil
@@ -125,7 +126,7 @@ func CompareGeneratedAssets(repoRoot string, repoFs billy.Filesystem, u options.
 			return nil
 		}
 		// Chart exists in local and is not tracked by release.yaml
-		logger.Log(slog.LevelWarn, "chart is untracked", slog.String("name", chart.Metadata.Name), slog.String("version", chart.Metadata.Version))
+		logger.Log(ctx, slog.LevelWarn, "chart is untracked", slog.String("name", chart.Metadata.Name), slog.String("version", chart.Metadata.Version))
 		// If the chart exists in local and not on the upstream it may have been removed by the lifecycle rules
 		isVersionInLifecycle := lifeCycleDep.VR.CheckChartVersionForLifecycle(chart.Metadata.Version)
 		if isVersionInLifecycle {
@@ -135,7 +136,7 @@ func CompareGeneratedAssets(repoRoot string, repoFs billy.Filesystem, u options.
 		return nil
 	}
 
-	upstreamOnly := func(fs billy.Filesystem, upstreamPath string, isDir bool) error {
+	upstreamOnly := func(ctx context.Context, fs billy.Filesystem, upstreamPath string, isDir bool) error {
 		if isDir {
 			// We only care about original files
 			return nil
@@ -156,18 +157,18 @@ func CompareGeneratedAssets(repoRoot string, repoFs billy.Filesystem, u options.
 			return nil
 		}
 		// Chart was removed from local and is not tracked by release.yaml
-		logger.Log(slog.LevelWarn, "chart was removed", slog.String("name", chart.Metadata.Name), slog.String("version", chart.Metadata.Version))
+		logger.Log(ctx, slog.LevelWarn, "chart was removed", slog.String("name", chart.Metadata.Name), slog.String("version", chart.Metadata.Version))
 
 		response.RemovedPostRelease = response.RemovedPostRelease.Append(chart.Metadata.Name, chart.Metadata.Version)
 		// Found asset that only exists in upstream and is not tracked by release.yaml
-		localPath, err := filesystem.MovePath(upstreamPath, path.ChartsRepositoryUpstreamBranchDir, "")
+		localPath, err := filesystem.MovePath(ctx, upstreamPath, path.ChartsRepositoryUpstreamBranchDir, "")
 		if err != nil {
 			return err
 		}
-		return copyAndUnzip(repoFs, upstreamPath, localPath)
+		return copyAndUnzip(ctx, repoFs, upstreamPath, localPath)
 	}
 
-	localAndUpstream := func(fs billy.Filesystem, localPath, upstreamPath string, isDir bool) error {
+	localAndUpstream := func(ctx context.Context, fs billy.Filesystem, localPath, upstreamPath string, isDir bool) error {
 		if isDir {
 			// We only care about modified files
 			return nil
@@ -188,7 +189,7 @@ func CompareGeneratedAssets(repoRoot string, repoFs billy.Filesystem, u options.
 			return nil
 		}
 		// Deep compare the inner contents of the tgzs
-		identical, err := filesystem.CompareTgzs(fs, upstreamPath, localPath)
+		identical, err := filesystem.CompareTgzs(ctx, fs, upstreamPath, localPath)
 		if err != nil {
 			return err
 		}
@@ -196,44 +197,44 @@ func CompareGeneratedAssets(repoRoot string, repoFs billy.Filesystem, u options.
 			return nil
 		}
 		// Chart was modified in local and is not tracked by release.yaml
-		logger.Log(slog.LevelWarn, "chart was modified", slog.String("name", chart.Metadata.Name), slog.String("version", chart.Metadata.Version))
+		logger.Log(ctx, slog.LevelWarn, "chart was modified", slog.String("name", chart.Metadata.Name), slog.String("version", chart.Metadata.Version))
 
 		response.ModifiedPostRelease = response.ModifiedPostRelease.Append(chart.Metadata.Name, chart.Metadata.Version)
-		return copyAndUnzip(repoFs, upstreamPath, localPath)
+		return copyAndUnzip(ctx, repoFs, upstreamPath, localPath)
 	}
 	// Compare the directories
-	logger.Log(slog.LevelInfo, "comparing standardized upstream assets against local assets")
+	logger.Log(ctx, slog.LevelInfo, "comparing standardized upstream assets against local assets")
 
-	if err := filesystem.CompareDirs(repoFs, "", path.ChartsRepositoryUpstreamBranchDir, localOnly, upstreamOnly, localAndUpstream); err != nil {
+	if err := filesystem.CompareDirs(ctx, repoFs, "", path.ChartsRepositoryUpstreamBranchDir, localOnly, upstreamOnly, localAndUpstream); err != nil {
 		return response, fmt.Errorf("encountered error while trying to compare local against upstream: %s", err)
 	}
 	return response, nil
 }
 
-func copyAndUnzip(repoFs billy.Filesystem, upstreamPath, localPath string) error {
-	specificAsset, err := filesystem.MovePath(upstreamPath, filepath.Join(path.ChartsRepositoryUpstreamBranchDir, path.RepositoryAssetsDir), "")
+func copyAndUnzip(ctx context.Context, repoFs billy.Filesystem, upstreamPath, localPath string) error {
+	specificAsset, err := filesystem.MovePath(ctx, upstreamPath, filepath.Join(path.ChartsRepositoryUpstreamBranchDir, path.RepositoryAssetsDir), "")
 	if err != nil {
 		return fmt.Errorf("encountered error while trying to find repository path for upstream path %s: %s", upstreamPath, err)
 	}
-	if err := filesystem.CopyFile(repoFs, upstreamPath, localPath); err != nil {
+	if err := filesystem.CopyFile(ctx, repoFs, upstreamPath, localPath); err != nil {
 		return err
 	}
-	if err := zip.DumpAssets(repoFs.Root(), specificAsset); err != nil {
+	if err := zip.DumpAssets(ctx, repoFs.Root(), specificAsset); err != nil {
 		return fmt.Errorf("encountered error while copying over contents of modified upstream asset to charts: %s", err)
 	}
 	return nil
 }
 
 // StatusExceptions checks if the git repository is clean and if it is not, it checks if the changes are allowed
-func StatusExceptions(status git.Status) error {
+func StatusExceptions(ctx context.Context, status git.Status) error {
 	if !status.IsClean() {
 		if err := validateExceptions(status); err != nil {
-			logger.Log(slog.LevelError, "git is not clean", slog.String("status", status.String()))
-			logger.Log(slog.LevelError, "error", logger.Err(err))
+			logger.Log(ctx, slog.LevelError, "git is not clean", slog.String("status", status.String()))
+			logger.Log(ctx, slog.LevelError, "error", logger.Err(err))
 			return errors.New("repository must be clean to run validation")
 		}
 
-		g, err := bashGit.OpenGitRepo(".")
+		g, err := bashGit.OpenGitRepo(ctx, ".")
 		if err != nil {
 			return err
 		}

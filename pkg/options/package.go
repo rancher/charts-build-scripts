@@ -1,6 +1,7 @@
 package options
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -95,9 +96,9 @@ type HelmRepoConfiguration struct {
 }
 
 // LoadPackageOptionsFromFile unmarshalls the struct found at the file to YAML and reads it into memory
-func LoadPackageOptionsFromFile(fs billy.Filesystem, path string) (PackageOptions, error) {
+func LoadPackageOptionsFromFile(ctx context.Context, fs billy.Filesystem, path string) (PackageOptions, error) {
 	var packageOptions PackageOptions
-	exists, err := filesystem.PathExists(fs, path)
+	exists, err := filesystem.PathExists(ctx, fs, path)
 	if err != nil {
 		return packageOptions, err
 	}
@@ -112,12 +113,12 @@ func LoadPackageOptionsFromFile(fs billy.Filesystem, path string) (PackageOption
 }
 
 // WriteToFile marshals the struct to yaml and writes it into the path specified
-func (p PackageOptions) WriteToFile(fs billy.Filesystem, path string) error {
+func (p PackageOptions) WriteToFile(ctx context.Context, fs billy.Filesystem, path string) error {
 	chartOptionsBytes, err := yaml.Marshal(p)
 	if err != nil {
 		return err
 	}
-	exists, err := filesystem.PathExists(fs, path)
+	exists, err := filesystem.PathExists(ctx, fs, path)
 	if err != nil {
 		return err
 	}
@@ -136,9 +137,9 @@ func (p PackageOptions) WriteToFile(fs billy.Filesystem, path string) error {
 }
 
 // LoadChartOptionsFromFile unmarshalls the struct found at the file to YAML and reads it into memory
-func LoadChartOptionsFromFile(fs billy.Filesystem, path string) (ChartOptions, error) {
+func LoadChartOptionsFromFile(ctx context.Context, fs billy.Filesystem, path string) (ChartOptions, error) {
 	var chartOptions ChartOptions
-	exists, err := filesystem.PathExists(fs, path)
+	exists, err := filesystem.PathExists(ctx, fs, path)
 	if err != nil {
 		return chartOptions, err
 	}
@@ -153,12 +154,12 @@ func LoadChartOptionsFromFile(fs billy.Filesystem, path string) (ChartOptions, e
 }
 
 // WriteToFile marshals the struct to yaml and writes it into the path specified
-func (c ChartOptions) WriteToFile(fs billy.Filesystem, path string) error {
+func (c ChartOptions) WriteToFile(ctx context.Context, fs billy.Filesystem, path string) error {
 	chartOptionsBytes, err := yaml.Marshal(c)
 	if err != nil {
 		return err
 	}
-	exists, err := filesystem.PathExists(fs, path)
+	exists, err := filesystem.PathExists(ctx, fs, path)
 	if err != nil {
 		return err
 	}

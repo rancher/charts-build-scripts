@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -445,42 +446,48 @@ func main() {
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		logger.Fatal(err.Error())
+		logger.Fatal(context.Background(), err.Error())
 	}
 }
 
 func listPackages(c *cli.Context) {
+	ctx := context.Background()
+
 	getRepoRoot()
-	packageList, err := charts.ListPackages(RepoRoot, CurrentPackage)
+	packageList, err := charts.ListPackages(ctx, RepoRoot, CurrentPackage)
 	if err != nil {
-		logger.Fatal(err.Error())
+		logger.Fatal(ctx, err.Error())
 	}
 	if PorcelainMode {
-		logger.Log(slog.LevelInfo, "", slog.String("packageList", strings.Join(packageList, " ")))
+		logger.Log(ctx, slog.LevelInfo, "", slog.String("packageList", strings.Join(packageList, " ")))
 		return
 
 	}
 
-	logger.Log(slog.LevelInfo, "", slog.Any("packageList", packageList))
+	logger.Log(ctx, slog.LevelInfo, "", slog.Any("packageList", packageList))
 }
 
 func prepareCharts(c *cli.Context) {
+	ctx := context.Background()
+
 	util.SetSoftErrorMode(SoftErrorMode)
 	packages := getPackages()
 	if len(packages) == 0 {
-		logger.Fatal("could not find any packages in packages/ folder")
+		logger.Fatal(ctx, "could not find any packages in packages/ folder")
 	}
 	for _, p := range packages {
-		if err := p.Prepare(); err != nil {
-			logger.Fatal(err.Error())
+		if err := p.Prepare(ctx); err != nil {
+			logger.Fatal(ctx, err.Error())
 		}
 	}
 }
 
 func generatePatch(c *cli.Context) {
+	ctx := context.Background()
+
 	packages := getPackages()
 	if len(packages) == 0 {
-		logger.Log(slog.LevelInfo, "no packages found")
+		logger.Log(ctx, slog.LevelInfo, "no packages found")
 		return
 	}
 	if len(packages) != 1 {
@@ -488,360 +495,405 @@ func generatePatch(c *cli.Context) {
 		for i, pkg := range packages {
 			packageNames[i] = pkg.Name
 		}
-		logger.Fatal(fmt.Sprintf("PACKAGE=\"%s\"; is wrong, it must be set to point to one package", CurrentPackage))
+		logger.Fatal(ctx, fmt.Sprintf("PACKAGE=\"%s\"; is wrong, it must be set to point to one package", CurrentPackage))
 	}
-	if err := packages[0].GeneratePatch(); err != nil {
-		logger.Fatal(err.Error())
+	if err := packages[0].GeneratePatch(ctx); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 }
 
 func generateCharts(c *cli.Context) {
+	ctx := context.Background()
+
 	packages := getPackages()
 	if len(packages) == 0 {
-		logger.Log(slog.LevelInfo, "no packages found")
+		logger.Log(ctx, slog.LevelInfo, "no packages found")
 		return
 	}
-	chartsScriptOptions := parseScriptOptions()
+
+	chartsScriptOptions := parseScriptOptions(ctx)
 	for _, p := range packages {
 		if p.Auto == false {
-			if err := p.GenerateCharts(chartsScriptOptions.OmitBuildMetadataOnExport); err != nil {
-				logger.Fatal(err.Error())
+			if err := p.GenerateCharts(ctx, chartsScriptOptions.OmitBuildMetadataOnExport); err != nil {
+				logger.Fatal(ctx, err.Error())
 			}
 		}
 	}
 }
 
 func downloadIcon(c *cli.Context) {
+	ctx := context.Background()
+
 	packages := getPackages()
 	if len(packages) == 0 {
-		logger.Log(slog.LevelInfo, "no packages found")
+		logger.Log(ctx, slog.LevelInfo, "no packages found")
 		return
 	}
 	for _, p := range packages {
-		err := p.DownloadIcon()
+		err := p.DownloadIcon(ctx)
 		if err != nil {
-			logger.Fatal(err.Error())
+			logger.Fatal(ctx, err.Error())
 		}
 	}
 }
 
 func generateRegSyncConfigFile(c *cli.Context) {
-	if err := regsync.GenerateConfigFile(); err != nil {
-		logger.Fatal(err.Error())
+	ctx := context.Background()
+
+	if err := regsync.GenerateConfigFile(ctx); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 }
 
 func createOrUpdateIndex(c *cli.Context) {
+	ctx := context.Background()
+
 	getRepoRoot()
-	if err := helm.CreateOrUpdateHelmIndex(filesystem.GetFilesystem(RepoRoot)); err != nil {
-		logger.Fatal(err.Error())
+	if err := helm.CreateOrUpdateHelmIndex(ctx, filesystem.GetFilesystem(RepoRoot)); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 }
 
 func zipCharts(c *cli.Context) {
+	ctx := context.Background()
+
 	getRepoRoot()
-	if err := zip.ArchiveCharts(RepoRoot, CurrentChart); err != nil {
-		logger.Fatal(err.Error())
+	if err := zip.ArchiveCharts(ctx, RepoRoot, CurrentChart); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 	createOrUpdateIndex(c)
 }
 
 func unzipAssets(c *cli.Context) {
+	ctx := context.Background()
+
 	getRepoRoot()
-	if err := zip.DumpAssets(RepoRoot, CurrentAsset); err != nil {
-		logger.Fatal(err.Error())
+	if err := zip.DumpAssets(ctx, RepoRoot, CurrentAsset); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 	createOrUpdateIndex(c)
 }
 
 func cleanRepo(c *cli.Context) {
+	ctx := context.Background()
+
 	packages := getPackages()
 	if len(packages) == 0 {
-		logger.Log(slog.LevelInfo, "no packages found")
+		logger.Log(ctx, slog.LevelInfo, "no packages found")
 		return
 	}
+
 	for _, p := range packages {
-		if err := p.Clean(); err != nil {
-			logger.Fatal(err.Error())
+		if err := p.Clean(ctx); err != nil {
+			logger.Fatal(ctx, err.Error())
 		}
 	}
 }
 
 func validateRepo(c *cli.Context) {
+	ctx := context.Background()
+
 	if LocalMode && RemoteMode {
-		logger.Fatal("cannot specify both local and remote validation")
+		logger.Fatal(ctx, "cannot specify both local and remote validation")
 	}
 
-	chartsScriptOptions := parseScriptOptions()
+	chartsScriptOptions := parseScriptOptions(ctx)
 
-	logger.Log(slog.LevelInfo, "checking if Git is clean")
+	logger.Log(ctx, slog.LevelInfo, "checking if Git is clean")
 	_, _, status := getGitInfo()
 	if !status.IsClean() {
-		logger.Fatal("repository must be clean to run validation")
+		logger.Fatal(ctx, "repository must be clean to run validation")
 	}
 
 	if RemoteMode {
-		logger.Log(slog.LevelInfo, "remove validation only")
+		logger.Log(ctx, slog.LevelInfo, "remove validation only")
 	} else {
-		logger.Log(slog.LevelInfo, "generating charts")
+		logger.Log(ctx, slog.LevelInfo, "generating charts")
 		generateCharts(c)
 
-		logger.Log(slog.LevelInfo, "checking if Git is clean after generating charts")
+		logger.Log(ctx, slog.LevelInfo, "checking if Git is clean after generating charts")
 		_, _, status = getGitInfo()
-		if err := validate.StatusExceptions(status); err != nil {
-			logger.Fatal(err.Error())
+		if err := validate.StatusExceptions(ctx, status); err != nil {
+			logger.Fatal(ctx, err.Error())
 		}
 
-		logger.Log(slog.LevelInfo, "successfully validated that current charts and assets are up-to-date")
+		logger.Log(ctx, slog.LevelInfo, "successfully validated that current charts and assets are up-to-date")
 	}
 
 	if chartsScriptOptions.ValidateOptions != nil {
 		if LocalMode {
-			logger.Log(slog.LevelInfo, "local validation only")
+			logger.Log(ctx, slog.LevelInfo, "local validation only")
 		} else {
 			getRepoRoot()
 			repoFs := filesystem.GetFilesystem(RepoRoot)
-			releaseOptions, err := options.LoadReleaseOptionsFromFile(repoFs, "release.yaml")
+			releaseOptions, err := options.LoadReleaseOptionsFromFile(ctx, repoFs, "release.yaml")
 			if err != nil {
-				logger.Fatal(fmt.Errorf("unable to unmarshall release.yaml: %w", err).Error())
+				logger.Fatal(ctx, fmt.Errorf("unable to unmarshall release.yaml: %w", err).Error())
 			}
 			u := chartsScriptOptions.ValidateOptions.UpstreamOptions
 			branch := chartsScriptOptions.ValidateOptions.Branch
 
-			logger.Log(slog.LevelInfo, "upstream validation against repository", slog.String("url", u.URL), slog.String("branch", branch))
-			compareGeneratedAssetsResponse, err := validate.CompareGeneratedAssets(RepoRoot, repoFs, u, branch, releaseOptions)
+			logger.Log(ctx, slog.LevelInfo, "upstream validation against repository", slog.String("url", u.URL), slog.String("branch", branch))
+			compareGeneratedAssetsResponse, err := validate.CompareGeneratedAssets(ctx, RepoRoot, repoFs, u, branch, releaseOptions)
 			if err != nil {
-				logger.Fatal(err.Error())
+				logger.Fatal(ctx, err.Error())
 			}
 			if !compareGeneratedAssetsResponse.PassedValidation() {
 				// Output charts that have been modified
-				compareGeneratedAssetsResponse.LogDiscrepancies()
+				compareGeneratedAssetsResponse.LogDiscrepancies(ctx)
 
-				logger.Log(slog.LevelInfo, "dumping release.yaml to track changes that have been introduced")
-				if err := compareGeneratedAssetsResponse.DumpReleaseYaml(repoFs); err != nil {
-					logger.Log(slog.LevelError, "unable to dump newly generated release.yaml", logger.Err(err))
+				logger.Log(ctx, slog.LevelInfo, "dumping release.yaml to track changes that have been introduced")
+				if err := compareGeneratedAssetsResponse.DumpReleaseYaml(ctx, repoFs); err != nil {
+					logger.Log(ctx, slog.LevelError, "unable to dump newly generated release.yaml", logger.Err(err))
 				}
 
-				logger.Log(slog.LevelInfo, "updating index.yaml")
-				if err := helm.CreateOrUpdateHelmIndex(repoFs); err != nil {
-					logger.Fatal(err.Error())
+				logger.Log(ctx, slog.LevelInfo, "updating index.yaml")
+				if err := helm.CreateOrUpdateHelmIndex(ctx, repoFs); err != nil {
+					logger.Fatal(ctx, err.Error())
 				}
 
-				logger.Fatal(fmt.Sprintf("validation against upstream repository %s at branch %s failed.", u.URL, branch))
+				logger.Fatal(ctx, fmt.Sprintf("validation against upstream repository %s at branch %s failed.", u.URL, branch))
 			}
 		}
 	}
 
-	logger.Log(slog.LevelInfo, "zipping charts to ensure that contents of assets, charts, and index.yaml are in sync")
+	logger.Log(ctx, slog.LevelInfo, "zipping charts to ensure that contents of assets, charts, and index.yaml are in sync")
 	zipCharts(c)
 
-	logger.Log(slog.LevelInfo, "final check if Git is clean")
+	logger.Log(ctx, slog.LevelInfo, "final check if Git is clean")
 	_, _, status = getGitInfo()
 	if !status.IsClean() {
-		logger.Fatal(fmt.Sprintf("repository must be clean to pass validation; status: %s", status.String()))
+		logger.Fatal(ctx, fmt.Sprintf("repository must be clean to pass validation; status: %s", status.String()))
 	}
 
-	logger.Log(slog.LevelInfo, "make validate success")
+	logger.Log(ctx, slog.LevelInfo, "make validate success")
 }
 
 func standardizeRepo(c *cli.Context) {
+	ctx := context.Background()
+
 	getRepoRoot()
 	repoFs := filesystem.GetFilesystem(RepoRoot)
-	if err := standardize.RestructureChartsAndAssets(repoFs); err != nil {
-		logger.Fatal(err.Error())
+	if err := standardize.RestructureChartsAndAssets(ctx, repoFs); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 }
 
 func createOrUpdateTemplate(c *cli.Context) {
+	ctx := context.Background()
+
 	getRepoRoot()
 	repoFs := filesystem.GetFilesystem(RepoRoot)
-	chartsScriptOptions := parseScriptOptions()
-	if err := update.ApplyUpstreamTemplate(repoFs, *chartsScriptOptions); err != nil {
-		logger.Fatal(fmt.Errorf("failed to update repository based on upstream template: %w", err).Error())
+	chartsScriptOptions := parseScriptOptions(ctx)
+	if err := update.ApplyUpstreamTemplate(ctx, repoFs, *chartsScriptOptions); err != nil {
+		logger.Fatal(ctx, fmt.Errorf("failed to update repository based on upstream template: %w", err).Error())
 	}
 
-	logger.Log(slog.LevelInfo, "successfully updated repository based on upstream template")
+	logger.Log(ctx, slog.LevelInfo, "successfully updated repository based on upstream template")
 }
 
 func setupCache(c *cli.Context) error {
+	ctx := context.Background()
+
 	getRepoRoot()
-	return puller.InitRootCache(RepoRoot, CacheMode, path.DefaultCachePath)
+	return puller.InitRootCache(ctx, RepoRoot, CacheMode, path.DefaultCachePath)
 }
 
 func cleanCache(c *cli.Context) {
+	ctx := context.Background()
+
 	getRepoRoot()
-	if err := puller.CleanRootCache(RepoRoot, path.DefaultCachePath); err != nil {
-		logger.Fatal(err.Error())
+	if err := puller.CleanRootCache(ctx, RepoRoot, path.DefaultCachePath); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 }
 
-func parseScriptOptions() *options.ChartsScriptOptions {
+func parseScriptOptions(ctx context.Context) *options.ChartsScriptOptions {
 	configYaml, err := os.ReadFile(ChartsScriptOptionsFile)
 	if err != nil {
-		logger.Fatal(fmt.Errorf("unable to find configuration file: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("unable to find configuration file: %w", err).Error())
 	}
 	chartsScriptOptions := options.ChartsScriptOptions{}
 	if err := yaml.UnmarshalStrict(configYaml, &chartsScriptOptions); err != nil {
-		logger.Fatal(fmt.Errorf("unable to unmarshall configuration file: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("unable to unmarshall configuration file: %w", err).Error())
 	}
 	return &chartsScriptOptions
 }
 
 func getRepoRoot() {
+	ctx := context.Background()
+
 	RepoRoot = os.Getenv("DEV_REPO_ROOT")
 	if RepoRoot != "" {
-		logger.Log(slog.LevelDebug, "using customized repo root: ", slog.String("repoRoot", RepoRoot))
+		logger.Log(ctx, slog.LevelDebug, "using customized repo root: ", slog.String("repoRoot", RepoRoot))
 	}
 
 	repoRoot, err := os.Getwd()
 	if err != nil {
-		logger.Fatal(fmt.Errorf("unable to get current working directory: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("unable to get current working directory: %w", err).Error())
 	}
 	if repoRoot == "" {
-		logger.Fatal("unable to get current working directory")
+		logger.Fatal(ctx, "unable to get current working directory")
 	}
 
-	logger.Log(slog.LevelDebug, "using current working directory as repo root: ", slog.String("repoRoot", repoRoot))
+	logger.Log(ctx, slog.LevelDebug, "using current working directory as repo root: ", slog.String("repoRoot", repoRoot))
 	RepoRoot = repoRoot
 }
 
 func getPackages() []*charts.Package {
+	ctx := context.Background()
+
 	getRepoRoot()
-	packages, err := charts.GetPackages(RepoRoot, CurrentPackage)
+	packages, err := charts.GetPackages(ctx, RepoRoot, CurrentPackage)
 	if err != nil {
-		logger.Fatal(err.Error())
+		logger.Fatal(ctx, err.Error())
 	}
 	return packages
 }
 
 func getGitInfo() (*git.Repository, *git.Worktree, git.Status) {
+	ctx := context.Background()
+
 	getRepoRoot()
 	repo, err := repository.GetRepo(RepoRoot)
 	if err != nil {
-		logger.Fatal(err.Error())
+		logger.Fatal(ctx, err.Error())
 	}
+
 	// Check if git is clean
 	wt, err := repo.Worktree()
 	if err != nil {
-		logger.Fatal(err.Error())
+		logger.Fatal(ctx, err.Error())
 	}
+
 	status, err := wt.Status()
 	if err != nil {
-		logger.Fatal(err.Error())
+		logger.Fatal(ctx, err.Error())
 	}
+
 	return repo, wt, status
 }
 
 func checkImages(c *cli.Context) {
-	if err := images.CheckImages(); err != nil {
-		logger.Fatal(err.Error())
+	ctx := context.Background()
+
+	if err := images.CheckImages(ctx); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 }
 
 func checkRCTagsAndVersions(c *cli.Context) {
+	ctx := context.Background()
+
 	getRepoRoot()
 	// Grab all images that contain RC tags
-	rcImageTagMap := images.CheckRCTags(RepoRoot)
+	rcImageTagMap := images.CheckRCTags(ctx, RepoRoot)
 
 	// Grab all chart versions that contain RC tags
-	rcChartVersionMap, err := charts.CheckRCCharts(RepoRoot)
+	rcChartVersionMap, err := charts.CheckRCCharts(ctx, RepoRoot)
 	if err != nil {
-		logger.Fatal(fmt.Errorf("unable to check for RC charts: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("unable to check for RC charts: %w", err).Error())
 	}
 
 	// If there are any charts that contains RC version or images that contains RC tags
 	// log them and return an error
 	if len(rcChartVersionMap) > 0 || len(rcImageTagMap) > 0 {
-		logger.Log(slog.LevelError, "found images with RC tags", slog.Any("rcImageTagMap", rcImageTagMap))
-		logger.Log(slog.LevelError, "found charts with RC version", slog.Any("rcChartVersionMap", rcChartVersionMap))
-		logger.Fatal("RC check has failed")
+		logger.Log(ctx, slog.LevelError, "found images with RC tags", slog.Any("rcImageTagMap", rcImageTagMap))
+		logger.Log(ctx, slog.LevelError, "found charts with RC version", slog.Any("rcChartVersionMap", rcChartVersionMap))
+		logger.Fatal(ctx, "RC check has failed")
 	}
 
-	logger.Log(slog.LevelInfo, "successfully checked RC tags and versions")
+	logger.Log(ctx, slog.LevelInfo, "successfully checked RC tags and versions")
 }
 
 func lifecycleStatus(c *cli.Context) {
+	ctx := context.Background()
+
 	// Initialize dependencies with branch-version and current chart
-	logger.Log(slog.LevelDebug, "initialize lifecycle-status")
+	logger.Log(ctx, slog.LevelDebug, "initialize lifecycle-status")
 
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
-	lifeCycleDep, err := lifecycle.InitDependencies(RepoRoot, rootFs, c.String("branch-version"), CurrentChart)
+	lifeCycleDep, err := lifecycle.InitDependencies(ctx, RepoRoot, rootFs, c.String("branch-version"), CurrentChart)
 	if err != nil {
-		logger.Fatal(fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
 	}
 
 	// Execute lifecycle status check and save the logs
-	logger.Log(slog.LevelDebug, "checking lifecycle status and saving logs")
-	_, err = lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
+	logger.Log(ctx, slog.LevelDebug, "checking lifecycle status and saving logs")
+	_, err = lifeCycleDep.CheckLifecycleStatusAndSave(ctx, CurrentChart)
 	if err != nil {
-		logger.Fatal(fmt.Errorf("failed to check lifecycle status: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("failed to check lifecycle status: %w", err).Error())
 	}
 }
 
 func autoForwardPort(c *cli.Context) {
+	ctx := context.Background()
+
 	if ForkURL == "" {
-		logger.Fatal("FORK environment variable must be set to run auto-forward-port")
+		logger.Fatal(ctx, "FORK environment variable must be set to run auto-forward-port")
 	}
 
 	// Initialize dependencies with branch-version and current chart
-	logger.Log(slog.LevelDebug, "initialize auto forward port")
+	logger.Log(ctx, slog.LevelDebug, "initialize auto forward port")
 
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
 
-	lifeCycleDep, err := lifecycle.InitDependencies(RepoRoot, rootFs, c.String("branch-version"), CurrentChart)
+	lifeCycleDep, err := lifecycle.InitDependencies(ctx, RepoRoot, rootFs, c.String("branch-version"), CurrentChart)
 	if err != nil {
-		logger.Fatal(fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
 	}
 
 	// Execute lifecycle status check and save the logs
-	logger.Log(slog.LevelInfo, "checking lifecycle status and saving logs")
-	status, err := lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
+	logger.Log(ctx, slog.LevelInfo, "checking lifecycle status and saving logs")
+	status, err := lifeCycleDep.CheckLifecycleStatusAndSave(ctx, CurrentChart)
 	if err != nil {
-		logger.Fatal(fmt.Errorf("failed to check lifecycle status: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("failed to check lifecycle status: %w", err).Error())
 	}
 
 	// Execute forward port with loaded information from status
-	fp, err := auto.CreateForwardPortStructure(lifeCycleDep, status.AssetsToBeForwardPorted, ForkURL)
+	fp, err := auto.CreateForwardPortStructure(ctx, lifeCycleDep, status.AssetsToBeForwardPorted, ForkURL)
 	if err != nil {
-		logger.Fatal(fmt.Errorf("failed to prepare forward port: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("failed to prepare forward port: %w", err).Error())
 	}
 
-	err = fp.ExecuteForwardPort(CurrentChart)
+	err = fp.ExecuteForwardPort(ctx, CurrentChart)
 	if err != nil {
-		logger.Fatal(fmt.Errorf("failed to execute forward port: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("failed to execute forward port: %w", err).Error())
 	}
 }
 
 func release(c *cli.Context) {
+	ctx := context.Background()
+
 	if ForkURL == "" {
-		logger.Fatal("FORK environment variable must be set to run release cmd")
+		logger.Fatal(ctx, "FORK environment variable must be set to run release cmd")
 	}
 
 	if CurrentChart == "" {
-		logger.Fatal("CHART environment variable must be set to run release cmd")
+		logger.Fatal(ctx, "CHART environment variable must be set to run release cmd")
 	}
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
 
-	dependencies, err := lifecycle.InitDependencies(RepoRoot, rootFs, c.String("branch-version"), CurrentChart)
+	dependencies, err := lifecycle.InitDependencies(ctx, RepoRoot, rootFs, c.String("branch-version"), CurrentChart)
 	if err != nil {
-		logger.Fatal(fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
 	}
 
 	status, err := lifecycle.LoadState(rootFs)
 	if err != nil {
-		logger.Fatal(fmt.Errorf("could not load state; please run lifecycle-status before this command: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("could not load state; please run lifecycle-status before this command: %w", err).Error())
 	}
 
-	release, err := auto.InitRelease(dependencies, status, ChartVersion, CurrentChart, ForkURL)
+	release, err := auto.InitRelease(ctx, dependencies, status, ChartVersion, CurrentChart, ForkURL)
 	if err != nil {
-		logger.Fatal(fmt.Errorf("failed to initialize release: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("failed to initialize release: %w", err).Error())
 	}
 
 	if err := release.PullAsset(); err != nil {
-		logger.Fatal(fmt.Errorf("failed to execute release: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("failed to execute release: %w", err).Error())
 	}
 
 	// Unzip Assets: ASSET=<chart>/<chart>-<version.tgz make unzip
@@ -850,7 +902,7 @@ func release(c *cli.Context) {
 
 	// update release.yaml
 	if err := release.UpdateReleaseYaml(); err != nil {
-		logger.Fatal(fmt.Errorf("failed to update release.yaml: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("failed to update release.yaml: %w", err).Error())
 	}
 
 	// make index
@@ -858,73 +910,79 @@ func release(c *cli.Context) {
 }
 
 func validateRelease(c *cli.Context) {
+	ctx := context.Background()
+
 	if Skip {
-		logger.Log(slog.LevelInfo, "skipping release validation")
+		logger.Log(ctx, slog.LevelInfo, "skipping release validation")
 		return
 	}
 	if GithubToken == "" {
-		logger.Fatal("GH_TOKEN environment variable must be set to run validate-release-charts")
+		logger.Fatal(ctx, "GH_TOKEN environment variable must be set to run validate-release-charts")
 	}
 	if PullRequest == "" {
-		logger.Fatal("PR_NUMBER environment variable must be set to run validate-release-charts")
+		logger.Fatal(ctx, "PR_NUMBER environment variable must be set to run validate-release-charts")
 	}
 	if Branch == "" {
-		logger.Fatal("BRANCH environment variable must be set to run validate-release-charts")
+		logger.Fatal(ctx, "BRANCH environment variable must be set to run validate-release-charts")
 	}
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
 
 	if !strings.HasPrefix(Branch, "release-v") {
-		logger.Fatal("branch must be in the format release-v2.x")
+		logger.Fatal(ctx, "branch must be in the format release-v2.x")
 	}
 
-	dependencies, err := lifecycle.InitDependencies(RepoRoot, rootFs, strings.TrimPrefix(Branch, "release-v"), "")
+	dependencies, err := lifecycle.InitDependencies(ctx, RepoRoot, rootFs, strings.TrimPrefix(Branch, "release-v"), "")
 	if err != nil {
-		logger.Fatal(fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
 	}
 
-	if err := auto.ValidatePullRequest(GithubToken, PullRequest, dependencies); err != nil {
-		logger.Fatal(fmt.Errorf("failed to validate pull request: %w", err).Error())
+	if err := auto.ValidatePullRequest(ctx, GithubToken, PullRequest, dependencies); err != nil {
+		logger.Fatal(ctx, fmt.Errorf("failed to validate pull request: %w", err).Error())
 	}
 }
 
 func compareIndexFiles(c *cli.Context) {
+	ctx := context.Background()
+
 	if Branch == "" {
-		logger.Fatal("BRANCH environment variable must be set to run compare-index-files")
+		logger.Fatal(ctx, "BRANCH environment variable must be set to run compare-index-files")
 	}
 
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
 
-	if err := auto.CompareIndexFiles(rootFs); err != nil {
-		logger.Fatal(fmt.Errorf("failed to compare index files: %w", err).Error())
+	if err := auto.CompareIndexFiles(ctx, rootFs); err != nil {
+		logger.Fatal(ctx, fmt.Errorf("failed to compare index files: %w", err).Error())
 	}
 
-	logger.Log(slog.LevelInfo, "index.yaml files are the same at git repository and charts.rancher.io")
+	logger.Log(ctx, slog.LevelInfo, "index.yaml files are the same at git repository and charts.rancher.io")
 }
 
 func chartBump(c *cli.Context) {
+	ctx := context.Background()
+
 	if CurrentPackage == "" {
-		logger.Fatal("CurrentPackage environment variable must be set")
+		logger.Fatal(ctx, "CurrentPackage environment variable must be set")
 	}
 	if Branch == "" {
-		logger.Fatal("Branch environment variable must be set")
+		logger.Fatal(ctx, "Branch environment variable must be set")
 	}
 
 	ChartsScriptOptionsFile = path.ConfigurationYamlFile
-	chartsScriptOptions := parseScriptOptions()
+	chartsScriptOptions := parseScriptOptions(ctx)
 
-	logger.Log(slog.LevelDebug, "", slog.String("CurrentPackage", CurrentPackage))
-	logger.Log(slog.LevelDebug, "", slog.String("Branch", Branch))
+	logger.Log(ctx, slog.LevelDebug, "", slog.String("CurrentPackage", CurrentPackage))
+	logger.Log(ctx, slog.LevelDebug, "", slog.String("Branch", Branch))
 
-	logger.Log(slog.LevelInfo, "setup auto-chart-bump")
-	bump, err := auto.SetupBump(RepoRoot, CurrentPackage, Branch, chartsScriptOptions)
+	logger.Log(ctx, slog.LevelInfo, "setup auto-chart-bump")
+	bump, err := auto.SetupBump(ctx, RepoRoot, CurrentPackage, Branch, chartsScriptOptions)
 	if err != nil {
-		logger.Fatal(fmt.Errorf("failed to setup: %w", err).Error())
+		logger.Fatal(ctx, fmt.Errorf("failed to setup: %w", err).Error())
 	}
 
-	logger.Log(slog.LevelInfo, "start auto-chart-bump")
-	if err := bump.BumpChart(); err != nil {
-		logger.Fatal(fmt.Errorf("failed to bump: %w", err).Error())
+	logger.Log(ctx, slog.LevelInfo, "start auto-chart-bump")
+	if err := bump.BumpChart(ctx); err != nil {
+		logger.Fatal(ctx, fmt.Errorf("failed to bump: %w", err).Error())
 	}
 }

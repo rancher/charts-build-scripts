@@ -1,6 +1,7 @@
 package regsync
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -15,22 +16,22 @@ type skopeo struct {
 }
 
 // checkPrimeImageTags checks the prime image tags on the registry.
-func checkPrimeImageTags(imageTags map[string][]string) (map[string][]string, error) {
+func checkPrimeImageTags(ctx context.Context, imageTags map[string][]string) (map[string][]string, error) {
 	var primeImageTags map[string][]string = make(map[string][]string)
 
-	logger.Log(slog.LevelInfo, "checking prime image tags")
+	logger.Log(ctx, slog.LevelInfo, "checking prime image tags")
 	for image := range imageTags {
 		if image == "" {
 			continue
 		}
 
-		logger.Log(slog.LevelDebug, "", slog.String("image", image))
+		logger.Log(ctx, slog.LevelDebug, "", slog.String("image", image))
 		tags, err := skopeoListTags(image)
 		if err != nil {
 			return nil, err
 		}
 
-		logger.Log(slog.LevelDebug, "", slog.Any("tags", tags))
+		logger.Log(ctx, slog.LevelDebug, "", slog.Any("tags", tags))
 		primeImageTags[image] = tags
 	}
 
@@ -58,7 +59,7 @@ func skopeoListTags(image string) ([]string, error) {
 }
 
 // removePrimeImageTags will only allow the tags that are not present in the prime image tags.
-func removePrimeImageTags(imageTagMap, newPrimeImgTags map[string][]string) map[string][]string {
+func removePrimeImageTags(ctx context.Context, imageTagMap, newPrimeImgTags map[string][]string) map[string][]string {
 	var syncImgTags map[string][]string = make(map[string][]string)
 
 	for image, tags := range imageTagMap {
@@ -73,7 +74,7 @@ func removePrimeImageTags(imageTagMap, newPrimeImgTags map[string][]string) map[
 			primeTags := newPrimeImgTags[image]
 			if exist := primeTagFinder(tag, primeTags); !exist {
 				syncImgTags[image] = append(syncImgTags[image], tag)
-				logger.Log(slog.LevelDebug, "", slog.Any("syncImgTags", syncImgTags))
+				logger.Log(ctx, slog.LevelDebug, "", slog.Any("syncImgTags", syncImgTags))
 			}
 		}
 	}

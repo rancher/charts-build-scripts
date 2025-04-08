@@ -1,6 +1,7 @@
 package auto
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -26,7 +27,7 @@ type Release struct {
 }
 
 // InitRelease will create the Release struct with access to the necessary dependencies.
-func InitRelease(d *lifecycle.Dependencies, s *lifecycle.Status, v, c, f string) (*Release, error) {
+func InitRelease(ctx context.Context, d *lifecycle.Dependencies, s *lifecycle.Status, v, c, f string) (*Release, error) {
 	r := &Release{
 		git:           d.Git,
 		VR:            d.VR,
@@ -65,7 +66,7 @@ func InitRelease(d *lifecycle.Dependencies, s *lifecycle.Status, v, c, f string)
 	}
 
 	// Check if we have a release.yaml file in the expected path
-	if exist, err := filesystem.PathExists(d.RootFs, path.RepositoryReleaseYaml); err != nil || !exist {
+	if exist, err := filesystem.PathExists(ctx, d.RootFs, path.RepositoryReleaseYaml); err != nil || !exist {
 		return nil, errors.New("release.yaml not found")
 	}
 

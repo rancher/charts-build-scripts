@@ -1,6 +1,7 @@
 package charts
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -44,18 +45,18 @@ type Package struct {
 }
 
 // Prepare pulls in a package based on the spec to the local git repository
-func (p *Package) Prepare() error {
-	logger.Log(slog.LevelInfo, "make prepare")
+func (p *Package) Prepare(ctx context.Context) error {
+	logger.Log(ctx, slog.LevelInfo, "make prepare")
 
-	if err := p.Chart.Prepare(p.rootFs, p.fs); err != nil {
-		logger.Log(slog.LevelError, "encountered error while preparing chart", slog.String("path", p.Chart.WorkingDir), logger.Err(err))
+	if err := p.Chart.Prepare(ctx, p.rootFs, p.fs); err != nil {
+		logger.Log(ctx, slog.LevelError, "encountered error while preparing chart", slog.String("path", p.Chart.WorkingDir), logger.Err(err))
 		return err
 	}
 
 	if p.Chart.Upstream.IsWithinPackage() {
 		// in the case of local chart
 		for _, additionalChart := range p.AdditionalCharts {
-			exists, err := filesystem.PathExists(p.fs, additionalChart.WorkingDir)
+			exists, err := filesystem.PathExists(ctx, p.fs, additionalChart.WorkingDir)
 			if err != nil {
 				return fmt.Errorf("encountered error while trying to check if %s exists: %s", additionalChart.WorkingDir, err)
 			}
@@ -63,17 +64,17 @@ func (p *Package) Prepare() error {
 				continue
 			}
 			// Local charts need to revert changes before trying to prepare additional charts
-			if err := additionalChart.RevertMainChanges(p.fs); err != nil {
+			if err := additionalChart.RevertMainChanges(ctx, p.fs); err != nil {
 				return fmt.Errorf("encountered error while reverting changes from %s to main chart: %s", additionalChart.WorkingDir, err)
 			}
 		}
 	}
-	logger.Log(slog.LevelInfo, "preparing additional charts")
+	logger.Log(ctx, slog.LevelInfo, "preparing additional charts")
 	for _, additionalChart := range p.AdditionalCharts {
-		if err := additionalChart.Prepare(p.rootFs, p.fs, p.Chart.UpstreamChartVersion); err != nil {
+		if err := additionalChart.Prepare(ctx, p.rootFs, p.fs, p.Chart.UpstreamChartVersion); err != nil {
 			return fmt.Errorf("encountered error while preparing additional chart %s: %s", additionalChart.WorkingDir, err)
 		}
-		if err := additionalChart.ApplyMainChanges(p.fs); err != nil {
+		if err := additionalChart.ApplyMainChanges(ctx, p.fs); err != nil {
 			return fmt.Errorf("encountered error while applying main changes from %s to main chart: %s", additionalChart.WorkingDir, err)
 		}
 	}
@@ -81,24 +82,24 @@ func (p *Package) Prepare() error {
 }
 
 // GeneratePatch generates a patch on a forked Helm chart based on local changes
-func (p *Package) GeneratePatch() error {
-	logger.Log(slog.LevelInfo, "make patch")
+func (p *Package) GeneratePatch(ctx context.Context) error {
+	logger.Log(ctx, slog.LevelInfo, "make patch")
 
 	for _, additionalChart := range p.AdditionalCharts {
-		if err := additionalChart.RevertMainChanges(p.fs); err != nil {
+		if err := additionalChart.RevertMainChanges(ctx, p.fs); err != nil {
 			return fmt.Errorf("encountered error while reverting changes from %s to main chart: %s", additionalChart.WorkingDir, err)
 		}
 	}
 
-	if err := p.Chart.GeneratePatch(p.rootFs, p.fs); err != nil {
+	if err := p.Chart.GeneratePatch(ctx, p.rootFs, p.fs); err != nil {
 		return fmt.Errorf("encountered error while generating patch on main chart: %s", err)
 	}
 
 	for _, additionalChart := range p.AdditionalCharts {
-		if err := additionalChart.ApplyMainChanges(p.fs); err != nil {
+		if err := additionalChart.ApplyMainChanges(ctx, p.fs); err != nil {
 			return fmt.Errorf("encountered error while applying main changes from %s to main chart: %s", additionalChart.WorkingDir, err)
 		}
-		if err := additionalChart.GeneratePatch(p.rootFs, p.fs); err != nil {
+		if err := additionalChart.GeneratePatch(ctx, p.rootFs, p.fs); err != nil {
 			return fmt.Errorf("encountered error while generating patch on additional chart %s: %s", additionalChart.WorkingDir, err)
 		}
 	}
@@ -108,15 +109,15 @@ func (p *Package) GeneratePatch() error {
 
 // DownloadIcon Downloads the icon from the charts.yaml file to the assets/logos folder
 // and changes the chart.yaml file to use it
-func (p *Package) DownloadIcon() error {
-	logger.Log(slog.LevelInfo, "make icon")
+func (p *Package) DownloadIcon(ctx context.Context) error {
+	logger.Log(ctx, slog.LevelInfo, "make icon")
 
-	exists, err := filesystem.PathExists(p.fs, path.RepositoryChartsDir)
+	exists, err := filesystem.PathExists(ctx, p.fs, path.RepositoryChartsDir)
 	if err != nil {
 		return fmt.Errorf("failed to check for charts dir. Err: %w", err)
 	}
 	if !exists {
-		logger.Log(slog.LevelError, "charts dir does not exist, run make prepare first", slog.String("path", path.RepositoryChartsDir))
+		logger.Log(ctx, slog.LevelError, "charts dir does not exist, run make prepare first", slog.String("path", path.RepositoryChartsDir))
 		return nil
 	}
 
@@ -128,14 +129,14 @@ func (p *Package) DownloadIcon() error {
 
 	u, err := url.Parse(chart.Metadata.Icon)
 	if err == nil && (u.Scheme == "http" || u.Scheme == "https") {
-		logger.Log(slog.LevelDebug, "chart icon is pointing to a remote url", slog.String("url", chart.Metadata.Icon))
+		logger.Log(ctx, slog.LevelDebug, "chart icon is pointing to a remote url", slog.String("url", chart.Metadata.Icon))
 
 		// download icon and change the icon property to point to it
-		p, err := icons.Download(p.rootFs, chart.Metadata)
+		p, err := icons.Download(ctx, p.rootFs, chart.Metadata)
 		if err == nil { // managed to download the icon and save it locally
 			chart.Metadata.Icon = fmt.Sprintf("file://%s", p)
 		} else {
-			logger.Log(slog.LevelError, "failed to download icon", logger.Err(err))
+			logger.Log(ctx, slog.LevelError, "failed to download icon", logger.Err(err))
 		}
 
 		chartYamlPath := fmt.Sprintf("%s/Chart.yaml", absHelmChartPath)
@@ -148,39 +149,39 @@ func (p *Package) DownloadIcon() error {
 }
 
 // GenerateCharts creates Helm chart archives for each chart after preparing it
-func (p *Package) GenerateCharts(omitBuildMetadataOnExport bool) error {
-	logger.Log(slog.LevelInfo, "make charts")
+func (p *Package) GenerateCharts(ctx context.Context, omitBuildMetadataOnExport bool) error {
+	logger.Log(ctx, slog.LevelInfo, "make charts")
 
 	if p.DoNotRelease {
-		logger.Log(slog.LevelInfo, "skipping package marked doNotRelease")
+		logger.Log(ctx, slog.LevelInfo, "skipping package marked doNotRelease")
 		return nil
 	}
-	if err := p.Prepare(); err != nil {
+	if err := p.Prepare(ctx); err != nil {
 		return fmt.Errorf("encountered error while trying to prepare package: %s", err)
 	}
 
 	// Add PackageVersion to format
-	err := p.Chart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, p.AutoGeneratedBumpVersion, omitBuildMetadataOnExport)
+	err := p.Chart.GenerateChart(ctx, p.rootFs, p.fs, p.PackageVersion, p.Version, p.AutoGeneratedBumpVersion, omitBuildMetadataOnExport)
 	if err != nil {
 		return fmt.Errorf("encountered error while exporting main chart: %s", err)
 	}
 
 	for _, additionalChart := range p.AdditionalCharts {
-		err = additionalChart.GenerateChart(p.rootFs, p.fs, p.PackageVersion, p.Version, p.AutoGeneratedBumpVersion, omitBuildMetadataOnExport)
+		err = additionalChart.GenerateChart(ctx, p.rootFs, p.fs, p.PackageVersion, p.Version, p.AutoGeneratedBumpVersion, omitBuildMetadataOnExport)
 		if err != nil {
 			return fmt.Errorf("encountered error while exporting %s: %s", additionalChart.WorkingDir, err)
 		}
 	}
 
-	if err := helm.CreateOrUpdateHelmIndex(p.rootFs); err != nil {
+	if err := helm.CreateOrUpdateHelmIndex(ctx, p.rootFs); err != nil {
 		return err
 	}
-	return p.Clean()
+	return p.Clean(ctx)
 }
 
 // Clean removes all other files except for the package.yaml, patch, and overlay/ files from a package
-func (p *Package) Clean() error {
-	logger.Log(slog.LevelInfo, "make clean")
+func (p *Package) Clean(ctx context.Context) error {
+	logger.Log(ctx, slog.LevelInfo, "make clean")
 
 	chartPathsToClean := []string{p.Chart.OriginalDir()}
 	if !p.Chart.Upstream.IsWithinPackage() {
@@ -194,12 +195,12 @@ func (p *Package) Clean() error {
 			// Working directory never needs to be clean for an additional chart
 			continue
 		}
-		exists, err := filesystem.PathExists(p.fs, additionalChart.WorkingDir)
+		exists, err := filesystem.PathExists(ctx, p.fs, additionalChart.WorkingDir)
 		if err != nil {
 			return fmt.Errorf("encountered error while trying to check if %s exists: %s", additionalChart.WorkingDir, err)
 		}
 		if exists {
-			if err := additionalChart.RevertMainChanges(p.fs); err != nil {
+			if err := additionalChart.RevertMainChanges(ctx, p.fs); err != nil {
 				return fmt.Errorf("encountered error while reverting changes from %s to main chart: %s", additionalChart.WorkingDir, err)
 			}
 		}

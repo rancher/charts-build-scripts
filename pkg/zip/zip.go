@@ -1,6 +1,7 @@
 package zip
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -18,15 +19,15 @@ import (
 // ArchiveCharts zips charts from charts/ into assets/. If the asset was re-ordered, it will also update charts/.
 // If specificChart is provided, it will filter the set of charts that will be targeted for zipping.
 // It will also not update an asset if its internal contents have not changed.
-func ArchiveCharts(repoRoot string, specificChart string) error {
+func ArchiveCharts(ctx context.Context, repoRoot string, specificChart string) error {
 	repoFs := filesystem.GetFilesystem(repoRoot)
 	foundChart := false
-	zipChart := func(fs billy.Filesystem, helmChartPath string, isDir bool) error {
+	zipChart := func(ctx context.Context, fs billy.Filesystem, helmChartPath string, isDir bool) error {
 		if !isDir || len(strings.Split(helmChartPath, "/")) != 3 {
 			// We expect to be at charts/{chart}/{version}
 			return nil
 		}
-		chartVersionPath, err := filesystem.MovePath(helmChartPath, path.RepositoryChartsDir, "")
+		chartVersionPath, err := filesystem.MovePath(ctx, helmChartPath, path.RepositoryChartsDir, "")
 		if err != nil {
 			return fmt.Errorf("unable to get chart version path for %s", helmChartPath)
 		}
@@ -38,7 +39,7 @@ func ArchiveCharts(repoRoot string, specificChart string) error {
 		}
 		foundChart = true
 		chartAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, filepath.Dir(chartVersionPath))
-		tgzPath, err := helm.GenerateArchive(repoFs, fs, helmChartPath, chartAssetsDirpath, nil)
+		tgzPath, err := helm.GenerateArchive(ctx, repoFs, fs, helmChartPath, chartAssetsDirpath, nil)
 		if err != nil {
 			return fmt.Errorf("encountered error while trying to update archive based on chart in %s: %s", chartVersionPath, err)
 		}
@@ -46,17 +47,17 @@ func ArchiveCharts(repoRoot string, specificChart string) error {
 		// that is created reorders the contents of Chart.yaml / requirements.yaml to be
 		// alphabetical. Therefore, when zipping a chart we always need to unzip the finalized
 		// chart(s) back to the charts/ directory, which is done by calling UnzipAsset after this.
-		currentAsset, err := filesystem.MovePath(tgzPath, path.RepositoryAssetsDir, "")
+		currentAsset, err := filesystem.MovePath(ctx, tgzPath, path.RepositoryAssetsDir, "")
 		if err != nil {
 			return err
 		}
-		if err := DumpAssets(repoRoot, currentAsset); err != nil {
+		if err := DumpAssets(ctx, repoRoot, currentAsset); err != nil {
 			return fmt.Errorf("encountered error while trying to update chart %s based on %s: %s", chartVersionPath, tgzPath, err)
 		}
 		return nil
 	}
 
-	if err := filesystem.WalkDir(repoFs, path.RepositoryChartsDir, zipChart); err != nil {
+	if err := filesystem.WalkDir(ctx, repoFs, path.RepositoryChartsDir, zipChart); err != nil {
 		return fmt.Errorf("encountered error while trying to zip charts: %s", err)
 	}
 	if len(specificChart) > 0 && !foundChart {
@@ -68,15 +69,15 @@ func ArchiveCharts(repoRoot string, specificChart string) error {
 
 // DumpAssets unzips assets from assets/ into charts/.
 // If specificAsset is provided, it will filter the set of assets that will be targeted for unzipping.
-func DumpAssets(repoRoot string, specificAsset string) error {
+func DumpAssets(ctx context.Context, repoRoot string, specificAsset string) error {
 	repoFs := filesystem.GetFilesystem(repoRoot)
 	foundAsset := false
-	unzipAsset := func(fs billy.Filesystem, tgzPath string, isDir bool) error {
+	unzipAsset := func(ctx context.Context, fs billy.Filesystem, tgzPath string, isDir bool) error {
 		if isDir || len(strings.Split(tgzPath, "/")) != 3 || filepath.Ext(tgzPath) != ".tgz" {
 			// We expect to be at assets/{chart}/{chart}-{version}.tgz
 			return nil
 		}
-		assetPath, err := filesystem.MovePath(tgzPath, path.RepositoryAssetsDir, "")
+		assetPath, err := filesystem.MovePath(ctx, tgzPath, path.RepositoryAssetsDir, "")
 		if err != nil {
 			return fmt.Errorf("unable to get tgz path for %s", tgzPath)
 		}
@@ -88,7 +89,7 @@ func DumpAssets(repoRoot string, specificAsset string) error {
 		}
 
 		// Unarchive Tgz file
-		logger.Log(slog.LevelInfo, "unarchiving", slog.String("tgzPath", tgzPath))
+		logger.Log(ctx, slog.LevelInfo, "unarchiving", slog.String("tgzPath", tgzPath))
 
 		// Get path to unarchive tgz to
 		foundAsset = true
@@ -104,16 +105,16 @@ func DumpAssets(repoRoot string, specificAsset string) error {
 		if err := filesystem.RemoveAll(fs, chartChartsDirpath); err != nil {
 			return fmt.Errorf("failed to clean directory for charts at %s: %s", chartChartsDirpath, err)
 		}
-		defer filesystem.PruneEmptyDirsInPath(fs, chartChartsDirpath)
-		if err := filesystem.UnarchiveTgz(fs, tgzPath, "", chartChartsDirpath, true); err != nil {
+		defer filesystem.PruneEmptyDirsInPath(ctx, fs, chartChartsDirpath)
+		if err := filesystem.UnarchiveTgz(ctx, fs, tgzPath, "", chartChartsDirpath, true); err != nil {
 			return err
 		}
 
-		logger.Log(slog.LevelInfo, "generated chart", slog.String("chartChartsDirpath", chartChartsDirpath))
+		logger.Log(ctx, slog.LevelInfo, "generated chart", slog.String("chartChartsDirpath", chartChartsDirpath))
 		return nil
 	}
 
-	if err := filesystem.WalkDir(repoFs, path.RepositoryAssetsDir, unzipAsset); err != nil {
+	if err := filesystem.WalkDir(ctx, repoFs, path.RepositoryAssetsDir, unzipAsset); err != nil {
 		return fmt.Errorf("encountered error while trying to zip charts: %s", err)
 	}
 

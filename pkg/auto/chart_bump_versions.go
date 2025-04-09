@@ -38,7 +38,7 @@ func (v *version) updateTxt() {
 // if the chart had a patch bump, it will increment the patch version for the repoPrefixVersion
 // if the chart had a minor or major bump, it will increment the minor version for the repoPrefixVersion
 // the major repoPrefixVersion is only bumped when Rancher version is bumped.
-func (b *Bump) calculateNextVersion(ctx context.Context) error {
+func (b *Bump) calculateNextVersion(ctx context.Context, versionOverride string) error {
 	logger.Log(ctx, slog.LevelInfo, "calculate next version")
 
 	// load versions and parse the repository prefix versions from them

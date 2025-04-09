@@ -441,7 +441,7 @@ func main() {
 			`,
 			Action: chartBump,
 			Before: setupCache,
-			Flags:  []cli.Flag{packageFlag, branchFlag},
+			Flags:  []cli.Flag{packageFlag, branchFlag, chartVersionFlag},
 		},
 	}
 
@@ -986,7 +986,7 @@ func chartBump(c *cli.Context) {
 	}
 
 	logger.Log(ctx, slog.LevelInfo, "start auto-chart-bump")
-	if err := bump.BumpChart(ctx); err != nil {
+	if err := bump.BumpChart(ctx, ChartVersion); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to bump: %w", err).Error())
 	}
 }

@@ -320,7 +320,7 @@ func Test_calculateNextVersion(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.input.b.calculateNextVersion(context.Background())
+			err := tc.input.b.calculateNextVersion(context.Background(), "")
 			assertError(t, err, tc.expected.err)
 			if tc.expected.err == nil {
 				assert.Equal(t, tc.expected.b.releaseYaml.ChartVersion, tc.input.b.releaseYaml.ChartVersion)

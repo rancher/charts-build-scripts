@@ -17,8 +17,8 @@ require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/go-git/go-billy/v5 v5.6.2
 	github.com/go-git/go-git/v5 v5.13.1
-	github.com/google/go-cmp v0.6.0
-	github.com/google/go-github/v41 v41.0.0
+	github.com/google/go-cmp v0.7.0
+	github.com/google/go-github/v71 v71.0.0
 	github.com/hashicorp/go-version v1.7.0
 	github.com/lmittmann/tint v1.0.7
 	github.com/stretchr/testify v1.10.0

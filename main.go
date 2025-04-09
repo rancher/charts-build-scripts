@@ -900,6 +900,10 @@ func release(c *cli.Context) {
 	CurrentAsset = release.Chart + "/" + release.AssetTgz
 	unzipAssets(c)
 
+	if err := release.PullIcon(ctx, rootFs); err != nil {
+		logger.Fatal(ctx, fmt.Errorf("failed to pull icon: %w", err).Error())
+	}
+
 	// update release.yaml
 	if err := release.UpdateReleaseYaml(); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to update release.yaml: %w", err).Error())

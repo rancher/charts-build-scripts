@@ -62,6 +62,8 @@ const (
 	softErrorsEnvironmentVariable = "SOFT_ERRORS"
 	// defaultLogLevelEnvironmentVariable is the default environment variable that indicates the log level
 	defaultLogLevelEnvironmentVariable = "LOG"
+	// defaultOverrideVersionEnvironmentVariable is the default environment variable that indicates the version to override
+	defaultOverrideVersionEnvironmentVariable = "OVERRIDE_VERSION"
 )
 
 var (
@@ -101,6 +103,8 @@ var (
 	SoftErrorMode = false
 	// RepoRoot represents the root path of the repository
 	RepoRoot string
+	// OverrideVersion
+	OverrideVersion string
 )
 
 func init() {
@@ -283,6 +287,18 @@ func main() {
 		EnvVar:      softErrorsEnvironmentVariable,
 		Destination: &SoftErrorMode,
 	}
+	overrideVersionFlag := cli.StringFlag{
+		Name: "override",
+		Usage: `Usage:
+			- "patch"
+			- "minor"
+			- "auto"
+			- ""
+		`,
+		Required:    false,
+		Destination: &OverrideVersion,
+		EnvVar:      defaultOverrideVersionEnvironmentVariable,
+	}
 
 	// Commands
 	app.Commands = []cli.Command{
@@ -442,7 +458,7 @@ func main() {
 			`,
 			Action: chartBump,
 			Before: setupCache,
-			Flags:  []cli.Flag{packageFlag, branchFlag, chartVersionFlag},
+			Flags:  []cli.Flag{packageFlag, branchFlag, overrideVersionFlag},
 		},
 	}
 
@@ -973,6 +989,12 @@ func chartBump(c *cli.Context) {
 	if Branch == "" {
 		logger.Fatal(ctx, "Branch environment variable must be set")
 	}
+	if OverrideVersion != "" {
+		logger.Log(ctx, slog.LevelInfo, "OverrideVersion is set to ", slog.String("OverrideVersion", OverrideVersion))
+		if OverrideVersion != "patch" && OverrideVersion != "minor" && OverrideVersion != "auto" {
+			logger.Fatal(ctx, "OverrideVersion must be set to either patch, minor, or auto")
+		}
+	}
 
 	ChartsScriptOptionsFile = path.ConfigurationYamlFile
 	chartsScriptOptions := parseScriptOptions(ctx)
@@ -987,7 +1009,7 @@ func chartBump(c *cli.Context) {
 	}
 
 	logger.Log(ctx, slog.LevelInfo, "start auto-chart-bump")
-	if err := bump.BumpChart(ctx, ChartVersion); err != nil {
+	if err := bump.BumpChart(ctx, OverrideVersion); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to bump: %w", err).Error())
 	}
 }

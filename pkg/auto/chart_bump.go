@@ -245,6 +245,18 @@ func (b *Bump) BumpChart(ctx context.Context, versionOverride string) error {
 		return err
 	}
 
+	// check if the version to bump does not already exists
+	alreadyExist, err := checkBumpAppVersion(ctx, b.Pkg.UpstreamChartVersion, b.assetsVersionsMap[b.targetChart])
+	if err != nil {
+		logger.Log(ctx, slog.LevelError, "error while checking if version exists", logger.Err(err))
+		return err
+	}
+	if alreadyExist {
+		logger.Log(ctx, slog.LevelError, "version to bump already exists", slog.String("version", *b.Pkg.UpstreamChartVersion))
+		git.FullReset() // quitting the job regardless if this works or not
+		return fmt.Errorf("version to bump already exists: %s", *b.Pkg.UpstreamChartVersion)
+	}
+
 	if err := git.AddAndCommit("make prepare"); err != nil {
 		logger.Log(ctx, slog.LevelError, "error while adding and committing after make prepare", logger.Err(err))
 		return err
@@ -506,4 +518,24 @@ func writeBumpJSON(targetCharts []string, bumpVersion string) error {
 	}
 
 	return nil
+}
+
+// checkBumpAppVersion checks if the bumpAppVersion already exists in the repository
+func checkBumpAppVersion(ctx context.Context, bumpAppVersion *string, versions []lifecycle.Asset) (bool, error) {
+	if bumpAppVersion == nil {
+		logger.Log(ctx, slog.LevelError, "upstreamVersion is nil for chart, abnormal behavior")
+		return false, fmt.Errorf("upstreamVersion is nil for chart, abnormal behavior")
+	}
+
+	for _, version := range versions {
+		parts := strings.Split(version.Version, "+up")
+		if len(parts) != 2 {
+			continue
+		}
+		if parts[1] == *bumpAppVersion {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }

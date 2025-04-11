@@ -248,13 +248,11 @@ func (b *Bump) BumpChart(ctx context.Context, versionOverride string) error {
 	// check if the version to bump does not already exists
 	alreadyExist, err := checkBumpAppVersion(ctx, b.Pkg.UpstreamChartVersion, b.assetsVersionsMap[b.targetChart])
 	if err != nil {
-		logger.Log(ctx, slog.LevelError, "error while checking if version exists", logger.Err(err))
 		return err
 	}
 	if alreadyExist {
-		logger.Log(ctx, slog.LevelError, "version to bump already exists", slog.String("version", *b.Pkg.UpstreamChartVersion))
 		git.FullReset() // quitting the job regardless if this works or not
-		return fmt.Errorf("version to bump already exists: %s", *b.Pkg.UpstreamChartVersion)
+		return errors.New("version to bump already exists: " + *b.Pkg.UpstreamChartVersion)
 	}
 
 	if err := git.AddAndCommit("make prepare"); err != nil {
@@ -524,7 +522,7 @@ func writeBumpJSON(targetCharts []string, bumpVersion string) error {
 func checkBumpAppVersion(ctx context.Context, bumpAppVersion *string, versions []lifecycle.Asset) (bool, error) {
 	if bumpAppVersion == nil {
 		logger.Log(ctx, slog.LevelError, "upstreamVersion is nil for chart, abnormal behavior")
-		return false, fmt.Errorf("upstreamVersion is nil for chart, abnormal behavior")
+		return false, errors.New("upstreamVersion is nil for chart, abnormal behavior")
 	}
 
 	for _, version := range versions {

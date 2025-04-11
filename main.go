@@ -126,8 +126,9 @@ func init() {
 		}
 	}
 	// Create a new slog logger with tint handler
-	logger := slog.New(tint.NewHandler(os.Stderr, tintOptions))
-	slog.SetDefault(logger)
+	newLogger := slog.New(tint.NewHandler(os.Stderr, tintOptions))
+	slog.SetDefault(newLogger)
+	logger.Log(context.Background(), slog.LevelInfo, "charts-build-scripts", slog.String("LOG", os.Getenv("LOG")))
 }
 
 func main() {

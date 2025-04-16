@@ -335,12 +335,24 @@ func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs b
 		return err
 	}
 
-	// TODO: Create option to skip removal of -RC (rancher-webhook for example)
-	if strings.Contains(b.versions.latest.txt, "-rc") {
-		logger.Log(ctx, slog.LevelInfo, "removing last -RC version", slog.String("latestVersion", b.versions.latest.txt))
-		if err := b.makeRemove(targetCharts, git); err != nil {
-			logger.Log(ctx, slog.LevelError, "error while removing -RC version", logger.Err(err))
-			return err
+	if !multiRCs {
+		if strings.Contains(b.versions.toRelease.txt, "-rc") {
+
+			listRCVersions, err := listRCVersions(b.versions.toRelease.txt, b.assetsVersionsMap[b.targetChart])
+			if err != nil {
+				logger.Log(ctx, slog.LevelError, "error while listing RC versions", logger.Err(err))
+				return err
+			}
+
+			if len(listRCVersions) > 0 {
+				for _, rcVersion := range listRCVersions {
+					logger.Log(ctx, slog.LevelInfo, "removing RC version", slog.String("rcVersion", rcVersion))
+					if err := makeRemove(rcVersion, targetCharts, git); err != nil {
+						logger.Log(ctx, slog.LevelError, "error while removing -RC version", logger.Err(err))
+						return err
+					}
+				}
+			}
 		}
 	}
 
@@ -480,11 +492,9 @@ func chartsTargets(targetChart string) ([]string, error) {
 	return nil, fmt.Errorf("chart %s not listed", targetChart)
 }
 
-func (b *Bump) makeRemove(targetCharts []string, g *git.Git) error {
-	version := b.versions.latestRepoPrefix.txt + "+up" + b.versions.latest.txt
-
+func makeRemove(targetVersion string, targetCharts []string, g *git.Git) error {
 	for _, chart := range targetCharts {
-		cmd := exec.Command("make", "remove", fmt.Sprintf("CHART=%s", chart), fmt.Sprintf("VERSION=%s", version))
+		cmd := exec.Command("make", "remove", fmt.Sprintf("CHART=%s", chart), fmt.Sprintf("VERSION=%s", targetVersion))
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
@@ -535,4 +545,21 @@ func checkBumpAppVersion(ctx context.Context, bumpAppVersion *string, versions [
 	}
 
 	return false, nil
+}
+
+func listRCVersions(rcVersion string, assets []lifecycle.Asset) ([]string, error) {
+	idx := strings.Index(rcVersion, "-rc")
+	if idx == -1 {
+		return nil, fmt.Errorf("invalid rcVersion format: %s", rcVersion)
+	}
+	rcVersionCheckStr := rcVersion[:idx+len("-rc")]
+
+	var rcVersions []string
+	for _, asset := range assets {
+		if strings.Contains(asset.Version, rcVersionCheckStr) {
+			rcVersions = append(rcVersions, asset.Version)
+		}
+	}
+
+	return rcVersions, nil
 }

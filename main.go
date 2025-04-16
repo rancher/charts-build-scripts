@@ -64,6 +64,8 @@ const (
 	defaultLogLevelEnvironmentVariable = "LOG"
 	// defaultOverrideVersionEnvironmentVariable is the default environment variable that indicates the version to override
 	defaultOverrideVersionEnvironmentVariable = "OVERRIDE_VERSION"
+	// defaultMultiRCEnvironmentVariable is the default environment variable that indicates if the auto-bump should not remove previous RC versions
+	defaultMultiRCEnvironmentVariable = "MULTI_RC"
 )
 
 var (
@@ -103,8 +105,10 @@ var (
 	SoftErrorMode = false
 	// RepoRoot represents the root path of the repository
 	RepoRoot string
-	// OverrideVersion
+	// OverrideVersion is the type of version override (patch, minor, auto)
 	OverrideVersion string
+	// MultiRC indicates if the auto-bump should not remove previous RC versions
+	MultiRC bool
 )
 
 func init() {
@@ -250,6 +254,13 @@ func main() {
 		Usage:       "Only perform upstream validation of the contents of assets and charts",
 		Required:    false,
 		Destination: &RemoteMode,
+	}
+	multiRCFlag := cli.BoolFlag{
+		Name:        "multi-rc",
+		Usage:       "default is false, if passed, auto-bump will not remove previous RC versions",
+		Required:    false,
+		EnvVar:      defaultMultiRCEnvironmentVariable,
+		Destination: &MultiRC,
 	}
 	ghTokenFlag := cli.StringFlag{
 		Name: "gh_token",
@@ -458,7 +469,7 @@ func main() {
 			`,
 			Action: chartBump,
 			Before: setupCache,
-			Flags:  []cli.Flag{packageFlag, branchFlag, overrideVersionFlag},
+			Flags:  []cli.Flag{packageFlag, branchFlag, overrideVersionFlag, multiRCFlag},
 		},
 	}
 
@@ -1009,7 +1020,7 @@ func chartBump(c *cli.Context) {
 	}
 
 	logger.Log(ctx, slog.LevelInfo, "start auto-chart-bump")
-	if err := bump.BumpChart(ctx, OverrideVersion); err != nil {
+	if err := bump.BumpChart(ctx, OverrideVersion, MultiRC); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to bump: %w", err).Error())
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/blang/semver"
+	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
@@ -77,21 +78,18 @@ func (b *Bump) loadVersions() error {
 		toReleaseRepoPrefix: &version{},
 	}
 
-	// latestVersion and latestRepoPrefixVersion are the latest versions from the index.yaml
-	// get the latest released version from the index.yaml (the first version is the latest; already sorted)
-	latestUnparsedVersion := b.assetsVersionsMap[b.targetChart][0].Version
-	if latestUnparsedVersion == "" {
-		return errChartLatestVersion
-	}
-
 	// Latest version may/may not contain a repoPrefixVersion
-	latestRepoPrefix, latestVersion, found := parseRepoPrefixVersionIfAny(latestUnparsedVersion)
+	latestRepoPrefix, latestVersion, found, err := getLatestVersionFromIndex(b.assetsVersionsMap[b.targetChart])
+	if err != nil {
+		return err
+	}
 	if found {
 		b.versions.latestRepoPrefix.txt = latestRepoPrefix
 		if err := b.versions.latestRepoPrefix.updateSemver(); err != nil {
 			return err
 		}
 	}
+
 	b.versions.latest.txt = latestVersion
 	if err := b.versions.latest.updateSemver(); err != nil {
 		return err
@@ -118,6 +116,27 @@ func (b *Bump) loadVersions() error {
 	}
 
 	return nil
+}
+
+func getLatestVersionFromIndex(versions []lifecycle.Asset) (string, string, bool, error) {
+	// latestVersion and latestRepoPrefixVersion are the latest versions from the index.yaml
+	// get the latest released version from the index.yaml (the first version is the latest; already sorted)
+	latestUnparsedVersion := getLatestVersionRecursively(versions)
+	if latestUnparsedVersion == "" {
+		return "", "", false, errChartLatestVersion
+	}
+
+	latestRepoPrefix, latestVersion, found := parseRepoPrefixVersionIfAny(latestUnparsedVersion)
+	return latestRepoPrefix, latestVersion, found, nil
+}
+
+func getLatestVersionRecursively(versions []lifecycle.Asset) string {
+	latestVersion := versions[0].Version
+	if strings.Contains(latestVersion, "-rc") {
+		return getLatestVersionRecursively(versions[1:])
+	}
+
+	return latestVersion
 }
 
 // parseRepoPrefixVersionIfAny will parse the repository prefix version if it exists
@@ -177,12 +196,14 @@ func (b *Bump) applyVersionRules(versionOverride string) error {
 		}
 
 	} else if versionOverride == "patch" {
-		b.versions.toReleaseRepoPrefix.svr = b.versions.latestRepoPrefix.svr
+		b.versions.toReleaseRepoPrefix.txt = b.versions.latestRepoPrefix.txt
+		b.versions.toReleaseRepoPrefix.updateSemver()
 		b.versions.toReleaseRepoPrefix.svr.Patch++
 		b.versions.toReleaseRepoPrefix.svr.Minor = 0
 		b.versions.toReleaseRepoPrefix.updateTxt()
 	} else if versionOverride == "minor" {
-		b.versions.toReleaseRepoPrefix.svr = b.versions.latestRepoPrefix.svr
+		b.versions.toReleaseRepoPrefix.txt = b.versions.latestRepoPrefix.txt
+		b.versions.toReleaseRepoPrefix.updateSemver()
 		b.versions.toReleaseRepoPrefix.svr.Minor++
 		b.versions.toReleaseRepoPrefix.svr.Patch = 0
 		b.versions.toReleaseRepoPrefix.updateTxt()

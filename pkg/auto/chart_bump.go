@@ -218,7 +218,7 @@ func checkUpstreamOptions(options *options.UpstreamOptions) error {
 
 // BumpChart will execute a similar approach as the defined development workflow for chartowners.
 // The main difference is that between the steps: (make prepare and make patch) we will calculate the next version to release.
-func (b *Bump) BumpChart(ctx context.Context, versionOverride string) error {
+func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs bool) error {
 	// List the possible target charts
 	targetCharts, err := chartsTargets(b.targetChart)
 	if err != nil {

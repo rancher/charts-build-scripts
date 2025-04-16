@@ -196,12 +196,14 @@ func (b *Bump) applyVersionRules(versionOverride string) error {
 		}
 
 	} else if versionOverride == "patch" {
-		b.versions.toReleaseRepoPrefix.svr = b.versions.latestRepoPrefix.svr
+		b.versions.toReleaseRepoPrefix.txt = b.versions.latestRepoPrefix.txt
+		b.versions.toReleaseRepoPrefix.updateSemver()
 		b.versions.toReleaseRepoPrefix.svr.Patch++
 		b.versions.toReleaseRepoPrefix.svr.Minor = 0
 		b.versions.toReleaseRepoPrefix.updateTxt()
 	} else if versionOverride == "minor" {
-		b.versions.toReleaseRepoPrefix.svr = b.versions.latestRepoPrefix.svr
+		b.versions.toReleaseRepoPrefix.txt = b.versions.latestRepoPrefix.txt
+		b.versions.toReleaseRepoPrefix.updateSemver()
 		b.versions.toReleaseRepoPrefix.svr.Minor++
 		b.versions.toReleaseRepoPrefix.svr.Patch = 0
 		b.versions.toReleaseRepoPrefix.updateTxt()

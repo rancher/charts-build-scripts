@@ -87,14 +87,54 @@ func LoadReleaseOptionsFromFile(ctx context.Context, fs billy.Filesystem, path s
 	if err != nil {
 		return releaseOptions, err
 	}
+
 	return releaseOptions, yaml.Unmarshal(releaseOptionsBytes, &releaseOptions)
 }
 
 // SortBySemver sorts the version strings in release options according to semver constraints
-func (r ReleaseOptions) SortBySemver() {
-	for chartName, versions := range r {
-		slices.SortFunc(versions, CompareVersions)
-		r[chartName] = versions
+func (r ReleaseOptions) SortBySemver(ctx context.Context) {
+	for _, versions := range r {
+		if len(versions) <= 1 {
+			continue
+		}
+		sort.Slice(versions, func(i, j int) bool {
+			// If the version is not a valid semver, we can't compare it
+			// so we return false to keep the original order
+			vi, err := semver.NewVersion(versions[i])
+			if err != nil {
+				logger.Log(ctx, slog.LevelError, "error parsing version", logger.Err(err))
+				return false
+			}
+			vj, err := semver.NewVersion(versions[j])
+			if err != nil {
+				logger.Log(ctx, slog.LevelError, "error parsing version", logger.Err(err))
+				return false
+			}
+
+			// if versions are equal, compare metadata (probably dealing with RC versions)
+			if vi.Equal(vj) {
+				if vi.Metadata() == "" && vj.Metadata() == "" {
+					return false
+				}
+				viMetadata, _ := strings.CutPrefix(vi.Metadata(), "up")
+				mi, err := semver.NewVersion(viMetadata)
+				if err != nil {
+					logger.Log(ctx, slog.LevelError, "error parsing version", logger.Err(err))
+					return false
+				}
+
+				vjMetadata, _ := strings.CutPrefix(vj.Metadata(), "up")
+				mj, err := semver.NewVersion(vjMetadata)
+				if err != nil {
+					logger.Log(ctx, slog.LevelError, "error parsing version", logger.Err(err))
+					return false
+				}
+
+				return mi.LessThan(mj)
+			}
+
+			return vi.LessThan(vj)
+		})
 	}
 }
 
@@ -120,7 +160,7 @@ func CompareVersions(a string, b string) int {
 
 // WriteToFile marshals the struct to yaml and writes it into the path specified
 func (r ReleaseOptions) WriteToFile(ctx context.Context, fs billy.Filesystem, path string) error {
-	r.SortBySemver()
+	r.SortBySemver(ctx)
 
 	releaseOptionsBytes, err := yaml.Marshal(r)
 	if err != nil {

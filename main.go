@@ -464,12 +464,16 @@ func main() {
 			Flags:  []cli.Flag{branchFlag},
 		},
 		{
-			Name: "chart-bump",
-			Usage: `Generate a new chart bump PR.
-			`,
+			Name:   "chart-bump",
+			Usage:  `Generate a new chart bump PR.`,
 			Action: chartBump,
 			Before: setupCache,
 			Flags:  []cli.Flag{packageFlag, branchFlag, overrideVersionFlag, multiRCFlag},
+		},
+		{
+			Name:   "validate-icons",
+			Usage:  "used by CI to check if icons were downloaded",
+			Action: validateIcons,
 		},
 	}
 
@@ -562,6 +566,15 @@ func downloadIcon(c *cli.Context) {
 		if err != nil {
 			logger.Fatal(ctx, err.Error())
 		}
+	}
+}
+
+func validateIcons(c *cli.Context) {
+	ctx := context.Background()
+	getRepoRoot()
+	rootFs := filesystem.GetFilesystem(RepoRoot)
+	if err := auto.ValidateIcons(ctx, rootFs); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 }
 

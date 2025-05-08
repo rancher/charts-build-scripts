@@ -16,6 +16,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"gopkg.in/yaml.v3"
+	"helm.sh/helm/v3/pkg/chart"
 	helmChartutil "helm.sh/helm/v3/pkg/chartutil"
 )
 
@@ -165,13 +166,9 @@ func (r *Release) PullIcon(ctx context.Context, rootFs billy.Filesystem) error {
 	logger.Log(ctx, slog.LevelInfo, "starting to pull icon process")
 
 	// Get Chart.yaml path and load it
-	chartYamlPath := path.RepositoryChartsDir + "/" + r.Chart + "/" + r.ChartVersion + "/Chart.yaml"
-	absChartPath := filesystem.GetAbsPath(rootFs, chartYamlPath)
-
-	// Load Chart.yaml file
-	chartMetadata, err := helmChartutil.LoadChartfile(absChartPath)
+	chartMetadata, err := loadChartYaml(rootFs, r.Chart, r.ChartVersion)
 	if err != nil {
-		return fmt.Errorf("could not load %s: %s", chartYamlPath, err)
+		return err
 	}
 
 	logger.Log(ctx, slog.LevelDebug, "checking if chart has downloaded icon")
@@ -210,4 +207,18 @@ func (r *Release) PullIcon(ctx context.Context, rootFs billy.Filesystem) error {
 
 	// git reset return
 	return r.git.ResetHEAD()
+}
+
+func loadChartYaml(rootFs billy.Filesystem, chart string, chartVersion string) (*chart.Metadata, error) {
+	// Get Chart.yaml path and load it
+	chartYamlPath := path.RepositoryChartsDir + "/" + chart + "/" + chartVersion + "/Chart.yaml"
+	absChartPath := filesystem.GetAbsPath(rootFs, chartYamlPath)
+
+	// Load Chart.yaml file
+	chartMetadata, err := helmChartutil.LoadChartfile(absChartPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not load %s: %s", chartYamlPath, err)
+	}
+
+	return chartMetadata, nil
 }

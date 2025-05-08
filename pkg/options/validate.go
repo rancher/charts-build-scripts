@@ -2,13 +2,18 @@ package options
 
 import (
 	"context"
+	"log/slog"
 	"os"
+	"sort"
+	"strings"
 
+	"github.com/Masterminds/semver"
 	"github.com/hashicorp/go-version"
 	"golang.org/x/exp/slices"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"gopkg.in/yaml.v2"
 )
 

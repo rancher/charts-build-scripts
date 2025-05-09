@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver"
-	"github.com/hashicorp/go-version"
 	"golang.org/x/exp/slices"
 
 	"github.com/go-git/go-billy/v5"
@@ -136,26 +135,6 @@ func (r ReleaseOptions) SortBySemver(ctx context.Context) {
 			return vi.LessThan(vj)
 		})
 	}
-}
-
-// CompareVersions compares two semantic versions and determines ascending ordering
-func CompareVersions(a string, b string) int {
-	v1, err := version.NewVersion(a)
-	if err != nil {
-		return 0
-	}
-
-	v2, err := version.NewVersion(b)
-	if err != nil {
-		return 0
-	}
-
-	if v1.LessThan(v2) {
-		return -1
-	} else if v1.GreaterThan(v2) {
-		return 1
-	}
-	return 0
 }
 
 // WriteToFile marshals the struct to yaml and writes it into the path specified

@@ -260,8 +260,8 @@ func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs b
 		return err
 	}
 
-	// Download logo at assets/logos (webhook and fleet are exceptions)
-	if b.targetChart != "fleet" && b.targetChart != "rancher-webhook" {
+	// Download logo at assets/logos
+	if !isIconException(b.targetChart) {
 		if err := b.Pkg.DownloadIcon(ctx); err != nil {
 			logger.Log(ctx, slog.LevelError, "error while downloading icon", logger.Err(err))
 			return err

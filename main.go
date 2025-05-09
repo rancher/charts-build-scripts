@@ -100,7 +100,7 @@ var (
 	// GithubToken represents the Github Auth token
 	GithubToken string
 	// Skip indicates whether to skip execution
-	Skip bool
+	Skip = false
 	// SoftErrorMode indicates if certain non-fatal errors will be turned into warnings
 	SoftErrorMode = false
 	// RepoRoot represents the root path of the repository
@@ -378,7 +378,7 @@ func main() {
 			Name:   "validate",
 			Usage:  "Run validation to ensure that contents of assets and charts won't overwrite released charts",
 			Action: validateRepo,
-			Flags:  []cli.Flag{packageFlag, configFlag, localModeFlag, remoteModeFlag},
+			Flags:  []cli.Flag{packageFlag, configFlag, localModeFlag, remoteModeFlag, skipFlag},
 		},
 		{
 			Name:   "standardize",
@@ -469,11 +469,6 @@ func main() {
 			Action: chartBump,
 			Before: setupCache,
 			Flags:  []cli.Flag{packageFlag, branchFlag, overrideVersionFlag, multiRCFlag},
-		},
-		{
-			Name:   "validate-icons",
-			Usage:  "used by CI to check if icons were downloaded",
-			Action: validateIcons,
 		},
 	}
 
@@ -569,15 +564,6 @@ func downloadIcon(c *cli.Context) {
 	}
 }
 
-func validateIcons(c *cli.Context) {
-	ctx := context.Background()
-	getRepoRoot()
-	rootFs := filesystem.GetFilesystem(RepoRoot)
-	if err := auto.ValidateIcons(ctx, rootFs); err != nil {
-		logger.Fatal(ctx, err.Error())
-	}
-}
-
 func generateRegSyncConfigFile(c *cli.Context) {
 	ctx := context.Background()
 
@@ -633,6 +619,8 @@ func cleanRepo(c *cli.Context) {
 
 func validateRepo(c *cli.Context) {
 	ctx := context.Background()
+	getRepoRoot()
+	rootFs := filesystem.GetFilesystem(RepoRoot)
 
 	if LocalMode && RemoteMode {
 		logger.Fatal(ctx, "cannot specify both local and remote validation")
@@ -644,6 +632,13 @@ func validateRepo(c *cli.Context) {
 	_, _, status := getGitInfo()
 	if !status.IsClean() {
 		logger.Fatal(ctx, "repository must be clean to run validation")
+	}
+
+	// Only skip icon validations for forward-ports
+	if !Skip {
+		if err := auto.ValidateIcons(ctx, rootFs); err != nil {
+			logger.Fatal(ctx, err.Error())
+		}
 	}
 
 	if RemoteMode {

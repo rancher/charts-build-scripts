@@ -197,7 +197,7 @@ func (r *Release) PullIcon(ctx context.Context, rootFs billy.Filesystem) error {
 	// Check if the icon exists in the dev branch
 	if err := r.git.CheckFileExists(relativeIconPath, r.VR.DevBranch); err != nil {
 		logger.Log(ctx, slog.LevelError, "icon file not found in dev branch but should", slog.String("icon", relativeIconPath), logger.Err(err))
-		return fmt.Errorf("icon file not found in dev branch but should: %w", err)
+		return errors.New("icon file not found in dev branch but should: " + err.Error())
 	}
 
 	// checkout the icon file from the dev branch
@@ -217,7 +217,7 @@ func loadChartYaml(rootFs billy.Filesystem, chart string, chartVersion string) (
 	// Load Chart.yaml file
 	chartMetadata, err := helmChartutil.LoadChartfile(absChartPath)
 	if err != nil {
-		return nil, fmt.Errorf("could not load %s: %s", chartYamlPath, err)
+		return nil, errors.New("could not load: " + chartYamlPath + " err: " + err.Error())
 	}
 
 	return chartMetadata, nil

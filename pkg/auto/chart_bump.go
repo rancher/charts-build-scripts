@@ -336,19 +336,21 @@ func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs b
 	}
 
 	if !multiRCs {
-		if strings.Contains(b.versions.toRelease.txt, "-rc") {
+		if strings.Contains(strings.ToLower(b.versions.toRelease.txt), "rc") ||
+			strings.Contains(strings.ToLower(b.versions.toRelease.txt), "alpha") ||
+			strings.Contains(strings.ToLower(b.versions.toRelease.txt), "beta") {
 
-			listRCVersions, err := listRCVersions(b.versions.toRelease.txt, b.assetsVersionsMap[b.targetChart])
+			prereleaseVersions, err := listPrereleaseVersions(b.versions.toRelease.txt, b.assetsVersionsMap[b.targetChart])
 			if err != nil {
-				logger.Log(ctx, slog.LevelError, "error while listing RC versions", logger.Err(err))
+				logger.Log(ctx, slog.LevelError, "error while listing prerelease versions", logger.Err(err))
 				return err
 			}
 
-			if len(listRCVersions) > 0 {
-				for _, rcVersion := range listRCVersions {
-					logger.Log(ctx, slog.LevelInfo, "removing RC version", slog.String("rcVersion", rcVersion))
-					if err := makeRemove(rcVersion, targetCharts, git); err != nil {
-						logger.Log(ctx, slog.LevelError, "error while removing -RC version", logger.Err(err))
+			if len(prereleaseVersions) > 0 {
+				for _, prereleaseVersion := range prereleaseVersions {
+					logger.Log(ctx, slog.LevelInfo, "removing prerelease version", slog.String("prereleaseVersion", prereleaseVersion))
+					if err := makeRemove(prereleaseVersion, targetCharts, git); err != nil {
+						logger.Log(ctx, slog.LevelError, "error while removing prerelease version", logger.Err(err))
 						return err
 					}
 				}
@@ -547,19 +549,41 @@ func checkBumpAppVersion(ctx context.Context, bumpAppVersion *string, versions [
 	return false, nil
 }
 
-func listRCVersions(rcVersion string, assets []lifecycle.Asset) ([]string, error) {
-	idx := strings.Index(rcVersion, "-rc")
-	if idx == -1 {
-		return nil, fmt.Errorf("invalid rcVersion format: %s", rcVersion)
-	}
-	rcVersionCheckStr := rcVersion[:idx+len("-rc")]
+func listPrereleaseVersions(version string, assets []lifecycle.Asset) ([]string, error) {
+	prereleaseTypes := []string{"rc", "alpha", "beta"}
 
-	var rcVersions []string
-	for _, asset := range assets {
-		if strings.Contains(asset.Version, rcVersionCheckStr) {
-			rcVersions = append(rcVersions, asset.Version)
+	// Check which prerelease type this version has
+	lowerVersion := strings.ToLower(version)
+	var prereleaseType string
+
+	for _, pt := range prereleaseTypes {
+		if strings.Contains(lowerVersion, pt) {
+			prereleaseType = pt
+			break
 		}
 	}
 
-	return rcVersions, nil
+	if prereleaseType == "" {
+		return nil, fmt.Errorf("no prerelease pattern found in version: %s", version)
+	}
+
+	// Extract base version (part before the prerelease indicator)
+	parts := strings.Split(lowerVersion, prereleaseType)
+	baseVersion := parts[0]
+
+	// Remove trailing hyphen if present
+	baseVersion = strings.TrimSuffix(baseVersion, "-")
+
+	prereleaseVersions := []string{}
+
+	for _, asset := range assets {
+		assetLower := strings.ToLower(asset.Version)
+
+		if strings.HasPrefix(assetLower, baseVersion) &&
+			strings.Contains(assetLower, prereleaseType) {
+			prereleaseVersions = append(prereleaseVersions, asset.Version)
+		}
+	}
+
+	return prereleaseVersions, nil
 }

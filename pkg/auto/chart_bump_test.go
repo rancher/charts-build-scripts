@@ -2,10 +2,12 @@ package auto
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/blang/semver"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
+	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
 	"github.com/stretchr/testify/assert"
@@ -509,6 +511,133 @@ func Test_parsePackageYaml(t *testing.T) {
 					tc.input.b.Pkg.Chart.Upstream.GetOptions(),
 				)
 				assert.Equal(t, tc.expected.b.Pkg.AdditionalCharts, tc.input.b.Pkg.AdditionalCharts)
+			}
+		})
+	}
+}
+
+func Test_listPrereleaseVersions(t *testing.T) {
+	type args struct {
+		version string
+		assets  []lifecycle.Asset
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "RC version with hyphen",
+			args: args{
+				version: "1.0.0-rc1",
+				assets: []lifecycle.Asset{
+					{Version: "1.0.0-rc1"},
+					{Version: "1.0.0-rc2"},
+					{Version: "1.0.0"},
+					{Version: "1.1.0-rc1"},
+				},
+			},
+			want:    []string{"1.0.0-rc1", "1.0.0-rc2"},
+			wantErr: false,
+		},
+		{
+			name: "RC version with dot",
+			args: args{
+				version: "1.0.0-rc.1",
+				assets: []lifecycle.Asset{
+					{Version: "1.0.0-rc.1"},
+					{Version: "1.0.0-rc.2"},
+					{Version: "1.0.0"},
+					{Version: "1.1.0-rc.1"},
+				},
+			},
+			want:    []string{"1.0.0-rc.1", "1.0.0-rc.2"},
+			wantErr: false,
+		},
+		{
+			name: "Alpha version with hyphen",
+			args: args{
+				version: "1.0.0-alpha1",
+				assets: []lifecycle.Asset{
+					{Version: "1.0.0-alpha1"},
+					{Version: "1.0.0-alpha2"},
+					{Version: "1.0.0-beta1"},
+					{Version: "1.0.0"},
+				},
+			},
+			want:    []string{"1.0.0-alpha1", "1.0.0-alpha2"},
+			wantErr: false,
+		},
+		{
+			name: "Beta version with dot",
+			args: args{
+				version: "1.0.0-beta.3",
+				assets: []lifecycle.Asset{
+					{Version: "1.0.0-beta.1"},
+					{Version: "1.0.0-beta.2"},
+					{Version: "1.0.0-beta.3"},
+					{Version: "1.0.0"},
+				},
+			},
+			want:    []string{"1.0.0-beta.1", "1.0.0-beta.2", "1.0.0-beta.3"},
+			wantErr: false,
+		},
+		{
+			name: "RC version without hyphen",
+			args: args{
+				version: "1.0.0rc1",
+				assets: []lifecycle.Asset{
+					{Version: "1.0.0rc1"},
+					{Version: "1.0.0rc2"},
+					{Version: "1.0.0"},
+				},
+			},
+			want:    []string{"1.0.0rc1", "1.0.0rc2"},
+			wantErr: false,
+		},
+		{
+			name: "Case insensitive",
+			args: args{
+				version: "1.0.0-RC1",
+				assets: []lifecycle.Asset{
+					{Version: "1.0.0-rc1"},
+					{Version: "1.0.0-RC2"},
+					{Version: "1.0.0"},
+				},
+			},
+			want:    []string{"1.0.0-rc1", "1.0.0-RC2"},
+			wantErr: false,
+		},
+		{
+			name: "No prerelease pattern",
+			args: args{
+				version: "1.0.0",
+				assets:  []lifecycle.Asset{{Version: "1.0.0"}},
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "No matching assets",
+			args: args{
+				version: "1.0.0-rc1",
+				assets:  []lifecycle.Asset{{Version: "2.0.0-rc1"}},
+			},
+			want:    []string{},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := listPrereleaseVersions(tt.args.version, tt.args.assets)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("listPrereleaseVersions() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("listPrereleaseVersions() = %v, want %v", got, tt.want)
 			}
 		})
 	}

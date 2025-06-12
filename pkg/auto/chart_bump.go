@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/rancher/charts-build-scripts/pkg/charts"
@@ -60,6 +61,12 @@ var (
 	errChartUpstreamVersionWrong    = errors.New("upstream version should not have the repo prefix version already")
 	errBumpVersion                  = errors.New("version to bump is not greater than the latest version")
 )
+
+var prereleaseRegex = regexp.MustCompile(`(?i)[-.]?(rc|alpha|beta)[-.]?\d*`)
+
+func isPrerelease(version string) bool {
+	return prereleaseRegex.MatchString(version)
+}
 
 /*******************************************************
 *
@@ -336,10 +343,7 @@ func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs b
 	}
 
 	if !multiRCs {
-		if strings.Contains(strings.ToLower(b.versions.toRelease.txt), "rc") ||
-			strings.Contains(strings.ToLower(b.versions.toRelease.txt), "alpha") ||
-			strings.Contains(strings.ToLower(b.versions.toRelease.txt), "beta") {
-
+		if isPrerelease(b.versions.toRelease.txt) {
 			prereleaseVersions, err := listPrereleaseVersions(b.versions.toRelease.txt, b.assetsVersionsMap[b.targetChart])
 			if err != nil {
 				logger.Log(ctx, slog.LevelError, "error while listing prerelease versions", logger.Err(err))
@@ -549,36 +553,33 @@ func checkBumpAppVersion(ctx context.Context, bumpAppVersion *string, versions [
 	return false, nil
 }
 
+// listPrereleaseVersions finds all existing prerelease versions that match the same base version and prerelease type
 func listPrereleaseVersions(version string, assets []lifecycle.Asset) ([]string, error) {
-	prereleaseTypes := []string{"rc", "alpha", "beta"}
-
-	// Check which prerelease type this version has
-	lowerVersion := strings.ToLower(version)
-	var prereleaseType string
-
-	for _, pt := range prereleaseTypes {
-		if strings.Contains(lowerVersion, pt) {
-			prereleaseType = pt
-			break
-		}
-	}
-
-	if prereleaseType == "" {
+	if !isPrerelease(version) {
 		return nil, fmt.Errorf("no prerelease pattern found in version: %s", version)
 	}
 
-	// Extract base version (part before the prerelease indicator)
-	parts := strings.Split(lowerVersion, prereleaseType)
-	baseVersion := parts[0]
+	// Extract the prerelease type from the version
+	matches := prereleaseRegex.FindStringSubmatch(strings.ToLower(version))
+	if len(matches) < 2 {
+		return nil, fmt.Errorf("could not extract prerelease type from version: %s", version)
+	}
+	prereleaseType := matches[1] // This will be "rc", "alpha", or "beta"
 
-	// Remove trailing hyphen if present
-	baseVersion = strings.TrimSuffix(baseVersion, "-")
+	// Extract base version (everything before the prerelease pattern)
+	baseVersionEnd := prereleaseRegex.FindStringIndex(strings.ToLower(version))
+	if baseVersionEnd == nil {
+		return nil, fmt.Errorf("could not find prerelease pattern in version: %s", version)
+	}
+	baseVersion := strings.ToLower(version[:baseVersionEnd[0]])
 
 	prereleaseVersions := []string{}
 
 	for _, asset := range assets {
 		assetLower := strings.ToLower(asset.Version)
 
+		// Check if this asset version starts with the same base version
+		// and contains the same prerelease type
 		if strings.HasPrefix(assetLower, baseVersion) &&
 			strings.Contains(assetLower, prereleaseType) {
 			prereleaseVersions = append(prereleaseVersions, asset.Version)

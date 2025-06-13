@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/rancher/charts-build-scripts/pkg/charts"
@@ -60,6 +61,12 @@ var (
 	errChartUpstreamVersionWrong    = errors.New("upstream version should not have the repo prefix version already")
 	errBumpVersion                  = errors.New("version to bump is not greater than the latest version")
 )
+
+var prereleaseRegex = regexp.MustCompile(`(?i)[-.]?(rc|alpha|beta)[-.]?\d*`)
+
+func isPrerelease(version string) bool {
+	return prereleaseRegex.MatchString(version)
+}
 
 /*******************************************************
 *
@@ -336,19 +343,18 @@ func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs b
 	}
 
 	if !multiRCs {
-		if strings.Contains(b.versions.toRelease.txt, "-rc") {
-
-			listRCVersions, err := listRCVersions(b.versions.toRelease.txt, b.assetsVersionsMap[b.targetChart])
+		if isPrerelease(b.versions.toRelease.txt) {
+			prereleaseVersions, err := listPrereleaseVersions(b.versions.toRelease.txt, b.assetsVersionsMap[b.targetChart])
 			if err != nil {
-				logger.Log(ctx, slog.LevelError, "error while listing RC versions", logger.Err(err))
+				logger.Log(ctx, slog.LevelError, "error while listing prerelease versions", logger.Err(err))
 				return err
 			}
 
-			if len(listRCVersions) > 0 {
-				for _, rcVersion := range listRCVersions {
-					logger.Log(ctx, slog.LevelInfo, "removing RC version", slog.String("rcVersion", rcVersion))
-					if err := makeRemove(rcVersion, targetCharts, git); err != nil {
-						logger.Log(ctx, slog.LevelError, "error while removing -RC version", logger.Err(err))
+			if len(prereleaseVersions) > 0 {
+				for _, prereleaseVersion := range prereleaseVersions {
+					logger.Log(ctx, slog.LevelInfo, "removing prerelease version", slog.String("prereleaseVersion", prereleaseVersion))
+					if err := makeRemove(prereleaseVersion, targetCharts, git); err != nil {
+						logger.Log(ctx, slog.LevelError, "error while removing prerelease version", logger.Err(err))
 						return err
 					}
 				}
@@ -547,19 +553,38 @@ func checkBumpAppVersion(ctx context.Context, bumpAppVersion *string, versions [
 	return false, nil
 }
 
-func listRCVersions(rcVersion string, assets []lifecycle.Asset) ([]string, error) {
-	idx := strings.Index(rcVersion, "-rc")
-	if idx == -1 {
-		return nil, fmt.Errorf("invalid rcVersion format: %s", rcVersion)
+// listPrereleaseVersions finds all existing prerelease versions that match the same base version and prerelease type
+func listPrereleaseVersions(version string, assets []lifecycle.Asset) ([]string, error) {
+	if !isPrerelease(version) {
+		return nil, fmt.Errorf("no prerelease pattern found in version: %s", version)
 	}
-	rcVersionCheckStr := rcVersion[:idx+len("-rc")]
 
-	var rcVersions []string
+	// Extract the prerelease type from the version
+	matches := prereleaseRegex.FindStringSubmatch(strings.ToLower(version))
+	if len(matches) < 2 {
+		return nil, fmt.Errorf("could not extract prerelease type from version: %s", version)
+	}
+	prereleaseType := matches[1] // This will be "rc", "alpha", or "beta"
+
+	// Extract base version (everything before the prerelease pattern)
+	baseVersionEnd := prereleaseRegex.FindStringIndex(strings.ToLower(version))
+	if baseVersionEnd == nil {
+		return nil, fmt.Errorf("could not find prerelease pattern in version: %s", version)
+	}
+	baseVersion := strings.ToLower(version[:baseVersionEnd[0]])
+
+	prereleaseVersions := []string{}
+
 	for _, asset := range assets {
-		if strings.Contains(asset.Version, rcVersionCheckStr) {
-			rcVersions = append(rcVersions, asset.Version)
+		assetLower := strings.ToLower(asset.Version)
+
+		// Check if this asset version starts with the same base version
+		// and contains the same prerelease type
+		if strings.HasPrefix(assetLower, baseVersion) &&
+			strings.Contains(assetLower, prereleaseType) {
+			prereleaseVersions = append(prereleaseVersions, asset.Version)
 		}
 	}
 
-	return rcVersions, nil
+	return prereleaseVersions, nil
 }

@@ -1,4 +1,4 @@
-FROM registry.suse.com/bci/bci-base:15.4
+FROM registry.suse.com/bci/bci-base:15.6
 
 RUN zypper -n in patch && \
     rm -rf /tmp/* /var/tmp/* /usr/share/doc/packages/*

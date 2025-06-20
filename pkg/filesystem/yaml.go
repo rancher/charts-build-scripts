@@ -5,12 +5,47 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	yamlV2 "gopkg.in/yaml.v2"
 	yamlV3 "gopkg.in/yaml.v3"
 )
+
+// StreamReader func() type is callback function for custom filesystem file loading behavior
+type StreamReader func() (io.ReadCloser, error)
+
+// LoadYamlFile is a generic function that loads a YAML file and decodes it
+// efficiently (especially for large files) using a streaming approach
+// into a struct of type YamlFields, specified by the caller.
+// YamlFields is expected to be a struct suitable for YAML unmarshalling.
+//   - filepath: entire file path to the .yaml file
+//   - ignoreFormat: ignore legacy yaml format errors
+func LoadYamlFile[YamlFields any](ctx context.Context, filepath string, ignoreFormat bool) (*YamlFields, error) {
+	/*
+		See the example of a valid YamlFields struct for regsync.yaml
+
+		type Config struct {
+			Version  int         `yaml:"version"`
+			Creds    interface{} `yaml:"creds"`
+			Defaults interface{} `yaml:"defaults"`
+		}
+	*/
+
+	reader := func() (io.ReadCloser, error) {
+		return os.Open(filepath)
+	}
+	var yamlFields *YamlFields
+
+	logger.Log(ctx, slog.LevelDebug, "decoding", slog.String("filepath", filepath))
+
+	if err := safeDecodeYaml(ctx, reader, &yamlFields, false); err != nil {
+		return nil, err
+	}
+
+	return yamlFields, nil
+}
 
 // safeDecodeYaml will attempt to decode a yaml file in-memory.
 // The 1st attempt will always be using yaml.v3, that has stricter format rules.
@@ -87,4 +122,38 @@ func decodeErrorsToIgnore(err error) (ignore bool) {
 	}
 
 	return ignore
+}
+
+// CreateAndOpenYamlFile creates a new yaml file or opens an existing one.
+// The behavior is controlled by the truncate flag.
+//
+// Parameters:
+//   - ctx: The context for logging.
+//   - filePath: The full path to the yaml file.
+//   - truncate: If true, the file is created or truncated.
+//     If false, it's opened for read/write, or created if it doesn't exist.
+func CreateAndOpenYamlFile(ctx context.Context, filePath string, truncate bool) (*os.File, error) {
+	flags := os.O_RDWR | os.O_CREATE
+
+	if truncate {
+		logger.Log(ctx, slog.LevelWarn, "truncating", slog.String("file", filePath))
+		flags |= os.O_TRUNC
+	}
+
+	const permissions = 0644
+
+	file, err := os.OpenFile(filePath, flags, permissions)
+	if err != nil {
+		logger.Log(ctx, slog.LevelError, "", slog.Group("open failure", filePath, flags, logger.Err(err)))
+		return nil, err
+	}
+
+	return file, nil
+}
+
+// UpdateYamlFile receives a map and updates a yaml file
+func UpdateYamlFile(file *os.File, imageTagMap map[string][]string) error {
+	encoder := yamlV3.NewEncoder(file)
+	encoder.SetIndent(2)
+	return encoder.Encode(imageTagMap)
 }

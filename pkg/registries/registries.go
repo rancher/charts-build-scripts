@@ -13,6 +13,13 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/path"
 )
 
+// chartsToIgnoreTags defines the charts and system charts in which a specified
+// image tag should be ignored.
+var chartsToIgnoreTags = map[string]string{
+	"rancher-vsphere-csi": "latest",
+	"rancher-vsphere-cpi": "latest",
+}
+
 // Scan will untar and map all images/tags dependencies, scan the staging registry,
 // prime registry and if they are available there, it will create 2 yaml files:
 //   - dockerToPrime.yaml

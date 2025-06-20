@@ -16,12 +16,11 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
-	"github.com/rancher/charts-build-scripts/pkg/images"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"github.com/rancher/charts-build-scripts/pkg/regsync"
+	"github.com/rancher/charts-build-scripts/pkg/registries"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/rancher/charts-build-scripts/pkg/standardize"
 	"github.com/rancher/charts-build-scripts/pkg/update"
@@ -66,6 +65,9 @@ const (
 	defaultOverrideVersionEnvironmentVariable = "OVERRIDE_VERSION"
 	// defaultMultiRCEnvironmentVariable is the default environment variable that indicates if the auto-bump should not remove previous RC versions
 	defaultMultiRCEnvironmentVariable = "MULTI_RC"
+	// Prime Registry authentication
+	defaultPrimeUserEnvironmentVariable     = "PRIME_USER"
+	defaultPrimePasswordEnvironmentVariable = "PRIME_PASSWORD"
 )
 
 var (
@@ -109,6 +111,10 @@ var (
 	OverrideVersion string
 	// MultiRC indicates if the auto-bump should not remove previous RC versions
 	MultiRC bool
+	// PrimeUser is the username provided by EIO
+	PrimeUser string
+	// PrimePassword is the password provided by EIO
+	PrimePassword string
 )
 
 func init() {
@@ -274,6 +280,20 @@ func main() {
 		EnvVar:      defaultGHTokenEnvironmentVariable,
 		Destination: &GithubToken,
 	}
+	primeUserFlag := cli.StringFlag{
+		Name:        "prime_user",
+		Usage:       "--prime_user=******** || PRIME_USER=*******",
+		Required:    true,
+		EnvVar:      defaultPrimeUserEnvironmentVariable,
+		Destination: &PrimeUser,
+	}
+	primePasswordFlag := cli.StringFlag{
+		Name:        "prime_password",
+		Usage:       "--prime_password=******** || PRIME_PASSWORD=*******",
+		Required:    true,
+		EnvVar:      defaultPrimePasswordEnvironmentVariable,
+		Destination: &PrimePassword,
+	}
 	prNumberFlag := cli.StringFlag{
 		Name: "pr_number",
 		Usage: `Usage:
@@ -341,10 +361,16 @@ func main() {
 			Flags:  []cli.Flag{packageFlag, configFlag, cacheFlag},
 		},
 		{
-			Name:   "regsync",
-			Usage:  "Create a regsync config file containing all images used for the particular Rancher version",
-			Action: generateRegSyncConfigFile,
+			Name:   "scan-registries",
+			Usage:  "Fetch, list and compare SUSE's registries and create yaml files with what is supposed to be synced from Docker Hub",
+			Action: scanRegistries,
 			Flags:  []cli.Flag{},
+		},
+		{
+			Name:   "sync-registries",
+			Usage:  "Fetch, list and compare SUSE's registries and create yaml files with what is supposed to be synced from Docker Hub",
+			Action: syncRegistries,
+			Flags:  []cli.Flag{primeUserFlag, primePasswordFlag},
 		},
 		{
 			Name:   "index",
@@ -564,10 +590,16 @@ func downloadIcon(c *cli.Context) {
 	}
 }
 
-func generateRegSyncConfigFile(c *cli.Context) {
+func scanRegistries(c *cli.Context) {
 	ctx := context.Background()
+	if err := registries.Scan(ctx); err != nil {
+		logger.Fatal(ctx, err.Error())
+	}
+}
 
-	if err := regsync.GenerateConfigFile(ctx); err != nil {
+func syncRegistries(c *cli.Context) {
+	ctx := context.Background()
+	if err := registries.Sync(ctx, PrimeUser, PrimePassword); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }
@@ -813,7 +845,7 @@ func getGitInfo() (*git.Repository, *git.Worktree, git.Status) {
 func checkImages(c *cli.Context) {
 	ctx := context.Background()
 
-	if err := images.CheckImages(ctx); err != nil {
+	if err := registries.DockerCheckImages(ctx); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }
@@ -823,7 +855,7 @@ func checkRCTagsAndVersions(c *cli.Context) {
 
 	getRepoRoot()
 	// Grab all images that contain RC tags
-	rcImageTagMap := images.CheckRCTags(ctx, RepoRoot)
+	rcImageTagMap := registries.DockerCheckRCTags(ctx, RepoRoot)
 
 	// Grab all chart versions that contain RC tags
 	rcChartVersionMap, err := charts.CheckRCCharts(ctx, RepoRoot)

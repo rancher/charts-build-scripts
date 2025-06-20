@@ -399,3 +399,15 @@ func getReleaseOptions(ctx context.Context, repoRoot string) options.ReleaseOpti
 
 	return releaseOptions
 }
+
+// GenerateFilteredImageTagMap returns a map of container images and their tags
+func GenerateFilteredImageTagMap(ctx context.Context, filter map[string][]string) (map[string][]string, error) {
+	imageTagMap := make(map[string][]string)
+
+	err := filesystem.WalkFilteredAssetsFolder(ctx, imageTagMap, filter, chartsToIgnoreTags)
+	if err != nil {
+		return imageTagMap, err
+	}
+
+	return imageTagMap, nil
+}

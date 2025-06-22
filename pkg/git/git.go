@@ -20,6 +20,9 @@ type Git struct {
 	Remotes map[string]string
 }
 
+// GitRepo uses singleton pattern to access a local git repository
+var GitRepo *Git
+
 // CloneAtDir clones a repository at a given directory.
 // Equivalent to: git clone <url> <dir>
 // It will return a Git struct with the repository's branch and remotes populated.
@@ -53,37 +56,56 @@ func CloneAtDir(ctx context.Context, url, dir string) (*Git, error) {
 	return git, nil
 }
 
-// OpenGitRepo TODO: Docs
+// OpenGitRepo will check if the target workingDir exists and is a local git repository.
+// will also get the current branch and configured remotes.
 func OpenGitRepo(ctx context.Context, workingDir string) (*Git, error) {
-	logger.Log(ctx, slog.LevelDebug, "opening git repo")
+	if GitRepo == nil {
+		if err := checkGitFolder(ctx, workingDir); err != nil {
+			return nil, err
+		}
 
-	gitFolder := fmt.Sprintf("%s/.git", workingDir)
+		GitRepo = &Git{
+			Dir: workingDir,
+		}
+	}
+
+	if GitRepo.Dir != workingDir {
+		if err := checkGitFolder(ctx, workingDir); err != nil {
+			return nil, err
+		}
+		GitRepo.Dir = workingDir
+	}
+
+	var err error
+
+	GitRepo.Branch, err = GitRepo.getGitBranch(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	GitRepo.Remotes, err = GitRepo.getGitRemotes(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Log(ctx, slog.LevelDebug, "git repo", slog.String("branch", GitRepo.Branch), slog.Any("remotes", GitRepo.Remotes))
+	return GitRepo, nil
+}
+
+func checkGitFolder(ctx context.Context, workingDir string) error {
+	logger.Log(ctx, slog.LevelDebug, "opening git repo", slog.String("dir", workingDir))
+
+	gitFolder := workingDir + "/.git"
+
 	_, err := os.Stat(gitFolder)
 	if os.IsNotExist(err) {
-		logger.Log(ctx, slog.LevelError, "not a git repo", logger.Err(err))
-		return nil, fmt.Errorf("%s is not a git repository", workingDir)
+		return errors.New(workingDir + " is not a git repository")
 	}
 	if err != nil {
-		return nil, fmt.Errorf("error while checking if %s is a git repository: %s", workingDir, err)
+		return fmt.Errorf("error while checking if %s is a git repository: %s", workingDir, err)
 	}
 
-	git := &Git{
-		Dir: workingDir,
-	}
-
-	git.Branch, err = git.getGitBranch(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	git.Remotes, err = git.getGitRemotes(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Log(ctx, slog.LevelDebug, "git repo opened", slog.String("branch", git.Branch))
-	logger.Log(ctx, slog.LevelDebug, "git remotes", slog.Any("remotes", git.Remotes))
-	return git, nil
+	return nil
 }
 
 // getGitBranch returns the current branch of the git repository

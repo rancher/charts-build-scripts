@@ -83,4 +83,9 @@ const (
 
 	// RegsyncYamlFile file is the file that contains the regsync configuration
 	RegsyncYamlFile = "config/regsync.yaml"
+
+	// DockerToPrimeSync file contains docker image/tags that will be synced from Docker
+	DockerToPrimeSync = "config/dockerToPrime.yaml"
+	// StagingToPrimeSync file contains docker image/tags that will be synced from Staging registry
+	StagingToPrimeSync = "config/stagingToPrime.yaml"
 )

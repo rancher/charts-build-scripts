@@ -281,15 +281,15 @@ func main() {
 		Destination: &GithubToken,
 	}
 	primeUserFlag := cli.StringFlag{
-		Name:        "prime_user",
-		Usage:       "--prime_user=******** || PRIME_USER=*******",
+		Name:        "prime-user",
+		Usage:       "--prime-user=******** || PRIME_USER=*******",
 		Required:    true,
 		EnvVar:      defaultPrimeUserEnvironmentVariable,
 		Destination: &PrimeUser,
 	}
 	primePasswordFlag := cli.StringFlag{
-		Name:        "prime_password",
-		Usage:       "--prime_password=******** || PRIME_PASSWORD=*******",
+		Name:        "prime-password",
+		Usage:       "--prime-password=******** || PRIME_PASSWORD=*******",
 		Required:    true,
 		EnvVar:      defaultPrimePasswordEnvironmentVariable,
 		Destination: &PrimePassword,

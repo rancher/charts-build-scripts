@@ -104,7 +104,7 @@ func fetchTagsFromRegistryRepo(ctx context.Context, remoteTarget string) ([]stri
 		return nil, err
 	}
 
-	options := []remote.Option{}
+	var options []remote.Option
 
 	tags, err := remote.List(repo, options...)
 	if err != nil {

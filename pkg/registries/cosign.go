@@ -139,7 +139,7 @@ func prepareSync(ctx context.Context, username, password string) (*synchronizer,
 	// Use strict validation for pulling and pushing
 	// These options control how image references (e.g., "myregistry/myimage:tag")
 	// are parsed and validated by go-containerregistry's 'name' package.
-	nameOpts := []name.Option{}
+	var nameOpts []name.Option
 	nameOpts = append(nameOpts, name.StrictValidation)
 	nameOpts = append(nameOpts, name.Insecure)
 	// name.Insecure: Allows parsing of image references that might imply an insecure

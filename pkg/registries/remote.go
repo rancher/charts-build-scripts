@@ -228,6 +228,24 @@ type TokenReponse struct {
 	Token string `json:"token"`
 }
 
+// NewDockerCheckImages TODO:...
+func NewDockerCheckImages(ctx context.Context) error {
+	// Get required tags for all images retrieved from the all the values.yaml files in the .tgz files
+	assetsTagMap, err := createAssetValuesRepoTagMap(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Check if there's any image outside the rancher namespace
+	// imagesOutsideNamespace := checkPattern(ctx, assetsTagMap)
+
+	for asset, assetTags := range {
+		fetchTagsFromRegistryRepo(ctx, )
+	}
+
+	return nil
+}
+
 // DockerCheckImages checks if all container images used in charts belong to the rancher namespace
 func DockerCheckImages(ctx context.Context) error {
 	failedImages := make(map[string][]string, 0)

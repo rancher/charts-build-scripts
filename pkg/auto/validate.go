@@ -301,7 +301,8 @@ func isIconException(chart string) bool {
 		chart == "rancher-wins-upgrader" ||
 		chart == "remotedialer-proxy" ||
 		chart == "system-upgrade-controller" ||
-		chart == "ui-plugin-operator" {
+		chart == "ui-plugin-operator" ||
+		chart == "rancher-csp-adapter" {
 		return true
 	}
 	return false

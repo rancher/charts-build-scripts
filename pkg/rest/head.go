@@ -2,6 +2,7 @@ package rest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -50,21 +51,18 @@ func Head(ctx context.Context, url, token string) error {
 
 		case http.StatusTooManyRequests:
 			// Get the retry after header, parse it to int64 and set a timer until retry
-			retryAfterMillis := response.Header.Get("Retry-After")
-			retryAfterMillisInt, _ := strconv.ParseInt(retryAfterMillis, 10, 64)
+			retryAfter, _ := strconv.ParseInt(response.Header.Get("Retry-After"), 10, 64)
 
-			// Convert the retry after millis to a time.Time object and calculate the time until retry
-			retryAfter := time.Unix(retryAfterMillisInt, 0)
-			timeUntilRetry := time.Until(retryAfter)
-
-			logger.Log(ctx, slog.LevelWarn, "request was rate limited", slog.String("timeUntilRetry", timeUntilRetry.String()))
-			time.Sleep(timeUntilRetry)
-
-			continue
+			if retryAfter > 0 {
+				logger.Log(ctx, slog.LevelWarn, "request was rate limited", slog.Int64("retryAfter", retryAfter))
+				time.Sleep(time.Duration(retryAfter) * time.Second)
+				continue
+			}
+			return errors.New("request was rate-limited (429 Too Many Requests) without Retry-After")
 
 		case http.StatusNotFound:
 			logger.Log(ctx, slog.LevelDebug, "resource not found", slog.String("url", url))
-			return fmt.Errorf("not found")
+			return errors.New("not found")
 
 		default:
 			if response.StatusCode >= 500 && response.StatusCode < 600 {

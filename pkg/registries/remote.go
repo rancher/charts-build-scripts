@@ -5,14 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/rest"
 
+	authn "github.com/google/go-containerregistry/pkg/authn"
 	name "github.com/google/go-containerregistry/pkg/name"
 	remote "github.com/google/go-containerregistry/pkg/v1/remote"
 )
@@ -28,6 +31,11 @@ const (
 	loginURL = "https://hub.docker.com/v2/users/login/"
 )
 
+var (
+	once          sync.Once
+	authenticator authn.Authenticator
+)
+
 // checkRegistriesImagesTags will check and split which repository images/tags must be synced
 // to the prime registry from the DockerHub and Staging registry.
 //
@@ -41,7 +49,6 @@ func checkRegistriesImagesTags(ctx context.Context) (map[string][]string, map[st
 
 	// List all repository tags on Docker Hub by walking the entire image dependencies across all charts
 	assetsImageTagMap, err := createAssetValuesRepoTagMap(ctx)
-	fmt.Println(assetsImageTagMap["rancher/fleet-agent"])
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -97,7 +104,8 @@ var listRegistryImageTags = func(ctx context.Context, imageTagMap map[string][]s
 }
 
 // fetchTagsFromRegistryRepo will check a remote registry repository image for its tags.
-func fetchTagsFromRegistryRepo(ctx context.Context, remoteTarget string) ([]string, error) {
+// will be mocked using monkey patching.
+var fetchTagsFromRegistryRepo = func(ctx context.Context, remoteTarget string) ([]string, error) {
 	repo, err := name.NewRepository(remoteTarget)
 	if err != nil {
 		logger.Log(ctx, slog.LevelError, "remote repository failure", logger.Err(err))
@@ -105,7 +113,23 @@ func fetchTagsFromRegistryRepo(ctx context.Context, remoteTarget string) ([]stri
 	}
 
 	var options []remote.Option
+	options = append(options, remote.WithContext(ctx))
+	// 1st: 0s | 2nd: 60s | 3rd: 180s
+	options = append(options, remote.WithRetryBackoff(remote.Backoff{
+		Duration: 60.0 * time.Second,
+		Factor:   2.0,
+		Steps:    3,
+	}))
+	options = append(options, remote.WithRetryStatusCodes([]int{
+		http.StatusTooManyRequests, // 429
+	}...))
 
+	if auth := dockerCredentials(ctx); auth != nil {
+		options = append(options, remote.WithAuth(auth))
+	}
+
+	// the default tag amount is 1000,
+	// but remote package handles pagination internally if needed
 	tags, err := remote.List(repo, options...)
 	if err != nil {
 		logger.Log(ctx, slog.LevelError, "list failure", logger.Err(err))
@@ -113,6 +137,24 @@ func fetchTagsFromRegistryRepo(ctx context.Context, remoteTarget string) ([]stri
 	}
 
 	return tags, nil
+}
+
+func dockerCredentials(ctx context.Context) authn.Authenticator {
+	once.Do(func() {
+		username := os.Getenv("DOCKER_USERNAME")
+		password := os.Getenv("DOCKER_PASSWORD")
+
+		if username == "" || password == "" {
+			logger.Log(ctx, slog.LevelWarn, "Docker credentials not provided, proceeding with unauthenticated requests")
+			authenticator = nil
+		} else {
+			authenticator = &authn.Basic{
+				Username: username,
+				Password: password,
+			}
+		}
+	})
+	return authenticator
 }
 
 // filterDockerNotPrimeTags will only allow the tags that are not present in the prime registry but are present on Docker Hub
@@ -211,151 +253,80 @@ func splitTags(dockerTags, stgTags []string) ([]string, []string) {
 	return dockerOnlyTags, stgAlsoTags
 }
 
-// Legacy Code below;
-// todos:
-// 1. Refactor
-// 2. Stop checking DockerHub per tag and start listing tags with less http requests.
-// 3. getReleaseOptions must be deleted and use the new LoadYamlFile approach
-
-// TokenRequest is the request body for the Docker Hub API Login endpoint
-type TokenRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-// TokenReponse is the response body for the Docker Hub API Login endpoint
-type TokenReponse struct {
-	Token string `json:"token"`
-}
-
-// DockerCheckImages checks if all container images used in charts belong to the rancher namespace
-func DockerCheckImages(ctx context.Context) error {
-	failedImages := make(map[string][]string, 0)
-
+// DockerScan lists the repository tags from the local assets/ folder, compares them
+// against the corresponding Docker Hub repository tags, and reports any discrepancies.
+// It returns an error if an image tag from the assets/ folder is not found on Docker Hub,
+// or if a repository is not in the `rancher` namespace.
+func DockerScan(ctx context.Context) error {
 	// Get required tags for all images retrieved from the all the values.yaml files in the .tgz files
 	assetsTagMap, err := createAssetValuesRepoTagMap(ctx)
 	if err != nil {
 		return err
 	}
 
-	// Check if there's any image outside the rancher namespace
-	imagesOutsideNamespace := checkPattern(ctx, assetsTagMap)
-
-	// Get a token to access the Docker Hub API
-	token, err := retrieveToken(ctx)
+	// check docker images against the assets/ folder values.yaml repositories/tags
+	failedImages, outOfNamespaceImages, err := checkImagesFromDocker(ctx, assetsTagMap)
 	if err != nil {
-		logger.Log(ctx, slog.LevelWarn, "failed to retrieve token, requests will be unauthenticated", logger.Err(err))
+		return err
 	}
 
-	// Loop through all images and tags to check if they exist
-	for image := range assetsTagMap {
-		if len(image) == 0 {
-			logger.Log(ctx, slog.LevelWarn, "found blank image, skipping tag check")
-			continue
-		}
-
-		// Split image into namespace and repository
-		location := strings.Split(image, "/")
-		if len(location) != 2 {
-			logger.Log(ctx, slog.LevelError, "failed to split image into namespace and repository", slog.String("image", image))
-			return fmt.Errorf("failed to generate namespace and repository for image: %s", image)
-		}
-
-		// Check if all tags exist
-		for _, tag := range assetsTagMap[image] {
-			err := checkTag(ctx, location[0], location[1], tag, token)
-			if err != nil {
-				failedImages[image] = append(failedImages[image], tag)
-			}
-		}
-	}
-
-	// If there are any images that have failed the check, log them and return an error
-	if len(failedImages) > 0 || len(imagesOutsideNamespace) > 0 {
-		logger.Log(ctx, slog.LevelError, "found images outside the rancher namespace", slog.Any("imagesOutsideNamespace", imagesOutsideNamespace))
+	if len(failedImages) > 0 || len(outOfNamespaceImages) > 0 {
+		logger.Log(ctx, slog.LevelError, "found images outside the rancher namespace", slog.Any("outOfNamespaceImages", outOfNamespaceImages))
 		logger.Log(ctx, slog.LevelError, "images that are not on Docker Hub", slog.Any("failedImages", failedImages))
 		return errors.New("image check has failed")
 	}
 
+	logger.Log(ctx, slog.LevelInfo, "all images checked")
 	return nil
 }
 
-// checkPattern checks for pattern "rancher/*" in an array and returns items that do not match.
-func checkPattern(ctx context.Context, imageTagMap map[string][]string) []string {
-	nonMatchingImages := make([]string, 0)
+// checkImagesFromDocker receives a map of repository tags from local assets and fetches the corresponding tags from Docker Hub.
+// It identifies images with tags that are not present on Docker Hub ("failedImages")
+// and images that are not in the "rancher" namespace ("outOfNamespaceImages").
+func checkImagesFromDocker(ctx context.Context, assetsTagMap map[string][]string) (map[string][]string, []string, error) {
+	failedImages := make(map[string][]string, 0)
+	outOfNamespaceImages := make([]string, 0)
 
-	for image := range imageTagMap {
-		if len(image) == 0 {
-			logger.Log(ctx, slog.LevelWarn, "found blank image, skipping image namespace check")
+	logger.Log(ctx, slog.LevelInfo, "comparing image tags from Docker Hub and local assets")
+
+	for asset, assetTags := range assetsTagMap {
+		if !strings.HasPrefix(asset, "rancher/") {
+			logger.Log(ctx, slog.LevelError, "image is outside the rancher namespace", slog.String("img", asset))
+			outOfNamespaceImages = append(outOfNamespaceImages, asset)
 			continue
 		}
-		if !strings.HasPrefix(image, "rancher/") {
-			nonMatchingImages = append(nonMatchingImages, image)
+
+		logger.Log(ctx, slog.LevelDebug, "comparing", slog.String("img", asset))
+		dockerTags, err := fetchTagsFromRegistryRepo(ctx, DockerURL+asset)
+		if err != nil {
+			return failedImages, outOfNamespaceImages, err
+		}
+
+		if len(dockerTags) == 0 {
+			logger.Log(ctx, slog.LevelError, "no docker tags found", slog.String("img", asset))
+			failedImages[asset] = append(failedImages[asset], "no docker tags found for this image!")
+			continue
+		}
+
+		tagHashSet := make(map[string]struct{}, len(dockerTags))
+		for _, tag := range dockerTags {
+			tagHashSet[tag] = struct{}{}
+		}
+
+		for _, tag := range assetTags {
+			if _, exist := tagHashSet[tag]; !exist {
+				logger.Log(ctx, slog.LevelError, "image tag not found on Docker Hub", slog.Group("img/tag", asset, tag))
+				failedImages[asset] = append(failedImages[asset], tag)
+			}
 		}
 	}
 
-	return nonMatchingImages
+	return failedImages, outOfNamespaceImages, nil
 }
 
-// checkTag checks if a tag exists in a namespace/repository
-func checkTag(ctx context.Context, namespace, repository, tag, token string) error {
-	logger.Log(ctx, slog.LevelDebug, "checking tag", slog.String("namespace", namespace), slog.String("repository", repository), slog.String("tag", tag))
-
-	url := fmt.Sprintf("https://hub.docker.com/v2/namespaces/%s/repositories/%s/tags/%s", namespace, repository, tag)
-
-	// Sends HEAD request to check if namespace/repository:tag exists
-	err := rest.Head(ctx, url, token)
-	if err != nil {
-		logger.Log(ctx, slog.LevelError, "failed to check tag", logger.Err(err))
-		return err
-	}
-
-	logger.Log(ctx, slog.LevelInfo, "tag found", slog.String("repository", repository), slog.String("tag", tag))
-	return nil
-}
-
-// retrieveToken retrieves a token to access the Docker Hub API
-func retrieveToken(ctx context.Context) (string, error) {
-
-	// Retrieve credentials from environment variables
-	credentials := retrieveCredentials(ctx)
-	if credentials == nil {
-		logger.Log(ctx, slog.LevelWarn, "no credentials found, requests will be unauthenticated")
-		return "", nil
-	}
-
-	var response TokenReponse
-
-	// Sends POST request to retrieve token
-	err := rest.Post(loginURL, credentials, &response)
-	if err != nil {
-		return "", err
-	}
-
-	return response.Token, nil
-}
-
-// retrieveCredentials retrieves credentials from environment variables
-func retrieveCredentials(ctx context.Context) *TokenRequest {
-
-	username := os.Getenv("DOCKER_USERNAME")
-	password := os.Getenv("DOCKER_PASSWORD")
-
-	if strings.Compare(username, "") == 0 {
-		logger.Log(ctx, slog.LevelError, "DOCKER_USERNAME not set", slog.String("username", username))
-		return nil
-	}
-
-	if strings.Compare(password, "") == 0 {
-		logger.Log(ctx, slog.LevelError, "DOCKER_PASSWORD not set", slog.String("password", password))
-		return nil
-	}
-
-	return &TokenRequest{
-		Username: username,
-		Password: password,
-	}
-}
+// Legacy Code below;
+// todos:
+// 1. New implementation for checking RC tags
 
 // DockerCheckRCTags checks for any images that have RC tags
 func DockerCheckRCTags(ctx context.Context, repoRoot string) map[string][]string {

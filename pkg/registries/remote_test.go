@@ -636,3 +636,137 @@ func Test_checkRegistriesImagesTags(t *testing.T) {
 		})
 	}
 }
+
+func Test_checkImagesFromDocker(t *testing.T) {
+	ctx := context.Background()
+
+	// reset monkey patching
+	originalFetch := fetchTagsFromRegistryRepo
+	defer func() {
+		fetchTagsFromRegistryRepo = originalFetch
+	}()
+
+	type input struct {
+		mockedAssetsTags map[string][]string
+		mockFetchTags    func(context.Context, string) ([]string, error)
+	}
+
+	type output struct {
+		failedImages         map[string][]string
+		outOfNamespaceImages []string
+		err                  error
+	}
+
+	type test struct {
+		name   string
+		input  input
+		output output
+	}
+
+	tests := []test{
+		{
+			name: "#1",
+			input: input{
+				mockedAssetsTags: map[string][]string{
+					"rancher/fleet": {"v1.0.0", "v2.0.0", "v3.0.0"},
+					"rancher/shell": {"v1.0.0"},
+				},
+				mockFetchTags: func(ctx context.Context, target string) ([]string, error) {
+					if target == DockerURL+"rancher/fleet" {
+						return []string{"v1.0.0", "v2.0.0", "v3.0.0"}, nil
+					}
+					return []string{"v1.0.0"}, nil
+				},
+			},
+			output: output{
+				failedImages:         map[string][]string{},
+				outOfNamespaceImages: []string{},
+				err:                  nil,
+			},
+		},
+
+		{
+			name: "#2",
+			input: input{
+				mockedAssetsTags: map[string][]string{
+					"rancher/fleet": {"v1.0.0", "v2.0.0"},
+				},
+				mockFetchTags: func(ctx context.Context, target string) ([]string, error) {
+					return []string{"v1.0.0", "v2.0.0", "v3.0.0", "some-crazy-tag"}, nil
+				},
+			},
+			output: output{
+				failedImages:         map[string][]string{},
+				outOfNamespaceImages: []string{},
+				err:                  nil,
+			},
+		},
+
+		{
+			name: "#3",
+			input: input{
+				mockedAssetsTags: map[string][]string{
+					"rancher/fleet": {"v1.0.0", "v2.0.0"},
+				},
+				mockFetchTags: func(ctx context.Context, target string) ([]string, error) {
+					return []string{"v1.0.0"}, nil
+				},
+			},
+			output: output{
+				failedImages: map[string][]string{
+					"rancher/fleet": {"v2.0.0"},
+				},
+				outOfNamespaceImages: []string{},
+				err:                  nil,
+			},
+		},
+
+		{
+			name: "#4",
+			input: input{
+				mockedAssetsTags: map[string][]string{
+					"rancher/fleet": {"v1.0.0", "v2.0.0"},
+				},
+				mockFetchTags: func(ctx context.Context, target string) ([]string, error) {
+					return []string{}, nil
+				},
+			},
+			output: output{
+				failedImages: map[string][]string{
+					"rancher/fleet": {"no docker tags found for this image!"},
+				},
+				outOfNamespaceImages: []string{},
+				err:                  nil,
+			},
+		},
+
+		{
+			name: "#5",
+			input: input{
+				mockedAssetsTags: map[string][]string{
+					"pirate/fleet": {"v1.0.0", "v2.0.0"},
+				},
+				mockFetchTags: func(ctx context.Context, target string) ([]string, error) {
+					return []string{}, nil
+				},
+			},
+			output: output{
+				failedImages:         map[string][]string{},
+				outOfNamespaceImages: []string{"pirate/fleet"},
+				err:                  nil,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// monkey patch
+			fetchTagsFromRegistryRepo = tt.input.mockFetchTags
+
+			failedImgs, outNsImgs, err := checkImagesFromDocker(ctx, tt.input.mockedAssetsTags)
+			assertError(t, err, tt.output.err)
+			require.Equal(t, tt.output.failedImages, failedImgs)
+			require.Equal(t, tt.output.outOfNamespaceImages, outNsImgs)
+		})
+	}
+}

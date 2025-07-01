@@ -253,6 +253,77 @@ func splitTags(dockerTags, stgTags []string) ([]string, []string) {
 	return dockerOnlyTags, stgAlsoTags
 }
 
+// DockerScan lists the repository tags from the local assets/ folder, compares them
+// against the corresponding Docker Hub repository tags, and reports any discrepancies.
+// It returns an error if an image tag from the assets/ folder is not found on Docker Hub,
+// or if a repository is not in the `rancher` namespace.
+func DockerScan(ctx context.Context) error {
+	// Get required tags for all images retrieved from the all the values.yaml files in the .tgz files
+	assetsTagMap, err := createAssetValuesRepoTagMap(ctx)
+	if err != nil {
+		return err
+	}
+
+	// check docker images against the assets/ folder values.yaml repositories/tags
+	failedImages, outOfNamespaceImages, err := checkImagesFromDocker(ctx, assetsTagMap)
+	if err != nil {
+		return err
+	}
+
+	if len(failedImages) > 0 || len(outOfNamespaceImages) > 0 {
+		logger.Log(ctx, slog.LevelError, "found images outside the rancher namespace", slog.Any("outOfNamespaceImages", outOfNamespaceImages))
+		logger.Log(ctx, slog.LevelError, "images that are not on Docker Hub", slog.Any("failedImages", failedImages))
+		return errors.New("image check has failed")
+	}
+
+	logger.Log(ctx, slog.LevelInfo, "all images checked")
+	return nil
+}
+
+// checkImagesFromDocker receives a map of repository tags from local assets and fetches the corresponding tags from Docker Hub.
+// It identifies images with tags that are not present on Docker Hub ("failedImages")
+// and images that are not in the "rancher" namespace ("outOfNamespaceImages").
+func checkImagesFromDocker(ctx context.Context, assetsTagMap map[string][]string) (map[string][]string, []string, error) {
+	failedImages := make(map[string][]string, 0)
+	outOfNamespaceImages := make([]string, 0)
+
+	logger.Log(ctx, slog.LevelInfo, "comparing image tags from Docker Hub and local assets")
+
+	for asset, assetTags := range assetsTagMap {
+		if !strings.HasPrefix(asset, "rancher/") {
+			logger.Log(ctx, slog.LevelError, "image is outside the rancher namespace", slog.String("img", asset))
+			outOfNamespaceImages = append(outOfNamespaceImages, asset)
+			continue
+		}
+
+		logger.Log(ctx, slog.LevelDebug, "comparing", slog.String("img", asset))
+		dockerTags, err := fetchTagsFromRegistryRepo(ctx, DockerURL+asset)
+		if err != nil {
+			return failedImages, outOfNamespaceImages, err
+		}
+
+		if len(dockerTags) == 0 {
+			logger.Log(ctx, slog.LevelError, "no docker tags found", slog.String("img", asset))
+			failedImages[asset] = append(failedImages[asset], "no docker tags found for this image!")
+			continue
+		}
+
+		tagHashSet := make(map[string]struct{}, len(dockerTags))
+		for _, tag := range dockerTags {
+			tagHashSet[tag] = struct{}{}
+		}
+
+		for _, tag := range assetTags {
+			if _, exist := tagHashSet[tag]; !exist {
+				logger.Log(ctx, slog.LevelError, "image tag not found on Docker Hub", slog.Group("img/tag", asset, tag))
+				failedImages[asset] = append(failedImages[asset], tag)
+			}
+		}
+	}
+
+	return failedImages, outOfNamespaceImages, nil
+}
+
 // Legacy Code below;
 // todos:
 // 1. New implementation for checking RC tags

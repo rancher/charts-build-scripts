@@ -5,14 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/rest"
 
+	authn "github.com/google/go-containerregistry/pkg/authn"
 	name "github.com/google/go-containerregistry/pkg/name"
 	remote "github.com/google/go-containerregistry/pkg/v1/remote"
 )
@@ -28,6 +31,11 @@ const (
 	loginURL = "https://hub.docker.com/v2/users/login/"
 )
 
+var (
+	once          sync.Once
+	authenticator authn.Authenticator
+)
+
 // checkRegistriesImagesTags will check and split which repository images/tags must be synced
 // to the prime registry from the DockerHub and Staging registry.
 //
@@ -41,7 +49,6 @@ func checkRegistriesImagesTags(ctx context.Context) (map[string][]string, map[st
 
 	// List all repository tags on Docker Hub by walking the entire image dependencies across all charts
 	assetsImageTagMap, err := createAssetValuesRepoTagMap(ctx)
-	fmt.Println(assetsImageTagMap["rancher/fleet-agent"])
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -97,7 +104,8 @@ var listRegistryImageTags = func(ctx context.Context, imageTagMap map[string][]s
 }
 
 // fetchTagsFromRegistryRepo will check a remote registry repository image for its tags.
-func fetchTagsFromRegistryRepo(ctx context.Context, remoteTarget string) ([]string, error) {
+// will be mocked using monkey patching.
+var fetchTagsFromRegistryRepo = func(ctx context.Context, remoteTarget string) ([]string, error) {
 	repo, err := name.NewRepository(remoteTarget)
 	if err != nil {
 		logger.Log(ctx, slog.LevelError, "remote repository failure", logger.Err(err))
@@ -105,7 +113,23 @@ func fetchTagsFromRegistryRepo(ctx context.Context, remoteTarget string) ([]stri
 	}
 
 	var options []remote.Option
+	options = append(options, remote.WithContext(ctx))
+	// 1st: 0s | 2nd: 60s | 3rd: 180s
+	options = append(options, remote.WithRetryBackoff(remote.Backoff{
+		Duration: 60.0 * time.Second,
+		Factor:   2.0,
+		Steps:    3,
+	}))
+	options = append(options, remote.WithRetryStatusCodes([]int{
+		http.StatusTooManyRequests, // 429
+	}...))
 
+	if auth := dockerCredentials(ctx); auth != nil {
+		options = append(options, remote.WithAuth(auth))
+	}
+
+	// the default tag amount is 1000,
+	// but remote package handles pagination internally if needed
 	tags, err := remote.List(repo, options...)
 	if err != nil {
 		logger.Log(ctx, slog.LevelError, "list failure", logger.Err(err))
@@ -113,6 +137,24 @@ func fetchTagsFromRegistryRepo(ctx context.Context, remoteTarget string) ([]stri
 	}
 
 	return tags, nil
+}
+
+func dockerCredentials(ctx context.Context) authn.Authenticator {
+	once.Do(func() {
+		username := os.Getenv("DOCKER_USERNAME")
+		password := os.Getenv("DOCKER_PASSWORD")
+
+		if username == "" || password == "" {
+			logger.Log(ctx, slog.LevelWarn, "Docker credentials not provided, proceeding with unauthenticated requests")
+			authenticator = nil
+		} else {
+			authenticator = &authn.Basic{
+				Username: username,
+				Password: password,
+			}
+		}
+	})
+	return authenticator
 }
 
 // filterDockerNotPrimeTags will only allow the tags that are not present in the prime registry but are present on Docker Hub

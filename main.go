@@ -845,7 +845,7 @@ func getGitInfo() (*git.Repository, *git.Worktree, git.Status) {
 func checkImages(c *cli.Context) {
 	ctx := context.Background()
 
-	if err := registries.DockerCheckImages(ctx); err != nil {
+	if err := registries.DockerScan(ctx); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }

@@ -71,6 +71,8 @@ var (
 
 // SetupBump TODO: add description
 func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string, chScriptOpts *options.ChartsScriptOptions) (*Bump, error) {
+	logger.Log(ctx, slog.LevelInfo, "setup auto-chart-bump")
+
 	bump := &Bump{
 		configOptions: chScriptOpts,
 	}
@@ -219,6 +221,8 @@ func checkUpstreamOptions(options *options.UpstreamOptions) error {
 // BumpChart will execute a similar approach as the defined development workflow for chartowners.
 // The main difference is that between the steps: (make prepare and make patch) we will calculate the next version to release.
 func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs bool) error {
+	logger.Log(ctx, slog.LevelInfo, "start auto-chart-bump")
+
 	// List the possible target charts
 	targetCharts, err := chartsTargets(b.targetChart)
 	if err != nil {

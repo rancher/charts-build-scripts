@@ -121,6 +121,42 @@ func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string
 		ReleaseYamlPath: releaseYamlPath,
 	}
 
+	upstreamSubDir := ""
+	if bump.Pkg.Upstream.GetOptions().Subdirectory != nil {
+		upstreamSubDir = *bump.Pkg.Upstream.GetOptions().Subdirectory
+	}
+
+	upstreamCommit := ""
+	if bump.Pkg.Upstream.GetOptions().Commit != nil {
+		upstreamCommit = *bump.Pkg.Upstream.GetOptions().Commit
+	}
+
+	upstreamChartBranch := ""
+	if bump.Pkg.Upstream.GetOptions().ChartRepoBranch != nil {
+		upstreamChartBranch = *bump.Pkg.Upstream.GetOptions().ChartRepoBranch
+	}
+
+	logger.Log(ctx, slog.LevelInfo, "setup", slog.Group("bump",
+		slog.String("targetChart", bump.targetChart),
+		slog.Group("Pkg",
+			slog.Group("Chart",
+				slog.Group("Upstream",
+					slog.Any("URL", bump.Pkg.Upstream.GetOptions().URL),
+					slog.Any("SubDir", upstreamSubDir),
+					slog.Any("Commit", upstreamCommit),
+					slog.Any("ChartRepoBranch", upstreamChartBranch),
+				),
+				slog.String("workingDir", bump.Pkg.WorkingDir),
+			),
+			slog.Any("Version", bump.Pkg.Version),
+			slog.Any("Package Version", bump.Pkg.PackageVersion),
+			slog.Bool("DoNotRelease", bump.Pkg.DoNotRelease),
+			slog.Bool("Auto", bump.Pkg.Auto),
+		),
+		slog.String("last version",
+			bump.assetsVersionsMap[bump.targetChart][0].Version),
+	))
+
 	return bump, nil
 }
 

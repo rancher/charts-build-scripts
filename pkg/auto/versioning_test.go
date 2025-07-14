@@ -91,7 +91,7 @@ func Test_calculateNextVersion(t *testing.T) {
 		var toReleaseVersionPtr *string = &toReleaseVersion
 
 		input := &Bump{
-			targetChart: "rancher-chart",
+			target:      target{main: "rancher-chart"},
 			releaseYaml: &Release{Chart: "rancher-chart"},
 			Pkg: &charts.Package{
 				Name:  "rancher-chart",
@@ -127,8 +127,7 @@ func Test_calculateNextVersion(t *testing.T) {
 		}
 
 		return &Bump{
-			targetChart: "rancher-chart",
-			releaseYaml: &Release{Chart: "rancher-chart", ChartVersion: targetVersion},
+			target: target{main: "rancher-chart"}, releaseYaml: &Release{Chart: "rancher-chart", ChartVersion: targetVersion},
 			Pkg: &charts.Package{
 				Name:                     "rancher-chart",
 				Chart:                    charts.Chart{UpstreamChartVersion: toReleaseVersionPtr},

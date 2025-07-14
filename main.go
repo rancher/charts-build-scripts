@@ -785,6 +785,25 @@ func parseScriptOptions(ctx context.Context) *options.ChartsScriptOptions {
 	if err := yaml.UnmarshalStrict(configYaml, &chartsScriptOptions); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("unable to unmarshall configuration file: %w", err).Error())
 	}
+
+	if chartsScriptOptions.ValidateOptions != nil {
+		logger.Log(ctx, slog.LevelInfo, "chart script options", slog.Group("opts",
+			slog.Group("validate",
+				slog.String("branch", chartsScriptOptions.ValidateOptions.Branch),
+				slog.Group("upstream",
+					slog.String("url", chartsScriptOptions.ValidateOptions.UpstreamOptions.URL),
+					slog.Any("commit", chartsScriptOptions.ValidateOptions.UpstreamOptions.Commit),
+					slog.Any("subdirectory", chartsScriptOptions.ValidateOptions.UpstreamOptions.Subdirectory),
+				),
+			),
+			slog.Group("helmRepo",
+				slog.String("CNAME", chartsScriptOptions.HelmRepoConfiguration.CNAME),
+			),
+			slog.String("template", chartsScriptOptions.Template),
+			slog.Bool("omitBuildMetadata", chartsScriptOptions.OmitBuildMetadataOnExport),
+		))
+	}
+
 	return &chartsScriptOptions
 }
 
@@ -973,7 +992,7 @@ func release(c *cli.Context) {
 	}
 
 	// update release.yaml
-	if err := release.UpdateReleaseYaml(); err != nil {
+	if err := release.UpdateReleaseYaml(ctx, true); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to update release.yaml: %w", err).Error())
 	}
 
@@ -1034,32 +1053,29 @@ func compareIndexFiles(c *cli.Context) {
 func chartBump(c *cli.Context) {
 	ctx := context.Background()
 
-	if CurrentPackage == "" {
-		logger.Fatal(ctx, "CurrentPackage environment variable must be set")
+	logger.Log(ctx, slog.LevelInfo, "received parameters")
+	logger.Log(ctx, slog.LevelInfo, "", slog.String("package", CurrentPackage))
+	logger.Log(ctx, slog.LevelInfo, "", slog.String("branch", Branch))
+	logger.Log(ctx, slog.LevelInfo, "", slog.String("overrideVersion", OverrideVersion))
+	logger.Log(ctx, slog.LevelInfo, "", slog.Bool("multi-RC", MultiRC))
+
+	if CurrentPackage == "" || Branch == "" || OverrideVersion == "" {
+		logger.Fatal(ctx, fmt.Sprintf("must provide values for CurrentPackage[%s], Branch[%s], and OverrideVersion[%s]",
+			CurrentPackage, Branch, OverrideVersion))
 	}
-	if Branch == "" {
-		logger.Fatal(ctx, "Branch environment variable must be set")
-	}
-	if OverrideVersion != "" {
-		logger.Log(ctx, slog.LevelInfo, "OverrideVersion is set to ", slog.String("OverrideVersion", OverrideVersion))
-		if OverrideVersion != "patch" && OverrideVersion != "minor" && OverrideVersion != "auto" {
-			logger.Fatal(ctx, "OverrideVersion must be set to either patch, minor, or auto")
-		}
+
+	if OverrideVersion != "patch" && OverrideVersion != "minor" && OverrideVersion != "auto" {
+		logger.Fatal(ctx, "OverrideVersion must be set to either patch, minor, or auto")
 	}
 
 	ChartsScriptOptionsFile = path.ConfigurationYamlFile
 	chartsScriptOptions := parseScriptOptions(ctx)
 
-	logger.Log(ctx, slog.LevelDebug, "", slog.String("CurrentPackage", CurrentPackage))
-	logger.Log(ctx, slog.LevelDebug, "", slog.String("Branch", Branch))
-
-	logger.Log(ctx, slog.LevelInfo, "setup auto-chart-bump")
 	bump, err := auto.SetupBump(ctx, RepoRoot, CurrentPackage, Branch, chartsScriptOptions)
 	if err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to setup: %w", err).Error())
 	}
 
-	logger.Log(ctx, slog.LevelInfo, "start auto-chart-bump")
 	if err := bump.BumpChart(ctx, OverrideVersion, MultiRC); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to bump: %w", err).Error())
 	}

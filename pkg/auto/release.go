@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -15,7 +14,6 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart"
 	helmChartutil "helm.sh/helm/v3/pkg/chartutil"
 )
@@ -114,51 +112,35 @@ func mountAssetVersionPath(chart, version string) (string, string) {
 	return assetPath, assetTgz
 }
 
-func (r *Release) readReleaseYaml() (map[string][]string, error) {
-	var releaseVersions = make(map[string][]string, 0)
-
-	file, err := os.Open(r.ReleaseYamlPath)
+func readReleaseYaml(ctx context.Context, path string) (map[string][]string, error) {
+	releaseVersions, err := filesystem.LoadYamlFile[map[string][]string](ctx, path, true)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
-	decoder := yaml.NewDecoder(file)
-	if err := decoder.Decode(&releaseVersions); err != nil {
-		if err == io.EOF {
-			// Handle EOF error gracefully
-			return releaseVersions, nil
-		}
-		return nil, err
-	}
-
-	return releaseVersions, nil
+	return *releaseVersions, nil
 }
 
-// UpdateReleaseYaml reads and parse the release.yaml file to a struct, appends the new version and writes it back to the file.
-func (r *Release) UpdateReleaseYaml() error {
-	releaseVersions, err := r.readReleaseYaml()
+// UpdateReleaseYaml reads and parse the release.yaml file to a map, appends the new version and writes it back to the file.
+func (r *Release) UpdateReleaseYaml(ctx context.Context, overwrite bool) error {
+	releaseVersions, err := readReleaseYaml(ctx, r.ReleaseYamlPath)
 	if err != nil {
 		return err
 	}
 
-	// Overwrite with the target version Bump only
-	releaseVersions[r.Chart] = []string{r.ChartVersion}
+	// Overwrite with the target version or append
+	if overwrite {
+		releaseVersions[r.Chart] = []string{r.ChartVersion}
+	} else {
+		releaseVersions[r.Chart] = append(releaseVersions[r.Chart], r.ChartVersion)
+	}
 
-	// Since we opened and read the file before we can truncate it.
-	outputFile, err := os.Create(r.ReleaseYamlPath)
+	file, err := filesystem.CreateAndOpenYamlFile(ctx, r.ReleaseYamlPath, true)
 	if err != nil {
 		return err
 	}
-	defer outputFile.Close()
 
-	encoder := yaml.NewEncoder(outputFile)
-	encoder.SetIndent(2)
-	if err := encoder.Encode(releaseVersions); err != nil {
-		return err
-	}
-
-	return nil
+	return filesystem.UpdateYamlFile(file, releaseVersions)
 }
 
 // PullIcon will pull the icon from the chart and save it to the local assets/logos directory

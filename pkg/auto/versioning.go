@@ -2,6 +2,7 @@ package auto
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 
@@ -10,18 +11,30 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
+// versions holds all the version components required to calculte the next chart version.
+// It distinguishes between the application's version (from upstream)
+// and the repository-specific prefix
 type versions struct {
-	latest              *version
-	latestRepoPrefix    *version
-	toRelease           *version
-	toReleaseRepoPrefix *version
+	latest              *version // the most recent non-RC application version found in the repository
+	latestRepoPrefix    *version // the most recent non-RC repository-specific (charts repository)
+	toRelease           *version // new calculated application version
+	toReleaseRepoPrefix *version // new calculated repository-specific version
+	currentRCs          []rc     // list of existing RC versions
 }
 
+// rc Release Candidate, composed of a repository prefix and an application version.
+type rc struct {
+	repoPrefix *version
+	appVersion *version
+}
+
+// version encapsulates a version string and its parsed semantic version representation.
 type version struct {
 	txt string
 	svr *semver.Version
 }
 
+// updateSemver is a helper to transform a string version in its semver object representation.
 func (v *version) updateSemver() error {
 	newSemver, err := semver.Make(v.txt)
 	if err != nil {
@@ -31,6 +44,7 @@ func (v *version) updateSemver() error {
 	return nil
 }
 
+// updateTxt is a helper to transform a semver object into its string form.
 func (v *version) updateTxt() {
 	v.txt = v.svr.String()
 }
@@ -52,6 +66,21 @@ func (b *Bump) calculateNextVersion(ctx context.Context, versionOverride string)
 		return err
 	}
 
+	logger.Log(ctx, slog.LevelInfo, "checking current RC's")
+	currentRCs, err := getCurrentRCsFromIndex(b.assetsVersionsMap[b.target.main], b.versions.toReleaseRepoPrefix.txt)
+	if err != nil {
+		logger.Log(ctx, slog.LevelError, "failed checking RC's", logger.Err(err), slog.String("version", b.target.main))
+		return err
+	}
+	if currentRCs != nil && len(currentRCs) > 0 {
+		b.versions.currentRCs = currentRCs
+		logger.Log(ctx, slog.LevelWarn, "RCs present", slog.Any("amount", len(currentRCs)))
+		for _, rc := range currentRCs {
+			rcVersion := rc.repoPrefix.txt + "+up" + rc.appVersion.txt
+			logger.Log(ctx, slog.LevelDebug, "", slog.String("version", rcVersion))
+		}
+	}
+
 	// build: toRelease full version
 	targetVersion := b.versions.toReleaseRepoPrefix.txt + "+up" + b.versions.toRelease.txt
 	targetSemver := semver.MustParse(targetVersion)
@@ -68,7 +97,7 @@ func (b *Bump) calculateNextVersion(ctx context.Context, versionOverride string)
 
 // loadVersions will load the latest version from the index.yaml and the version to release from the chart owner upstream repository
 // rules:
-//   - latest version may/may not contain a repoPrefixVersion
+//   - latest version might not contain a repoPrefixVersion
 //   - to release version must not contain a repoPrefixVersion
 func (b *Bump) loadVersions() error {
 	b.versions = &versions{
@@ -76,13 +105,17 @@ func (b *Bump) loadVersions() error {
 		latestRepoPrefix:    &version{},
 		toRelease:           &version{},
 		toReleaseRepoPrefix: &version{},
+		currentRCs:          make([]rc, 0),
 	}
 
-	// Latest version may/may not contain a repoPrefixVersion
-	latestRepoPrefix, latestVersion, found, err := getLatestVersionFromIndex(b.assetsVersionsMap[b.targetChart])
+	// Latest version might contain a repoPrefixVersion
+	latestRepoPrefix, latestVersion, found, err := getLatestVersionFromIndex(b.assetsVersionsMap[b.target.main])
 	if err != nil {
 		return err
 	}
+
+	// there is still one chart that only has the repo-prefix version like 105.0.0
+	// and does not have an app version.
 	if found {
 		b.versions.latestRepoPrefix.txt = latestRepoPrefix
 		if err := b.versions.latestRepoPrefix.updateSemver(); err != nil {
@@ -105,8 +138,7 @@ func (b *Bump) loadVersions() error {
 	}
 
 	// upstream/(to release version) must not contain a repoPrefixVersion
-	_, _, found = parseRepoPrefixVersionIfAny(b.versions.toRelease.txt)
-	if found {
+	if _, _, found := parseRepoPrefixVersionIfAny(b.versions.toRelease.txt); found {
 		return errChartUpstreamVersionWrong
 	}
 
@@ -118,9 +150,11 @@ func (b *Bump) loadVersions() error {
 	return nil
 }
 
+// getLatestVersionFromIndex will get the latest version written in the index.yaml
+// that is not a RC (Release Candidate).
 func getLatestVersionFromIndex(versions []lifecycle.Asset) (string, string, bool, error) {
-	// latestVersion and latestRepoPrefixVersion are the latest versions from the index.yaml
 	// get the latest released version from the index.yaml (the first version is the latest; already sorted)
+	// but it may be a Release Candidate, so getLatestVersionRecursively will filter that out.
 	latestUnparsedVersion := getLatestVersionRecursively(versions)
 	if latestUnparsedVersion == "" {
 		return "", "", false, errChartLatestVersion
@@ -130,6 +164,7 @@ func getLatestVersionFromIndex(versions []lifecycle.Asset) (string, string, bool
 	return latestRepoPrefix, latestVersion, found, nil
 }
 
+// getLatestVersionRecursively will get the latest non-RC version from the entry at the index.yaml
 func getLatestVersionRecursively(versions []lifecycle.Asset) string {
 	latestVersion := versions[0].Version
 	if strings.Contains(latestVersion, "-rc") {
@@ -137,6 +172,39 @@ func getLatestVersionRecursively(versions []lifecycle.Asset) string {
 	}
 
 	return latestVersion
+}
+
+// getCurrentRCsFromIndex will get the corresponding release candidate versions of the chart version being bumped
+func getCurrentRCsFromIndex(versions []lifecycle.Asset, toReleasePrefix string) ([]rc, error) {
+	if !strings.Contains(versions[0].Version, toReleasePrefix) || toReleasePrefix == "" {
+		return nil, nil
+	}
+
+	currentRCs := make([]rc, 0)
+	for _, v := range versions {
+		if !strings.Contains(v.Version, toReleasePrefix) {
+			break
+		}
+
+		currentRC := rc{
+			repoPrefix: &version{},
+			appVersion: &version{},
+		}
+
+		prefix, app, found := parseRepoPrefixVersionIfAny(v.Version)
+		if !found {
+			return nil, errors.New("chat version should have a repo prefix")
+		}
+
+		currentRC.repoPrefix.txt = prefix
+		currentRC.repoPrefix.updateSemver()
+		currentRC.appVersion.txt = app
+		currentRC.appVersion.updateSemver()
+
+		currentRCs = append(currentRCs, currentRC)
+	}
+
+	return currentRCs, nil
 }
 
 // parseRepoPrefixVersionIfAny will parse the repository prefix version if it exists
@@ -153,6 +221,12 @@ func parseRepoPrefixVersionIfAny(unparsedVersion string) (repoPrefix, version st
 	return repoPrefix, version, found
 }
 
+// applyVersionRules determines the correct repository-specific version prefix for the upcoming release.
+// It considers several factors:
+//   - branch's versioning rules (a new branch will reset the prefix to: 10x.0.0)
+//   - semantic difference between the latest released version and the new upstream version.
+//   - optional manual override for the version.
+//     It will calculate automatically patch or minor increments.
 func (b *Bump) applyVersionRules(versionOverride string) error {
 
 	// get the repository major prefix version rule (i.e., 105; 104; 103...)

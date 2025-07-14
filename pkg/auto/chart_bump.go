@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"strings"
 
+	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/git"
@@ -19,27 +19,79 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/path"
 )
 
-// Bump TODO: Doc this
-type Bump struct {
-	configOptions     *options.ChartsScriptOptions
-	targetChart       string
-	Pkg               *charts.Package
-	versions          *versions
-	releaseYaml       *Release
-	versionRules      *lifecycle.VersionRules
-	assetsVersionsMap map[string][]lifecycle.Asset
+// ChartTargetsMap represents all current active charts
+var ChartTargetsMap = map[string][]string{
+	"elemental":                  {"elemental", "elemental-crd"},
+	"fleet":                      {"fleet", "fleet-crd", "fleet-agent"},
+	"harvester-cloud-provider":   {"harvester-cloud-provider"},
+	"harvester-csi-driver":       {"harvester-csi-driver"},
+	"longhorn":                   {"longhorn", "longhorn-crd"},
+	"neuvector":                  {"neuvector", "neuvector-crd", "neuvector-monitor"},
+	"prometheus-federator":       {"prometheus-federator"},
+	"rancher-aks-operator":       {"rancher-aks-operator", "rancher-aks-operator-crd"},
+	"rancher-alerting-drivers":   {"rancher-alerting-drivers"},
+	"rancher-backup":             {"rancher-backup", "rancher-backup-crd"},
+	"rancher-cis-benchmark":      {"rancher-cis-benchmark", "rancher-cis-benchmark-crd"},
+	"rancher-compliance":         {"rancher-compliance", "rancher-compliance-crd"},
+	"rancher-csp-adapter":        {"rancher-csp-adapter"},
+	"rancher-eks-operator":       {"rancher-eks-operator", "rancher-eks-operator-crd"},
+	"rancher-gatekeeper":         {"rancher-gatekeeper", "rancher-gatekeeper-crd"},
+	"rancher-gke-operator":       {"rancher-gke-operator", "rancher-gke-operator-crd"},
+	"rancher-istio":              {"rancher-istio"},
+	"rancher-logging":            {"rancher-logging", "rancher-logging-crd"},
+	"rancher-monitoring":         {"rancher-monitoring", "rancher-monitoring-crd"},
+	"rancher-project-monitoring": {"rancher-project-monitoring"},
+	"rancher-provisioning-capi":  {"rancher-provisioning-capi"},
+	"rancher-pushprox":           {"rancher-pushprox"},
+	"rancher-vsphere-csi":        {"rancher-vsphere-csi"},
+	"rancher-vsphere-cpi":        {"rancher-vsphere-cpi"},
+	"rancher-webhook":            {"rancher-webhook"},
+	"rancher-windows-gmsa":       {"rancher-windows-gmsa", "rancher-windows-gmsa-crd"},
+	"rancher-wins-upgrader":      {"rancher-wins-upgrader"},
+	"sriov":                      {"sriov", "sriov-crd"},
+	"system-upgrade-controller":  {"system-upgrade-controller"},
+	"ui-plugin-operator":         {"ui-plugin-operator", "ui-plugin-operator-crd"},
 }
 
-// BumpOutput defines the structure that will be written to bump.json
+// Bump represents the chart bump process for a single chart
+// (with its CRD and dependencies).
+type Bump struct {
+	// options provided to the charts scripts for this branch
+	configOptions *options.ChartsScriptOptions
+	// target chart, CRD and any additional chart
+	target target
+	// represents package/<target_chart> directory loaded options
+	Pkg *charts.Package
+	// versions to be calculated
+	versions *versions
+	// release.yaml file information
+	releaseYaml *Release
+	// version rules at the current branch which will be applied to versions field
+	versionRules *lifecycle.VersionRules
+	// all assets versions present
+	assetsVersionsMap map[string][]lifecycle.Asset
+	// git and filesystem
+	repo   *git.Git
+	rootFs billy.Filesystem
+}
+
+// target chart, CRD and additional chart.
+// e.g., [main: fleet; additional:{fleet;fleet-crd;fleet-agent}]
+type target struct {
+	main       string
+	additional []string
+}
+
+// BumpOutput defines the structure that will be written to config/bump.json
 type BumpOutput struct {
 	Charts     []string `json:"charts"`      // List of charts processed
 	NewVersion string   `json:"new_version"` // The single version applied
 }
 
 var (
-	// Errors
 	errNotDevBranch                 = errors.New("a development branch must be provided; (e.g., dev-v2.*)")
 	errBadPackage                   = errors.New("unexpected format for PACKAGE env variable")
+	errChartNotListed               = errors.New("chart not listed")
 	errNoPackage                    = errors.New("no package provided")
 	errMultiplePackages             = errors.New("multiple packages provided; this is not supported")
 	errFalseAuto                    = errors.New("package.yaml must be configured for auto-chart-bump")
@@ -64,13 +116,17 @@ var (
 /*******************************************************
 *
 * This file can be understood in 2 sections:
-* 	- SetupBump and it's functions/methods
-* 	- BumpChart and it's functions/methods
+* 	- SetupBump and it's functions/methods, which won't generate any file changes at charts/ local repo.
+		It only, loads information about the chart to be bumped
+* 	- BumpChart and it's functions/methods, which will execute the bump,
+		generate file changes, stage and commit them.
 *
- */
+*/
 
-// SetupBump TODO: add description
+// SetupBump will load and parse all related information to the chart that should be bumped.
 func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string, chScriptOpts *options.ChartsScriptOptions) (*Bump, error) {
+	logger.Log(ctx, slog.LevelInfo, "setup auto-chart-bump")
+
 	bump := &Bump{
 		configOptions: chScriptOpts,
 	}
@@ -88,7 +144,7 @@ func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string
 	}
 
 	//Initialize the lifecycle dependencies because of the versioning rules and the index.yaml mapping.
-	dependencies, err := lifecycle.InitDependencies(ctx, repoRoot, filesystem.GetFilesystem(repoRoot), branch, bump.targetChart)
+	dependencies, err := lifecycle.InitDependencies(ctx, repoRoot, filesystem.GetFilesystem(repoRoot), branch, bump.target.main)
 	if err != nil {
 		err = fmt.Errorf("failure at SetupBump: %w ", err)
 		return bump, err
@@ -96,6 +152,8 @@ func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string
 
 	bump.versionRules = dependencies.VR
 	bump.assetsVersionsMap = dependencies.AssetsVersionsMap
+	bump.repo = dependencies.Git
+	bump.rootFs = dependencies.RootFs
 
 	// Load object with target package information
 	packages, err := charts.GetPackages(ctx, repoRoot, targetPackage)
@@ -111,17 +169,54 @@ func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string
 	//  Load the chart and release.yaml paths
 	releaseYamlPath := filesystem.GetAbsPath(dependencies.RootFs, path.RepositoryReleaseYaml)
 	if releaseYamlPath == "" {
-		return bump, err
+		return bump, errReleaseYaml
 	}
 
 	bump.releaseYaml = &Release{
-		Chart:           bump.targetChart,
+		Chart:           bump.target.main,
 		ReleaseYamlPath: releaseYamlPath,
 	}
+
+	// Check and parse upstream chart options
+	upstreamSubDir := ""
+	if bump.Pkg.Upstream.GetOptions().Subdirectory != nil {
+		upstreamSubDir = *bump.Pkg.Upstream.GetOptions().Subdirectory
+	}
+
+	upstreamCommit := ""
+	if bump.Pkg.Upstream.GetOptions().Commit != nil {
+		upstreamCommit = *bump.Pkg.Upstream.GetOptions().Commit
+	}
+
+	upstreamChartBranch := ""
+	if bump.Pkg.Upstream.GetOptions().ChartRepoBranch != nil {
+		upstreamChartBranch = *bump.Pkg.Upstream.GetOptions().ChartRepoBranch
+	}
+
+	logger.Log(ctx, slog.LevelInfo, "setup", slog.Group("bump",
+		slog.String("targetChart", bump.target.main),
+		slog.Group("Pkg",
+			slog.Group("Chart",
+				slog.Group("Upstream",
+					slog.Any("URL", bump.Pkg.Upstream.GetOptions().URL),
+					slog.Any("SubDir", upstreamSubDir),
+					slog.Any("Commit", upstreamCommit),
+					slog.Any("ChartRepoBranch", upstreamChartBranch),
+				),
+				slog.String("workingDir", bump.Pkg.WorkingDir),
+			),
+			slog.Any("Version", bump.Pkg.Version),
+			slog.Any("Package Version", bump.Pkg.PackageVersion),
+			slog.Bool("DoNotRelease", bump.Pkg.DoNotRelease),
+			slog.Bool("Auto", bump.Pkg.Auto),
+		),
+		slog.String("last version", bump.assetsVersionsMap[bump.target.main][0].Version),
+	))
 
 	return bump, nil
 }
 
+// parseBranchVersion trims the prefix and returns the branch line
 func parseBranchVersion(targetBranch string) (string, error) {
 	if !strings.HasPrefix(targetBranch, "dev-v") {
 		return "", errNotDevBranch
@@ -135,14 +230,22 @@ func parseBranchVersion(targetBranch string) (string, error) {
 // or just <chart>
 func (b *Bump) parseChartFromPackage(targetPackage string) error {
 	parts := strings.Split(targetPackage, "/")
-	if len(parts) == 1 {
-		b.targetChart = parts[0]
-		return nil
-	} else if len(parts) > 1 && len(parts) <= 4 {
-		b.targetChart = parts[len(parts)-1]
-		return nil
+
+	switch {
+	case len(parts) == 1:
+		b.target.main = parts[0]
+	case len(parts) > 1 && len(parts) <= 4:
+		b.target.main = parts[len(parts)-1]
+	default:
+		return errBadPackage
 	}
-	return errBadPackage
+
+	if _, exist := ChartTargetsMap[b.target.main]; !exist {
+		return errChartNotListed
+	}
+
+	b.target.additional = ChartTargetsMap[b.target.main]
+	return nil
 }
 
 // parsePackageYaml will assign the package.yaml information to the Bump struct
@@ -214,71 +317,13 @@ func checkUpstreamOptions(options *options.UpstreamOptions) error {
 	return nil
 }
 
-// -----------------------------------------------------------
-
 // BumpChart will execute a similar approach as the defined development workflow for chartowners.
 // The main difference is that between the steps: (make prepare and make patch) we will calculate the next version to release.
 func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs bool) error {
-	// List the possible target charts
-	targetCharts, err := chartsTargets(b.targetChart)
-	if err != nil {
-		logger.Log(ctx, slog.LevelError, "error while getting target charts", slog.String("targetChart", b.targetChart))
+	logger.Log(ctx, slog.LevelInfo, "start auto-chart-bump")
+
+	if err := b.prepare(ctx); err != nil {
 		return err
-	}
-	logger.Log(ctx, slog.LevelInfo, "", slog.Any("targetCharts", targetCharts))
-
-	// Open local git repository
-	git, err := git.OpenGitRepo(ctx, ".")
-	if err != nil {
-		logger.Log(ctx, slog.LevelError, "error while opening git repository", logger.Err(err))
-		return err
-	}
-
-	// make prepare
-	if err := b.Pkg.Prepare(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while preparing package", logger.Err(err))
-		return err
-	}
-
-	if err := git.Status(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
-		return err
-	}
-
-	// check if the version to bump does not already exists
-	alreadyExist, err := checkBumpAppVersion(ctx, b.Pkg.UpstreamChartVersion, b.assetsVersionsMap[b.targetChart])
-	if err != nil {
-		return err
-	}
-	if alreadyExist {
-		git.FullReset() // quitting the job regardless if this works or not
-		return errors.New("version to bump already exists: " + *b.Pkg.UpstreamChartVersion)
-	}
-
-	if err := git.AddAndCommit("make prepare"); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while adding and committing after make prepare", logger.Err(err))
-		return err
-	}
-
-	// Download logo at assets/logos
-	if !isIconException(b.targetChart) {
-		if err := b.Pkg.DownloadIcon(ctx); err != nil {
-			logger.Log(ctx, slog.LevelError, "error while downloading icon", logger.Err(err))
-			return err
-		}
-	}
-
-	if err := git.Status(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
-		return err
-	}
-
-	if clean, _ := git.StatusProcelain(ctx); !clean {
-		logger.Log(ctx, slog.LevelDebug, "git is not clean - icon downloaded")
-		if err := git.AddAndCommit("make icon"); err != nil {
-			logger.Log(ctx, slog.LevelError, "error while add/commit icon", logger.Err(err))
-			return err
-		}
 	}
 
 	// Calculate the next version to release
@@ -286,241 +331,65 @@ func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs b
 		return err
 	}
 
-	// make patch - overwriting logo path
-	if err := b.Pkg.GeneratePatch(ctx); err != nil {
-		err = fmt.Errorf("error while patching package: %w", err)
+	if err := b.icon(ctx); err != nil {
 		return err
 	}
 
-	if err := git.Status(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
+	if err := b.patch(ctx); err != nil {
 		return err
 	}
 
-	if clean, _ := git.StatusProcelain(ctx); !clean {
-		if err := git.AddAndCommit("make patch"); err != nil {
+	if err := b.clean(ctx); err != nil {
+		return err
+	}
+
+	if err := b.charts(ctx); err != nil {
+		return err
+	}
+
+	// check if should remove previous RCs versions
+	if !multiRCs {
+		logger.Log(ctx, slog.LevelWarn, "removing existing RC's")
+		if err := b.checkMultiRC(ctx); err != nil {
 			return err
 		}
 	}
 
-	// make clean
-	if err := b.Pkg.Clean(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while cleaning package", logger.Err(err))
-		return err
-	}
-
-	if err := git.Status(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
-		return err
-	}
-
-	// make charts - generate new assets and charts overwriting logo
-	if err := b.Pkg.GenerateCharts(ctx, b.configOptions.OmitBuildMetadataOnExport); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while generating charts", logger.Err(err))
-		return err
-	}
-
-	if err := git.Status(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
-		return err
-	}
-
-	if clean, _ := git.StatusProcelain(ctx); clean {
-		logger.Log(ctx, slog.LevelError, "make charts did not generate any changes")
-		return errors.New("make charts did not generate any changes")
-	}
-
-	if err := git.AddAndCommit("make chart"); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while adding and committing after make chart", logger.Err(err))
-		return err
-	}
-
-	if !multiRCs {
-		if strings.Contains(b.versions.toRelease.txt, "-rc") {
-
-			listRCVersions, err := listRCVersions(b.versions.toRelease.txt, b.assetsVersionsMap[b.targetChart])
-			if err != nil {
-				logger.Log(ctx, slog.LevelError, "error while listing RC versions", logger.Err(err))
-				return err
-			}
-
-			if len(listRCVersions) > 0 {
-				for _, rcVersion := range listRCVersions {
-					logger.Log(ctx, slog.LevelInfo, "removing RC version", slog.String("rcVersion", rcVersion))
-					if err := makeRemove(rcVersion, targetCharts, git); err != nil {
-						logger.Log(ctx, slog.LevelError, "error while removing -RC version", logger.Err(err))
-						return err
-					}
-				}
-			}
-		}
-	}
-
-	if err := git.Status(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
-		return err
-	}
-
-	// modify the release.yaml
-	if err := b.updateReleaseYaml(ctx, targetCharts); err != nil {
+	if err := b.updateReleaseYaml(ctx, b.target.additional, multiRCs); err != nil {
 		logger.Log(ctx, slog.LevelError, "error while updating release.yaml", logger.Err(err))
 		return err
 	}
 
-	if err := git.Status(ctx); err != nil {
+	logger.Log(ctx, slog.LevelInfo, "bump version",
+		slog.String("bumpVersion", b.Pkg.AutoGeneratedBumpVersion.String()))
+
+	return b.writeBumpJSON(ctx, b.target.additional, b.Pkg.AutoGeneratedBumpVersion.String())
+}
+
+// prepare = && git status && git add . && git commit -m "make prepare"
+func (b *Bump) prepare(ctx context.Context) error {
+	if err := b.Pkg.Prepare(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while preparing package", logger.Err(err))
+		return err
+	}
+
+	if err := b.repo.Status(ctx); err != nil {
 		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
 		return err
 	}
 
-	if clean, _ := git.StatusProcelain(ctx); clean {
-		logger.Log(ctx, slog.LevelError, "update release.yaml did not generate any changes")
-		return errors.New("update release.yaml did not generate any changes")
-	}
-
-	if err := git.AddAndCommit("update release.yaml"); err != nil {
-		return err
-	}
-
-	bumpVersion := b.Pkg.AutoGeneratedBumpVersion.String()
-	logger.Log(ctx, slog.LevelInfo, "bump version", slog.String("bumpVersion", bumpVersion))
-	return writeBumpJSON(targetCharts, bumpVersion)
-}
-
-func (b *Bump) updateReleaseYaml(ctx context.Context, targetCharts []string) error {
-	logger.Log(ctx, slog.LevelInfo, "update release.yaml")
-
-	for _, chart := range targetCharts {
-		b.releaseYaml.Chart = chart
-		if err := b.releaseYaml.UpdateReleaseYaml(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func chartsTargets(targetChart string) ([]string, error) {
-
-	switch targetChart {
-	case "elemental":
-		return []string{"elemental", "elemental-crd"}, nil
-
-	case "fleet":
-		return []string{"fleet", "fleet-crd", "fleet-agent"}, nil
-
-	case "harvester-cloud-provider":
-		return []string{"harvester-cloud-provider"}, nil
-
-	case "harvester-csi-driver":
-		return []string{"harvester-csi-driver"}, nil
-
-	case "longhorn":
-		return []string{"longhorn", "longhorn-crd"}, nil
-
-	case "neuvector":
-		return []string{"neuvector", "neuvector-crd", "neuvector-monitor"}, nil
-
-	case "prometheus-federator":
-		return []string{"prometheus-federator"}, nil
-
-	case "rancher-aks-operator":
-		return []string{"rancher-aks-operator", "rancher-aks-operator-crd"}, nil
-
-	case "rancher-alerting-drivers":
-		return []string{"rancher-alerting-drivers"}, nil
-
-	case "rancher-backup":
-		return []string{"rancher-backup", "rancher-backup-crd"}, nil
-
-	case "rancher-cis-benchmark":
-		return []string{"rancher-cis-benchmark", "rancher-cis-benchmark-crd"}, nil
-
-	case "rancher-csp-adapter":
-		return []string{"rancher-csp-adapter"}, nil
-
-	case "rancher-eks-operator":
-		return []string{"rancher-eks-operator", "rancher-eks-operator-crd"}, nil
-
-	case "rancher-gatekeeper":
-		return []string{"rancher-gatekeeper", "rancher-gatekeeper-crd"}, nil
-
-	case "rancher-gke-operator":
-		return []string{"rancher-gke-operator", "rancher-gke-operator-crd"}, nil
-
-	case "rancher-istio":
-		return []string{"rancher-istio"}, nil
-
-	case "rancher-logging":
-		return []string{"rancher-logging", "rancher-logging-crd"}, nil
-
-	case "rancher-monitoring":
-		return []string{"rancher-monitoring", "rancher-monitoring-crd"}, nil
-
-	case "rancher-project-monitoring":
-		return []string{"rancher-project-monitoring"}, nil
-
-	case "rancher-provisioning-capi":
-		return []string{"rancher-provisioning-capi"}, nil
-
-	case "rancher-pushprox":
-		return []string{"rancher-pushprox"}, nil
-
-	case "rancher-vsphere-csi":
-		return []string{"rancher-vsphere-csi"}, nil
-
-	case "rancher-vsphere-cpi":
-		return []string{"rancher-vsphere-cpi"}, nil
-
-	case "rancher-webhook":
-		return []string{"rancher-webhook"}, nil
-
-	case "rancher-windows-gmsa":
-		return []string{"rancher-windows-gmsa", "rancher-windows-gmsa-crd"}, nil
-
-	case "rancher-wins-upgrader":
-		return []string{"rancher-wins-upgrader"}, nil
-
-	case "sriov":
-		return []string{"sriov", "sriov-crd"}, nil
-
-	case "system-upgrade-controller":
-		return []string{"system-upgrade-controller"}, nil
-
-	case "ui-plugin-operator":
-		return []string{"ui-plugin-operator", "ui-plugin-operator-crd"}, nil
-	}
-
-	return nil, fmt.Errorf("chart %s not listed", targetChart)
-}
-
-func makeRemove(targetVersion string, targetCharts []string, g *git.Git) error {
-	for _, chart := range targetCharts {
-		cmd := exec.Command("make", "remove", fmt.Sprintf("CHART=%s", chart), fmt.Sprintf("VERSION=%s", targetVersion))
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to execute remove command for chart %s: %w", chart, err)
-		}
-		if err := g.AddAndCommit(fmt.Sprintf("remove RC of: %s", chart)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// writeBumpJSON will write the bump.json file with the new version auto bumped
-func writeBumpJSON(targetCharts []string, bumpVersion string) error {
-
-	dataToWrite := BumpOutput{
-		Charts:     targetCharts,
-		NewVersion: bumpVersion,
-	}
-
-	jsonData, err := json.MarshalIndent(dataToWrite, "", "  ")
+	// check if the version to bump does not already exists
+	alreadyExist, err := checkBumpAppVersion(ctx, b.Pkg.UpstreamChartVersion, b.assetsVersionsMap[b.target.main])
 	if err != nil {
 		return err
 	}
+	if alreadyExist {
+		b.repo.FullReset() // quitting the job regardless if this works or not
+		return errors.New("version to bump already exists: " + *b.Pkg.UpstreamChartVersion)
+	}
 
-	if err := os.WriteFile(path.BumpVersionFile, jsonData, 0644); err != nil {
+	if err := b.repo.AddAndCommit("make prepare"); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while adding and committing after make prepare", logger.Err(err))
 		return err
 	}
 
@@ -547,19 +416,178 @@ func checkBumpAppVersion(ctx context.Context, bumpAppVersion *string, versions [
 	return false, nil
 }
 
-func listRCVersions(rcVersion string, assets []lifecycle.Asset) ([]string, error) {
-	idx := strings.Index(rcVersion, "-rc")
-	if idx == -1 {
-		return nil, fmt.Errorf("invalid rcVersion format: %s", rcVersion)
-	}
-	rcVersionCheckStr := rcVersion[:idx+len("-rc")]
-
-	var rcVersions []string
-	for _, asset := range assets {
-		if strings.Contains(asset.Version, rcVersionCheckStr) {
-			rcVersions = append(rcVersions, asset.Version)
+// icon = make icon && git status && git add . && git commit -m "make icon"
+func (b *Bump) icon(ctx context.Context) error {
+	// Download logo at assets/logos
+	if !isIconException(b.target.main) {
+		if err := b.Pkg.DownloadIcon(ctx); err != nil {
+			logger.Log(ctx, slog.LevelError, "error while downloading icon", logger.Err(err))
+			return err
 		}
 	}
 
-	return rcVersions, nil
+	if err := b.repo.Status(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
+		return err
+	}
+
+	if clean, _ := b.repo.StatusProcelain(ctx); !clean {
+		logger.Log(ctx, slog.LevelDebug, "git is not clean - icon downloaded")
+		if err := b.repo.AddAndCommit("make icon"); err != nil {
+			logger.Log(ctx, slog.LevelError, "error while git add && commit icon", logger.Err(err))
+			return err
+		}
+	}
+
+	return nil
+}
+
+// patch = make patch && git status && git add . && git commit -m "make patch"
+func (b *Bump) patch(ctx context.Context) error {
+	// overwriting logo path here also
+	if err := b.Pkg.GeneratePatch(ctx); err != nil {
+		err = fmt.Errorf("error while patching package: %w", err)
+		return err
+	}
+
+	if err := b.repo.Status(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while checking git status after patch", logger.Err(err))
+		return err
+	}
+
+	if clean, _ := b.repo.StatusProcelain(ctx); !clean {
+		if err := b.repo.AddAndCommit("make patch"); err != nil {
+			logger.Log(ctx, slog.LevelError, "error while git add && commit after patch", logger.Err(err))
+			return err
+		}
+	}
+
+	return nil
+}
+
+// clean = make clean && git status
+func (b *Bump) clean(ctx context.Context) error {
+	if err := b.Pkg.Clean(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while cleaning package", logger.Err(err))
+		return err
+	}
+
+	if err := b.repo.Status(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while checking git status after make clean", logger.Err(err))
+		return err
+	}
+
+	return nil
+}
+
+// charts = make charts && git status && git add . && git commit -m "make charts"
+func (b *Bump) charts(ctx context.Context) error {
+	//  generate new assets and charts overwriting logo
+	if err := b.Pkg.GenerateCharts(ctx, b.configOptions.OmitBuildMetadataOnExport); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while generating charts", logger.Err(err))
+		return err
+	}
+
+	if err := b.repo.Status(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
+		return err
+	}
+
+	if clean, _ := b.repo.StatusProcelain(ctx); clean {
+		logger.Log(ctx, slog.LevelError, "make charts did not generate any changes")
+		return errors.New("make charts did not generate any changes")
+	}
+
+	if err := b.repo.AddAndCommit("make chart"); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while adding and committing after make chart", logger.Err(err))
+		return err
+	}
+
+	return nil
+}
+
+// checkMultiRC will remove the current RC versions if chart does not support the feature.
+func (b *Bump) checkMultiRC(ctx context.Context) error {
+	if len(b.versions.currentRCs) > 0 {
+
+		for _, rcVersion := range b.versions.currentRCs {
+			removeMe := rcVersion.repoPrefix.txt + "+up" + rcVersion.appVersion.txt
+
+			logger.Log(ctx, slog.LevelDebug, "removing RC version", slog.Group("charts", b.target.main, removeMe))
+			if err := removeCharts(ctx, b.rootFs, b.target.additional, removeMe); err != nil {
+				return err
+			}
+
+			// Check for changes
+			if clean, _ := b.repo.StatusProcelain(ctx); clean {
+				logger.Log(ctx, slog.LevelError, "should have removed chart", slog.String("chart", b.target.main))
+				return errors.New("remove RC chart version failed")
+			}
+			// Add && Commit
+			commit := "remove " + b.target.main + " " + removeMe
+			if err := b.repo.AddAndCommit(commit); err != nil {
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+// updateReleaseYaml will add the bumped versions to the release.yaml
+func (b *Bump) updateReleaseYaml(ctx context.Context, targetCharts []string, multiRC bool) error {
+	logger.Log(ctx, slog.LevelInfo, "update release.yaml")
+
+	for _, chart := range targetCharts {
+		b.releaseYaml.Chart = chart
+		if err := b.releaseYaml.UpdateReleaseYaml(ctx, !multiRC); err != nil {
+			return err
+		}
+	}
+
+	if err := b.repo.Status(ctx); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
+		return err
+	}
+
+	if clean, _ := b.repo.StatusProcelain(ctx); clean {
+		logger.Log(ctx, slog.LevelError, "update release.yaml did not generate any changes")
+		return errors.New("update release.yaml did not generate any changes")
+	}
+
+	if err := b.repo.AddAndCommit("update release.yaml"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// writeBumpJSON will write the bump.json file with the new version auto bumped
+func (b *Bump) writeBumpJSON(ctx context.Context, targetCharts []string, bumpVersion string) error {
+
+	dataToWrite := BumpOutput{
+		Charts:     targetCharts,
+		NewVersion: bumpVersion,
+	}
+
+	jsonData, err := json.MarshalIndent(dataToWrite, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(path.BumpVersionFile, jsonData, 0644); err != nil {
+		return err
+	}
+
+	if clean, _ := b.repo.StatusProcelain(ctx); clean {
+		logger.Log(ctx, slog.LevelError, "failed to write bump version", slog.String("version", bumpVersion))
+		return errors.New("failed to write bump version")
+	}
+
+	if err := b.repo.AddAndCommit("write bump version"); err != nil {
+		return err
+	}
+
+	return nil
 }

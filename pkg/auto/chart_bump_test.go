@@ -103,65 +103,65 @@ func Test_parseChartFromPackage(t *testing.T) {
 		{
 			name: "#1",
 			input: input{
-				targetPackage: "rancher-chart",
+				targetPackage: "fleet",
 				bump:          &Bump{},
 			},
 			expected: expected{
 				err: nil,
 				bump: &Bump{
-					targetChart: "rancher-chart",
+					target: target{main: "fleet", additional: []string{"fleet", "fleet-crd", "fleet-agent"}},
 				},
 			},
 		},
 		{
 			name: "#2",
 			input: input{
-				targetPackage: "rancher-chart/v100/rancher-chart",
+				targetPackage: "packages/v100/fleet",
 				bump:          &Bump{},
 			},
 			expected: expected{
 				err: nil,
 				bump: &Bump{
-					targetChart: "rancher-chart",
+					target: target{main: "fleet", additional: []string{"fleet", "fleet-crd", "fleet-agent"}},
 				},
 			},
 		},
 		{
 			name: "#3",
 			input: input{
-				targetPackage: "rancher-chart/v100/rancher-chart/sub-chart",
+				targetPackage: "rancher-monitoring/v100/rancher-monitoring/prometheus-federator",
 				bump:          &Bump{},
 			},
 			expected: expected{
 				err: nil,
 				bump: &Bump{
-					targetChart: "sub-chart",
+					target: target{main: "prometheus-federator", additional: []string{"prometheus-federator"}},
 				},
 			},
 		},
 		{
-			name: "#4",
+			name: "#3.1",
 			input: input{
-				targetPackage: "rancher-monitoring/rancher-windows-exporter",
+				targetPackage: "rancher-monitoring/prometheus-federator",
 				bump:          &Bump{},
 			},
 			expected: expected{
 				err: nil,
 				bump: &Bump{
-					targetChart: "rancher-windows-exporter",
+					target: target{main: "prometheus-federator", additional: []string{"prometheus-federator"}},
 				},
 			},
 		},
 		{
-			name: "#5",
+			name: "#3.2",
 			input: input{
-				targetPackage: "rancher-chart/v100/rancher-chart/sub-chart/another-sub-chart?",
+				targetPackage: "rancher-monitoring/rancher-monitoring",
 				bump:          &Bump{},
 			},
 			expected: expected{
-				err: errBadPackage,
+				err: nil,
 				bump: &Bump{
-					targetChart: "",
+					target: target{main: "rancher-monitoring", additional: []string{"rancher-monitoring", "rancher-monitoring-crd"}},
 				},
 			},
 		},
@@ -171,7 +171,7 @@ func Test_parseChartFromPackage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.input.bump.parseChartFromPackage(tc.input.targetPackage)
 			assertError(t, err, tc.expected.err)
-			assert.Equal(t, tc.expected.bump.targetChart, tc.input.bump.targetChart)
+			assert.Equal(t, tc.expected.bump.target.main, tc.input.bump.target.main)
 		})
 	}
 }
@@ -258,7 +258,7 @@ func Test_parsePackageYaml(t *testing.T) {
 			input: input{
 				packages: []*charts.Package{},
 				b: &Bump{
-					targetChart: "rancher-chart",
+					target: target{main: "rancher-chart"},
 				},
 			},
 			expected: expected{
@@ -270,7 +270,7 @@ func Test_parsePackageYaml(t *testing.T) {
 			input: input{
 				packages: []*charts.Package{{}, {}},
 				b: &Bump{
-					targetChart: "rancher-chart",
+					target: target{main: "rancher-chart"},
 				},
 			},
 			expected: expected{
@@ -282,14 +282,14 @@ func Test_parsePackageYaml(t *testing.T) {
 			input: input{
 				packages: newValidPackagesFunc(),
 				b: &Bump{
-					targetChart: "rancher-chart",
+					target: target{main: "rancher-chart"},
 				},
 			},
 			expected: expected{
 				err: nil,
 				b: &Bump{
-					targetChart: "rancher-chart",
-					Pkg:         newValidPackagesFunc()[0],
+					target: target{main: "rancher-chart"},
+					Pkg:    newValidPackagesFunc()[0],
 				},
 			},
 		},
@@ -298,14 +298,14 @@ func Test_parsePackageYaml(t *testing.T) {
 			input: input{
 				packages: newValidPackagesFunc(),
 				b: &Bump{
-					targetChart: "rancher-chart",
+					target: target{main: "rancher-chart"},
 				},
 			},
 			expected: expected{
 				err: errFalseAuto,
 				b: &Bump{
-					targetChart: "rancher-chart",
-					Pkg:         newValidPackagesFunc()[0],
+					target: target{main: "rancher-chart"},
+					Pkg:    newValidPackagesFunc()[0],
 				},
 			},
 		},
@@ -313,7 +313,7 @@ func Test_parsePackageYaml(t *testing.T) {
 			name: "#2",
 			input: input{
 				packages: newValidPackagesFunc(),
-				b:        &Bump{targetChart: "rancher-chart"},
+				b:        &Bump{target: target{main: "rancher-chart"}},
 			},
 			expected: expected{err: errPackageName},
 		},
@@ -321,7 +321,7 @@ func Test_parsePackageYaml(t *testing.T) {
 			name: "#3",
 			input: input{
 				packages: newValidPackagesFunc(),
-				b:        &Bump{targetChart: "rancher-chart"},
+				b:        &Bump{target: target{main: "rancher-chart"}},
 			},
 			expected: expected{err: errPackageChartVersion},
 		},
@@ -329,7 +329,7 @@ func Test_parsePackageYaml(t *testing.T) {
 			name: "#4",
 			input: input{
 				packages: newValidPackagesFunc(),
-				b:        &Bump{targetChart: "rancher-chart"},
+				b:        &Bump{target: target{main: "rancher-chart"}},
 			},
 			expected: expected{err: errPackageVersion},
 		},
@@ -337,7 +337,7 @@ func Test_parsePackageYaml(t *testing.T) {
 			name: "#5",
 			input: input{
 				packages: newValidPackagesFunc(),
-				b:        &Bump{targetChart: "rancher-chart"},
+				b:        &Bump{target: target{main: "rancher-chart"}},
 			},
 			expected: expected{err: errPackegeDoNotRelease},
 		},
@@ -345,7 +345,7 @@ func Test_parsePackageYaml(t *testing.T) {
 			name: "#6",
 			input: input{
 				packages: newValidPackagesFunc(),
-				b:        &Bump{targetChart: "rancher-chart"},
+				b:        &Bump{target: target{main: "rancher-chart"}},
 			},
 			expected: expected{err: errChartWorkDir},
 		},
@@ -353,7 +353,7 @@ func Test_parsePackageYaml(t *testing.T) {
 			name: "#7",
 			input: input{
 				packages: newValidPackagesFunc(),
-				b:        &Bump{targetChart: "rancher-chart"},
+				b:        &Bump{target: target{main: "rancher-chart"}},
 			},
 			expected: expected{err: errChartURL},
 		},
@@ -361,7 +361,7 @@ func Test_parsePackageYaml(t *testing.T) {
 			name: "#8",
 			input: input{
 				packages: newValidPackagesFunc(),
-				b:        &Bump{targetChart: "rancher-chart"},
+				b:        &Bump{target: target{main: "rancher-chart"}},
 			},
 			expected: expected{err: errChartRepoCommit},
 		},
@@ -369,7 +369,7 @@ func Test_parsePackageYaml(t *testing.T) {
 			name: "#9",
 			input: input{
 				packages: newValidPackagesFunc(),
-				b:        &Bump{targetChart: "rancher-chart"},
+				b:        &Bump{target: target{main: "rancher-chart"}},
 			},
 			expected: expected{err: errChartRepoBranch},
 		},
@@ -377,7 +377,7 @@ func Test_parsePackageYaml(t *testing.T) {
 			name: "#10",
 			input: input{
 				packages: newValidPackagesFunc(),
-				b:        &Bump{targetChart: "rancher-chart"},
+				b:        &Bump{target: target{main: "rancher-chart"}},
 			},
 			expected: expected{err: errChartSubDir},
 		},
@@ -385,7 +385,7 @@ func Test_parsePackageYaml(t *testing.T) {
 			name: "#11",
 			input: input{
 				packages: newValidPackagesFunc(),
-				b:        &Bump{targetChart: "rancher-chart"},
+				b:        &Bump{target: target{main: "rancher-chart"}},
 			},
 			expected: expected{err: errAdditionalChartWorkDir},
 		},
@@ -393,7 +393,7 @@ func Test_parsePackageYaml(t *testing.T) {
 			name: "#12",
 			input: input{
 				packages: newValidPackagesFunc(),
-				b:        &Bump{targetChart: "rancher-chart"},
+				b:        &Bump{target: target{main: "rancher-chart"}},
 			},
 			expected: expected{err: errCRDWorkDir},
 		},
@@ -492,7 +492,7 @@ func Test_parsePackageYaml(t *testing.T) {
 
 			if tc.expected.b != nil {
 				assert.Equal(t, tc.expected.b.versions, tc.input.b.versions)
-				assert.Equal(t, tc.expected.b.targetChart, tc.input.b.targetChart)
+				assert.Equal(t, tc.expected.b.target.main, tc.input.b.target.main)
 				assert.Equal(t, tc.expected.b.Pkg.Chart.WorkingDir, tc.input.b.Pkg.Chart.WorkingDir)
 				assert.Equal(t, tc.expected.b.Pkg.Name, tc.input.b.Pkg.Name)
 				assert.Equal(t, tc.expected.b.Pkg.Version, tc.input.b.Pkg.Version)

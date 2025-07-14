@@ -1,6 +1,7 @@
 package auto
 
 import (
+	"context"
 	"log"
 	"os"
 	"testing"
@@ -9,10 +10,13 @@ import (
 )
 
 func Test_UpdateReleaseYaml(t *testing.T) {
+	ctx := context.Background()
+
 	type input struct {
 		ReleaseVersions map[string][]string
 		ChartVersion    string
 		Chart           string
+		OverWrite       bool
 	}
 	type expected struct {
 		ReleaseVersions map[string][]string
@@ -29,6 +33,7 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 				ReleaseVersions: map[string][]string{},
 				ChartVersion:    "1.0.0",
 				Chart:           "chart1",
+				OverWrite:       true,
 			},
 			ex: expected{
 				ReleaseVersions: map[string][]string{
@@ -44,6 +49,7 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 				},
 				ChartVersion: "2.0.0",
 				Chart:        "chart1",
+				OverWrite:    true,
 			},
 			ex: expected{
 				ReleaseVersions: map[string][]string{
@@ -59,6 +65,7 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 				},
 				ChartVersion: "3.0.0",
 				Chart:        "chart1",
+				OverWrite:    true,
 			},
 			ex: expected{
 				ReleaseVersions: map[string][]string{
@@ -75,6 +82,7 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 				},
 				ChartVersion: "2.0.0",
 				Chart:        "chart2",
+				OverWrite:    true,
 			},
 			ex: expected{
 				ReleaseVersions: map[string][]string{
@@ -93,6 +101,7 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 				},
 				ChartVersion: "2.0.0",
 				Chart:        "chart2",
+				OverWrite:    true,
 			},
 			ex: expected{
 				ReleaseVersions: map[string][]string{
@@ -110,6 +119,7 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 				},
 				ChartVersion: "2.0.0",
 				Chart:        "chart1",
+				OverWrite:    true,
 			},
 			ex: expected{
 				ReleaseVersions: map[string][]string{
@@ -125,10 +135,58 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 				},
 				ChartVersion: "2.0.1-rc.1",
 				Chart:        "chart1",
+				OverWrite:    true,
 			},
 			ex: expected{
 				ReleaseVersions: map[string][]string{
 					"chart1": {"2.0.1-rc.1"},
+				},
+			},
+		},
+		// Tests with Overwrite false
+		{
+			name: "Test #8",
+			i: input{
+				ReleaseVersions: map[string][]string{"chart1": {"1.0.0"}},
+				ChartVersion:    "2.0.0",
+				Chart:           "chart1",
+				OverWrite:       false,
+			},
+			ex: expected{
+				ReleaseVersions: map[string][]string{
+					"chart1": {"1.0.0", "2.0.0"},
+				},
+			},
+		},
+		{
+			name: "Test #9",
+			i: input{
+				ReleaseVersions: map[string][]string{
+					"chart1": {"1.0.0"},
+					"chart2": {"1.0.0"},
+				},
+				ChartVersion: "2.0.0",
+				Chart:        "chart1",
+				OverWrite:    false,
+			},
+			ex: expected{
+				ReleaseVersions: map[string][]string{
+					"chart1": {"1.0.0", "2.0.0"},
+					"chart2": {"1.0.0"},
+				},
+			},
+		},
+		{
+			name: "Test #10",
+			i: input{
+				ReleaseVersions: map[string][]string{},
+				ChartVersion:    "2.0.0",
+				Chart:           "chart1",
+				OverWrite:       false,
+			},
+			ex: expected{
+				ReleaseVersions: map[string][]string{
+					"chart1": {"2.0.0"},
 				},
 			},
 		},
@@ -141,6 +199,7 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 		}
 		// Create a release.yaml file
 		output, err := os.Create(tempDir + "/release.yaml")
+		defer output.Close()
 
 		if err != nil {
 			t.Fatalf("failed to create release.yaml file: %v", err)
@@ -150,6 +209,10 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 		encoder.SetIndent(2)
 		if err := encoder.Encode(releaseVersions); err != nil {
 			log.Fatalf("failed to encode releaseVersions: %v", err)
+		}
+
+		if err := encoder.Close(); err != nil {
+			t.Fatalf("failed to close yaml encoder: %v", err)
 		}
 
 		return tempDir
@@ -166,11 +229,11 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 				ReleaseYamlPath: tempDir + "/release.yaml",
 			}
 
-			if err := r.UpdateReleaseYaml(); err != nil {
+			if err := r.UpdateReleaseYaml(ctx, tt.i.OverWrite); err != nil {
 				t.Fatalf("expected nil, got %v", err)
 			}
 
-			releaseVersions, err := r.readReleaseYaml()
+			releaseVersions, err := readReleaseYaml(ctx, r.ReleaseYamlPath)
 			if err != nil {
 				t.Fatalf("expected nil, got %v", err)
 			}

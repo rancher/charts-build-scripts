@@ -118,6 +118,10 @@ func readReleaseYaml(ctx context.Context, path string) (map[string][]string, err
 		return nil, err
 	}
 
+	if releaseVersions == nil {
+		return map[string][]string{}, nil
+	}
+
 	return *releaseVersions, nil
 }
 

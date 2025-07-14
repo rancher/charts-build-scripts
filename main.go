@@ -992,7 +992,7 @@ func release(c *cli.Context) {
 	}
 
 	// update release.yaml
-	if err := release.UpdateReleaseYaml(); err != nil {
+	if err := release.UpdateReleaseYaml(ctx, true); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to update release.yaml: %w", err).Error())
 	}
 

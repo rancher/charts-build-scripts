@@ -90,7 +90,7 @@ var listRegistryImageTags = func(ctx context.Context, imageTagMap map[string][]s
 		}
 
 		logger.Log(ctx, slog.LevelDebug, "listing...", slog.String(registry, asset))
-		tags, err := fetchTagsFromRegistryRepo(ctx, registry+asset)
+		tags, err := fetchTagsFromRegistryRepo(ctx, registry, asset)
 		if err != nil {
 			logger.Log(ctx, slog.LevelError, "remote fetch failure", slog.Group(asset, logger.Err(err)))
 			return nil, err
@@ -105,8 +105,9 @@ var listRegistryImageTags = func(ctx context.Context, imageTagMap map[string][]s
 
 // fetchTagsFromRegistryRepo will check a remote registry repository image for its tags.
 // will be mocked using monkey patching.
-var fetchTagsFromRegistryRepo = func(ctx context.Context, remoteTarget string) ([]string, error) {
-	repo, err := name.NewRepository(remoteTarget)
+var fetchTagsFromRegistryRepo = func(ctx context.Context, registry, asset string) ([]string, error) {
+
+	repo, err := name.NewRepository(registry + asset)
 	if err != nil {
 		logger.Log(ctx, slog.LevelError, "remote repository failure", logger.Err(err))
 		return nil, err
@@ -124,8 +125,15 @@ var fetchTagsFromRegistryRepo = func(ctx context.Context, remoteTarget string) (
 		http.StatusTooManyRequests, // 429
 	}...))
 
-	if auth := dockerCredentials(ctx); auth != nil {
-		options = append(options, remote.WithAuth(auth))
+	if registry == DockerURL {
+		if auth := dockerCredentials(ctx); auth != nil {
+			options = append(options, remote.WithAuth(auth))
+		}
+	}
+	if registry == PrimeURL {
+		if auth := primeCredentials(ctx); auth != nil {
+			options = append(options, remote.WithAuth(auth))
+		}
 	}
 
 	// the default tag amount is 1000,
@@ -143,6 +151,24 @@ func dockerCredentials(ctx context.Context) authn.Authenticator {
 	once.Do(func() {
 		username := os.Getenv("DOCKER_USERNAME")
 		password := os.Getenv("DOCKER_PASSWORD")
+
+		if username == "" || password == "" {
+			logger.Log(ctx, slog.LevelWarn, "Docker credentials not provided, proceeding with unauthenticated requests")
+			authenticator = nil
+		} else {
+			authenticator = &authn.Basic{
+				Username: username,
+				Password: password,
+			}
+		}
+	})
+	return authenticator
+}
+
+func primeCredentials(ctx context.Context) authn.Authenticator {
+	once.Do(func() {
+		username := os.Getenv("REGISTRY_USERNAME")
+		password := os.Getenv("REGISTRY_PASSWORD")
 
 		if username == "" || password == "" {
 			logger.Log(ctx, slog.LevelWarn, "Docker credentials not provided, proceeding with unauthenticated requests")
@@ -297,7 +323,7 @@ func checkImagesFromDocker(ctx context.Context, assetsTagMap map[string][]string
 		}
 
 		logger.Log(ctx, slog.LevelDebug, "comparing", slog.String("img", asset))
-		dockerTags, err := fetchTagsFromRegistryRepo(ctx, DockerURL+asset)
+		dockerTags, err := fetchTagsFromRegistryRepo(ctx, DockerURL, asset)
 		if err != nil {
 			return failedImages, outOfNamespaceImages, err
 		}

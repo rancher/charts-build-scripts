@@ -130,6 +130,11 @@ var fetchTagsFromRegistryRepo = func(ctx context.Context, registry, asset string
 			options = append(options, remote.WithAuth(auth))
 		}
 	}
+	if registry == PrimeURL {
+		if auth := primeCredentials(ctx); auth != nil {
+			options = append(options, remote.WithAuth(auth))
+		}
+	}
 
 	// the default tag amount is 1000,
 	// but remote package handles pagination internally if needed
@@ -146,6 +151,24 @@ func dockerCredentials(ctx context.Context) authn.Authenticator {
 	once.Do(func() {
 		username := os.Getenv("DOCKER_USERNAME")
 		password := os.Getenv("DOCKER_PASSWORD")
+
+		if username == "" || password == "" {
+			logger.Log(ctx, slog.LevelWarn, "Docker credentials not provided, proceeding with unauthenticated requests")
+			authenticator = nil
+		} else {
+			authenticator = &authn.Basic{
+				Username: username,
+				Password: password,
+			}
+		}
+	})
+	return authenticator
+}
+
+func primeCredentials(ctx context.Context) authn.Authenticator {
+	once.Do(func() {
+		username := os.Getenv("REGISTRY_USERNAME")
+		password := os.Getenv("REGISTRY_PASSWORD")
 
 		if username == "" || password == "" {
 			logger.Log(ctx, slog.LevelWarn, "Docker credentials not provided, proceeding with unauthenticated requests")

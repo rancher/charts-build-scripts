@@ -585,9 +585,5 @@ func (b *Bump) writeBumpJSON(ctx context.Context, targetCharts []string, bumpVer
 		return errors.New("failed to write bump version")
 	}
 
-	if err := b.repo.AddAndCommit("write bump version"); err != nil {
-		return err
-	}
-
 	return nil
 }

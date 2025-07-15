@@ -648,7 +648,7 @@ func Test_checkImagesFromDocker(t *testing.T) {
 
 	type input struct {
 		mockedAssetsTags map[string][]string
-		mockFetchTags    func(context.Context, string) ([]string, error)
+		mockFetchTags    func(context.Context, string, string) ([]string, error)
 	}
 
 	type output struct {
@@ -671,8 +671,8 @@ func Test_checkImagesFromDocker(t *testing.T) {
 					"rancher/fleet": {"v1.0.0", "v2.0.0", "v3.0.0"},
 					"rancher/shell": {"v1.0.0"},
 				},
-				mockFetchTags: func(ctx context.Context, target string) ([]string, error) {
-					if target == DockerURL+"rancher/fleet" {
+				mockFetchTags: func(ctx context.Context, repo, asset string) ([]string, error) {
+					if repo+asset == DockerURL+"rancher/fleet" {
 						return []string{"v1.0.0", "v2.0.0", "v3.0.0"}, nil
 					}
 					return []string{"v1.0.0"}, nil
@@ -691,7 +691,7 @@ func Test_checkImagesFromDocker(t *testing.T) {
 				mockedAssetsTags: map[string][]string{
 					"rancher/fleet": {"v1.0.0", "v2.0.0"},
 				},
-				mockFetchTags: func(ctx context.Context, target string) ([]string, error) {
+				mockFetchTags: func(ctx context.Context, repo, asset string) ([]string, error) {
 					return []string{"v1.0.0", "v2.0.0", "v3.0.0", "some-crazy-tag"}, nil
 				},
 			},
@@ -708,7 +708,7 @@ func Test_checkImagesFromDocker(t *testing.T) {
 				mockedAssetsTags: map[string][]string{
 					"rancher/fleet": {"v1.0.0", "v2.0.0"},
 				},
-				mockFetchTags: func(ctx context.Context, target string) ([]string, error) {
+				mockFetchTags: func(ctx context.Context, repo, asset string) ([]string, error) {
 					return []string{"v1.0.0"}, nil
 				},
 			},
@@ -727,7 +727,7 @@ func Test_checkImagesFromDocker(t *testing.T) {
 				mockedAssetsTags: map[string][]string{
 					"rancher/fleet": {"v1.0.0", "v2.0.0"},
 				},
-				mockFetchTags: func(ctx context.Context, target string) ([]string, error) {
+				mockFetchTags: func(ctx context.Context, repo, asset string) ([]string, error) {
 					return []string{}, nil
 				},
 			},
@@ -746,7 +746,7 @@ func Test_checkImagesFromDocker(t *testing.T) {
 				mockedAssetsTags: map[string][]string{
 					"pirate/fleet": {"v1.0.0", "v2.0.0"},
 				},
-				mockFetchTags: func(ctx context.Context, target string) ([]string, error) {
+				mockFetchTags: func(ctx context.Context, repo, asset string) ([]string, error) {
 					return []string{}, nil
 				},
 			},

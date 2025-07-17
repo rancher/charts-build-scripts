@@ -16,6 +16,7 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-github/v41/github"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
@@ -321,6 +322,15 @@ func loadAndCheckIconPrefix(ctx context.Context, rootFs billy.Filesystem, chart 
 	if !strings.HasPrefix(iconField, "file://") {
 		logger.Log(ctx, slog.LevelError, "icon path is not a file:// prefix")
 		return errors.New("icon path is not a file:// prefix, after make prepare, you need to run make icon for chart:" + chart)
+	}
+
+	exist, err := filesystem.PathExists(ctx, rootFs, strings.TrimPrefix(iconField, "file://"))
+	if err != nil {
+		return err
+	}
+
+	if !exist {
+		return errors.New("icon path is a file:// prefix, but the icon does not exist, after 'make prepare', you need to run 'make icon' for chart:" + chart)
 	}
 
 	return nil

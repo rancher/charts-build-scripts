@@ -330,7 +330,7 @@ func loadAndCheckIconPrefix(ctx context.Context, rootFs billy.Filesystem, chart 
 	}
 
 	if !exist {
-		return errors.New("icon path is a file:// prefix, but the icon does not exist, after make prepare, you need to run make icon for chart:" + chart)
+		return errors.New("icon path is a file:// prefix, but the icon does not exist, after 'make prepare', you need to run 'make icon' for chart:" + chart)
 	}
 
 	return nil

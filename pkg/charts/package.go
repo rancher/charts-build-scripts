@@ -2,10 +2,11 @@ package charts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"path/filepath"
+	"strings"
 
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
@@ -127,8 +128,7 @@ func (p *Package) DownloadIcon(ctx context.Context) error {
 		return fmt.Errorf("could not load Helm chart: %s", err)
 	}
 
-	u, err := url.Parse(chart.Metadata.Icon)
-	if err == nil && (u.Scheme == "http" || u.Scheme == "https") {
+	if !strings.HasPrefix(chart.Metadata.Icon, "file://") {
 		logger.Log(ctx, slog.LevelDebug, "chart icon is pointing to a remote url", slog.String("url", chart.Metadata.Icon))
 
 		// download icon and change the icon property to point to it
@@ -145,6 +145,16 @@ func (p *Package) DownloadIcon(ctx context.Context) error {
 			return fmt.Errorf("failed to save chart.yaml file. err: %w", err)
 		}
 	}
+
+	exist, err := filesystem.PathExists(ctx, p.rootFs, strings.TrimPrefix(chart.Metadata.Icon, "file://"))
+	if err != nil {
+		return err
+	}
+
+	if !exist {
+		return errors.New("icon path is a file:// prefix, but the icon does not exist, you will need to manually download it at assets/logos dir")
+	}
+
 	return nil
 }
 

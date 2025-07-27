@@ -99,7 +99,7 @@ func Sync(ctx context.Context, primeUser, primePass, primeURL, dockerUser, docke
 		for repo, tags := range stagingImageTags {
 			for _, tag := range tags {
 				s.repoImage = &repoImage{} // init/reset img/tag to be synced
-				if err := s.copy(ctx, StagingURL, repo, tag); err != nil {
+				if err := s.copy(ctx, StagingURL, repo, tag, primeURL); err != nil {
 					return err
 				}
 				if err := s.push(ctx); err != nil {
@@ -115,7 +115,7 @@ func Sync(ctx context.Context, primeUser, primePass, primeURL, dockerUser, docke
 		for repo, tags := range dockerImageTags {
 			for _, tag := range tags {
 				s.repoImage = &repoImage{}
-				if err := s.copy(ctx, DockerURL, repo, tag); err != nil {
+				if err := s.copy(ctx, DockerURL, repo, tag, primeURL); err != nil {
 					return err
 				}
 				if err := s.push(ctx); err != nil {
@@ -131,9 +131,12 @@ func Sync(ctx context.Context, primeUser, primePass, primeURL, dockerUser, docke
 
 // prepareSync checks if the prime credentials are provided and creates the synchronizer
 // with all the oci,naming and remote options needed.
-func prepareSync(ctx context.Context, username, password string) (*synchronizer, error) {
-	if username == "" || password == "" {
+func prepareSync(ctx context.Context, primeUser, primePass, dockerUser, dockerPass string) (*synchronizer, error) {
+	if primeUser == "" || primePass == "" {
 		return nil, errors.New("no credentials provided for prime registry")
+	}
+	if dockerUser == "" || dockerPass == "" {
+		return nil, errors.New("no credentials provided for docker hub")
 	}
 
 	// Use strict validation for pulling and pushing
@@ -150,7 +153,7 @@ func prepareSync(ctx context.Context, username, password string) (*synchronizer,
 	// (needed for docker.io without login)
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: false,
 	}
 
 	// applied to the puller and subsequently used by cosign's oci/remote
@@ -158,6 +161,7 @@ func prepareSync(ctx context.Context, username, password string) (*synchronizer,
 	clientOpts := []remote.Option{
 		remote.WithContext(ctx),
 		remote.WithUserAgent(uaString),
+		remote.WithAuth(&authn.Basic{Username: dockerUser, Password: dockerPass}),
 		remote.WithAuthFromKeychain(authn.DefaultKeychain),
 		remote.WithTransport(tr),
 	}
@@ -182,7 +186,7 @@ func prepareSync(ctx context.Context, username, password string) (*synchronizer,
 	// prime (destination) registry. They use explicit basic authentication?
 	remoteOpts := []remote.Option{
 		remote.WithContext(ctx),
-		remote.WithAuth(&authn.Basic{Username: username, Password: password}),
+		remote.WithAuth(&authn.Basic{Username: primeUser, Password: primePass}),
 	}
 
 	// Create a new remote pusher with the prime registry's specific authentication.
@@ -219,7 +223,7 @@ func loadSyncYamlFile(ctx context.Context, path string) (map[string][]string, er
 
 // copy calculates the proper reference for the given img/tag at source and destination.
 // pulls in memory the signatures (if any) and the entity itself.
-func (s *synchronizer) copy(ctx context.Context, registry, repo, tag string) error {
+func (s *synchronizer) copy(ctx context.Context, registry, repo, tag, primeURL string) error {
 	logger.Log(ctx, slog.LevelInfo, "cosign check/copy to Prime",
 		slog.String("registry", registry),
 		slog.String("repository", repo),
@@ -227,7 +231,7 @@ func (s *synchronizer) copy(ctx context.Context, registry, repo, tag string) err
 
 	// Build targets
 	srcTarget := registry + repo + ":" + tag
-	dstTarget := PrimeURL + repo + ":" + tag
+	dstTarget := primeURL + repo + ":" + tag
 
 	srcRef, err := name.ParseReference(srcTarget, s.nameOpts...)
 	if err != nil {

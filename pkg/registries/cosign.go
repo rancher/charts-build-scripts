@@ -68,8 +68,8 @@ type tagMap func(name.Reference, ...ociremote.Option) (name.Tag, error)
 //
 // There is only one destination:
 //   - Prime Registry
-func Sync(ctx context.Context, username, password string) error {
-	s, err := prepareSync(ctx, username, password)
+func Sync(ctx context.Context, primeUser, primePass, primeURL, dockerUser, dockerPass string) error {
+	s, err := prepareSync(ctx, primeUser, primePass, dockerUser, dockerPass)
 	if err != nil {
 		return err
 	}

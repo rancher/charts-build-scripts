@@ -65,9 +65,13 @@ const (
 	defaultOverrideVersionEnvironmentVariable = "OVERRIDE_VERSION"
 	// defaultMultiRCEnvironmentVariable is the default environment variable that indicates if the auto-bump should not remove previous RC versions
 	defaultMultiRCEnvironmentVariable = "MULTI_RC"
+	// Docker Registry authentication
+	defaultDockerUserEnvironmentVariable     = "DOCKER_USER"
+	defaultDockerPasswordEnvironmentVariable = "DOCKER_PASSWORD"
 	// Prime Registry authentication
 	defaultPrimeUserEnvironmentVariable     = "PRIME_USER"
 	defaultPrimePasswordEnvironmentVariable = "PRIME_PASSWORD"
+	defaultPrimeURLEnvironmentVariable      = "PRIME_URL"
 )
 
 var (
@@ -111,10 +115,16 @@ var (
 	OverrideVersion string
 	// MultiRC indicates if the auto-bump should not remove previous RC versions
 	MultiRC bool
+	// DockerUser is the username provided by EIO
+	DockerUser string
+	// DockerPassword is the password provided by EIO
+	DockerPassword string
 	// PrimeUser is the username provided by EIO
 	PrimeUser string
 	// PrimePassword is the password provided by EIO
 	PrimePassword string
+	// PrimeURL of SUSE Prime registry
+	PrimeURL string
 )
 
 func init() {
@@ -280,6 +290,20 @@ func main() {
 		EnvVar:      defaultGHTokenEnvironmentVariable,
 		Destination: &GithubToken,
 	}
+	dockerUserFlag := cli.StringFlag{
+		Name:        "docker-user",
+		Usage:       "--docker-user=******** || DOCKER_USER=*******",
+		Required:    true,
+		EnvVar:      defaultDockerUserEnvironmentVariable,
+		Destination: &DockerUser,
+	}
+	dockerPasswordFlag := cli.StringFlag{
+		Name:        "docker-password",
+		Usage:       "--docker-password=******** || DOCKER_PASSWORD=*******",
+		Required:    true,
+		EnvVar:      defaultDockerPasswordEnvironmentVariable,
+		Destination: &DockerPassword,
+	}
 	primeUserFlag := cli.StringFlag{
 		Name:        "prime-user",
 		Usage:       "--prime-user=******** || PRIME_USER=*******",
@@ -293,6 +317,13 @@ func main() {
 		Required:    true,
 		EnvVar:      defaultPrimePasswordEnvironmentVariable,
 		Destination: &PrimePassword,
+	}
+	primeURLFlag := cli.StringFlag{
+		Name:        "prime-url",
+		Usage:       "--prime-url=******** || PRIME_URL=*******",
+		Required:    true,
+		EnvVar:      defaultPrimeURLEnvironmentVariable,
+		Destination: &PrimeURL,
 	}
 	prNumberFlag := cli.StringFlag{
 		Name: "pr_number",
@@ -364,13 +395,13 @@ func main() {
 			Name:   "scan-registries",
 			Usage:  "Fetch, list and compare SUSE's registries and create yaml files with what is supposed to be synced from Docker Hub",
 			Action: scanRegistries,
-			Flags:  []cli.Flag{},
+			Flags:  []cli.Flag{primeURLFlag},
 		},
 		{
 			Name:   "sync-registries",
 			Usage:  "Fetch, list and compare SUSE's registries and create yaml files with what is supposed to be synced from Docker Hub",
 			Action: syncRegistries,
-			Flags:  []cli.Flag{primeUserFlag, primePasswordFlag},
+			Flags:  []cli.Flag{dockerUserFlag, dockerPasswordFlag, primeUserFlag, primePasswordFlag, primeURLFlag},
 		},
 		{
 			Name:   "index",
@@ -592,14 +623,14 @@ func downloadIcon(c *cli.Context) {
 
 func scanRegistries(c *cli.Context) {
 	ctx := context.Background()
-	if err := registries.Scan(ctx); err != nil {
+	if err := registries.Scan(ctx, PrimeURL); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }
 
 func syncRegistries(c *cli.Context) {
 	ctx := context.Background()
-	if err := registries.Sync(ctx, PrimeUser, PrimePassword); err != nil {
+	if err := registries.Sync(ctx, PrimeUser, PrimePassword, PrimeURL, DockerUser, DockerPassword); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }

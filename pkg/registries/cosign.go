@@ -162,7 +162,6 @@ func prepareSync(ctx context.Context, primeUser, primePass, dockerUser, dockerPa
 		remote.WithContext(ctx),
 		remote.WithUserAgent(uaString),
 		remote.WithAuth(&authn.Basic{Username: dockerUser, Password: dockerPass}),
-		remote.WithAuthFromKeychain(authn.DefaultKeychain),
 		remote.WithTransport(tr),
 	}
 
@@ -231,7 +230,7 @@ func (s *synchronizer) copy(ctx context.Context, registry, repo, tag, primeURL s
 
 	// Build targets
 	srcTarget := registry + repo + ":" + tag
-	dstTarget := primeURL + repo + ":" + tag
+	dstTarget := primeURL + "/" + repo + ":" + tag
 
 	srcRef, err := name.ParseReference(srcTarget, s.nameOpts...)
 	if err != nil {

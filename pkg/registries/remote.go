@@ -128,7 +128,9 @@ var fetchTagsFromRegistryRepo = func(ctx context.Context, registry, asset string
 			options = append(options, remote.WithAuth(auth))
 		}
 	}
-	if strings.Contains(registry, "registry") && registry != StagingURL {
+
+	if registry != DockerURL && registry != StagingURL && strings.Contains(registry, "registry") {
+
 		if auth := primeCredentials(ctx); auth != nil {
 			options = append(options, remote.WithAuth(auth))
 		}

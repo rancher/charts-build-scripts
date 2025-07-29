@@ -132,10 +132,6 @@ func Sync(ctx context.Context, username, password string) error {
 // prepareSync checks if the prime credentials are provided and creates the synchronizer
 // with all the oci,naming and remote options needed.
 func prepareSync(ctx context.Context, username, password string) (*synchronizer, error) {
-	if username == "" || password == "" {
-		return nil, errors.New("no credentials provided for prime registry")
-	}
-
 	// Use strict validation for pulling and pushing
 	// These options control how image references (e.g., "myregistry/myimage:tag")
 	// are parsed and validated by go-containerregistry's 'name' package.

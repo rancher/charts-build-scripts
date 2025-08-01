@@ -355,6 +355,8 @@ func Test_checkRegistriesImagesTags(t *testing.T) {
 		output output
 	}
 
+	const PrimeURL = "im-prime"
+
 	tests := []test{
 		// success - staging -> prime sync needed
 		{
@@ -628,7 +630,7 @@ func Test_checkRegistriesImagesTags(t *testing.T) {
 			createAssetValuesRepoTagMap = tt.input.createAssetsMock
 			listRegistryImageTags = tt.input.listRegistryMock
 
-			assetsImageTagMap, dockerToPrime, stagingToPrime, err := checkRegistriesImagesTags(ctx)
+			assetsImageTagMap, dockerToPrime, stagingToPrime, err := checkRegistriesImagesTags(ctx, "im-prime")
 			assertError(t, err, tt.output.err)
 			require.Equal(t, tt.output.assetsImageTagMap, assetsImageTagMap)
 			require.Equal(t, tt.output.dockerToPrime, dockerToPrime)

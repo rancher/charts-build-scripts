@@ -22,8 +22,6 @@ import (
 )
 
 const (
-	// PrimeURL of SUSE Prime registry
-	PrimeURL string = "registry.suse.com/"
 	// StagingURL of SUSE Staging registry
 	StagingURL string = "stgregistry.suse.com/"
 	// DockerURL of images
@@ -45,7 +43,7 @@ var (
 //  3. Filter what is present only on DockerHub but not in the Prime Registry
 //  4. From the list only present on Docker, list what is present in the Staging Registry
 //  5. Split the difference (Docker only images/tags and Staging Also images/tags)
-func checkRegistriesImagesTags(ctx context.Context) (map[string][]string, map[string][]string, map[string][]string, error) {
+func checkRegistriesImagesTags(ctx context.Context, primeRegistry string) (map[string][]string, map[string][]string, map[string][]string, error) {
 	logger.Log(ctx, slog.LevelInfo, "checking registries images and tags")
 
 	// List all repository tags on Docker Hub by walking the entire image dependencies across all charts
@@ -55,7 +53,7 @@ func checkRegistriesImagesTags(ctx context.Context) (map[string][]string, map[st
 	}
 
 	// Prime registry
-	primeImgTags, err := listRegistryImageTags(ctx, assetsImageTagMap, PrimeURL)
+	primeImgTags, err := listRegistryImageTags(ctx, assetsImageTagMap, primeRegistry)
 	if err != nil {
 		logger.Log(ctx, slog.LevelError, "failed to check prime image tags", logger.Err(err))
 		return nil, nil, nil, err
@@ -133,7 +131,8 @@ var fetchTagsFromRegistryRepo = func(ctx context.Context, registry, asset string
 			options = append(options, remote.WithAuth(auth))
 		}
 	}
-	if registry == PrimeURL {
+
+	if registry != DockerURL && registry != StagingURL && strings.Contains(registry, "registry") {
 		if auth := primeCredentials(ctx); auth != nil {
 			options = append(options, remote.WithAuth(auth))
 		}

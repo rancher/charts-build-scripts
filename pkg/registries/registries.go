@@ -26,9 +26,9 @@ var chartsToIgnoreTags = map[string]string{
 //   - stagingToPrime.yaml
 //
 // Which will be used by another process to sync images/tags to Prime registry.
-func Scan(ctx context.Context) error {
+func Scan(ctx context.Context, primeRegistry string) error {
 	// check the state of current assets and prime/staging registries
-	_, dockerToPrime, stagingToPrime, err := checkRegistriesImagesTags(ctx)
+	_, dockerToPrime, stagingToPrime, err := checkRegistriesImagesTags(ctx, primeRegistry)
 	if err != nil {
 		return err
 	}

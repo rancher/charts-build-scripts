@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -630,6 +631,21 @@ func scanRegistries(c *cli.Context) {
 
 func syncRegistries(c *cli.Context) {
 	ctx := context.Background()
+
+	emptyUser := PrimeUser == ""
+	emptyPass := PrimePassword == ""
+	emptyURL := PrimeURL == ""
+	emptyDockerUser := DockerUser == ""
+	emptyDockerPass := DockerPassword == ""
+	if emptyUser || emptyPass || emptyURL || emptyDockerUser || emptyDockerPass {
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("User Empty", emptyUser))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Password Empty", emptyPass))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("URL Empty", emptyURL))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Docker User Empty", emptyDockerUser))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Docker Pass Empty", emptyDockerPass))
+		logger.Fatal(ctx, errors.New("no credentials provided for sync").Error())
+	}
+
 	if err := registries.Sync(ctx, PrimeUser, PrimePassword, PrimeURL, DockerUser, DockerPassword); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}

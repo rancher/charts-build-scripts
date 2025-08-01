@@ -18,6 +18,7 @@ import (
 	authn "github.com/google/go-containerregistry/pkg/authn"
 	name "github.com/google/go-containerregistry/pkg/name"
 	remote "github.com/google/go-containerregistry/pkg/v1/remote"
+	transport "github.com/google/go-containerregistry/pkg/v1/remote/transport"
 )
 
 const (
@@ -95,7 +96,9 @@ var listRegistryImageTags = func(ctx context.Context, imageTagMap map[string][]s
 		}
 
 		logger.Log(ctx, slog.LevelDebug, "", slog.Any("tags", tags))
-		remoteImgTagMap[asset] = tags
+		if len(tags) > 0 {
+			remoteImgTagMap[asset] = tags
+		}
 	}
 
 	return remoteImgTagMap, nil
@@ -139,6 +142,15 @@ var fetchTagsFromRegistryRepo = func(ctx context.Context, registry, asset string
 	// but remote package handles pagination internally if needed
 	tags, err := remote.List(repo, options...)
 	if err != nil {
+		var transportError *transport.Error
+		if errors.As(err, &transportError) {
+			for _, d := range transportError.Errors {
+				if d.Code == "NAME_UNKNOWN" {
+					logger.Log(ctx, slog.LevelWarn, "repository not found", slog.String("repo", repo.Name()))
+					return []string{}, nil
+				}
+			}
+		}
 		logger.Log(ctx, slog.LevelError, "list failure", logger.Err(err))
 		return nil, err
 	}

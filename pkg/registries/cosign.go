@@ -132,13 +132,6 @@ func Sync(ctx context.Context, primeUser, primePass, primeURL, dockerUser, docke
 // prepareSync checks if the prime credentials are provided and creates the synchronizer
 // with all the oci,naming and remote options needed.
 func prepareSync(ctx context.Context, primeUser, primePass, dockerUser, dockerPass string) (*synchronizer, error) {
-	if primeUser == "" || primePass == "" {
-		return nil, errors.New("no credentials provided for prime registry")
-	}
-	if dockerUser == "" || dockerPass == "" {
-		return nil, errors.New("no credentials provided for docker hub")
-	}
-
 	// Use strict validation for pulling and pushing
 	// These options control how image references (e.g., "myregistry/myimage:tag")
 	// are parsed and validated by go-containerregistry's 'name' package.

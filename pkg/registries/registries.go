@@ -2,7 +2,6 @@ package registries
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"os"
 	"strings"
@@ -76,7 +75,8 @@ func checkStatusAndCommit(ctx context.Context, message string) error {
 	clean, _ := g.StatusProcelain(ctx)
 	logger.Log(ctx, slog.LevelDebug, "git status", slog.Bool("clean", clean))
 	if clean {
-		return errors.New("should have changes to commit")
+		logger.Log(ctx, slog.LevelWarn, "nothing to commit")
+		return nil
 	}
 
 	logger.Log(ctx, slog.LevelDebug, "git add and git commit", slog.String("message", message))

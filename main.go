@@ -396,7 +396,7 @@ func main() {
 			Name:   "scan-registries",
 			Usage:  "Fetch, list and compare SUSE's registries and create yaml files with what is supposed to be synced from Docker Hub",
 			Action: scanRegistries,
-			Flags:  []cli.Flag{primeURLFlag},
+			Flags:  []cli.Flag{primeURLFlag, dockerUserFlag, dockerPasswordFlag},
 		},
 		{
 			Name:   "sync-registries",
@@ -624,7 +624,13 @@ func downloadIcon(c *cli.Context) {
 
 func scanRegistries(c *cli.Context) {
 	ctx := context.Background()
-	if err := registries.Scan(ctx, PrimeURL); err != nil {
+
+	if PrimeURL == "" {
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("URL Empty", true))
+		logger.Fatal(ctx, errors.New("no Prime URL provided").Error())
+	}
+
+	if err := registries.Scan(ctx, PrimeURL+"/"); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }

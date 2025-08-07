@@ -88,7 +88,7 @@ var listRegistryImageTags = func(ctx context.Context, imageTagMap map[string][]s
 			continue
 		}
 
-		logger.Log(ctx, slog.LevelDebug, "listing...", slog.String(registry, asset))
+		logger.Log(ctx, slog.LevelDebug, "listing...", slog.String("registry", asset))
 		tags, err := fetchTagsFromRegistryRepo(ctx, registry, asset)
 		if err != nil {
 			logger.Log(ctx, slog.LevelError, "remote fetch failure", slog.Group(asset, logger.Err(err)))

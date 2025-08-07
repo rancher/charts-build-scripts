@@ -396,7 +396,7 @@ func main() {
 			Name:   "scan-registries",
 			Usage:  "Fetch, list and compare SUSE's registries and create yaml files with what is supposed to be synced from Docker Hub",
 			Action: scanRegistries,
-			Flags:  []cli.Flag{primeURLFlag, dockerUserFlag, dockerPasswordFlag},
+			Flags:  []cli.Flag{primeURLFlag},
 		},
 		{
 			Name:   "sync-registries",

@@ -79,7 +79,7 @@ func checkRegistriesImagesTags(ctx context.Context, primeRegistry string) (map[s
 // ListRegistryImageTags checks images and its tags on a given registry.
 // this function is mockable for unit-testing.
 var listRegistryImageTags = func(ctx context.Context, imageTagMap map[string][]string, registry string) (map[string][]string, error) {
-	logger.Log(ctx, slog.LevelInfo, "listing registry images/tags", slog.String("remote", registry))
+	logger.Log(ctx, slog.LevelInfo, "listing registry images/tags")
 
 	remoteImgTagMap := make(map[string][]string)
 
@@ -182,7 +182,7 @@ func primeCredentials(ctx context.Context) authn.Authenticator {
 		password := os.Getenv("REGISTRY_PASSWORD")
 
 		if username == "" || password == "" {
-			logger.Log(ctx, slog.LevelWarn, "Docker credentials not provided, proceeding with unauthenticated requests")
+			logger.Log(ctx, slog.LevelWarn, "Prime credentials not provided, proceeding with unauthenticated requests")
 			authenticator = nil
 		} else {
 			authenticator = &authn.Basic{

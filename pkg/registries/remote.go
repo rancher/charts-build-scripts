@@ -265,6 +265,9 @@ func splitDockerOnlyAndStgImgTags(ctx context.Context, dockerImgTags, stgImgTags
 		}
 	}
 
+	logger.Log(ctx, slog.LevelDebug, "docker only imgs", slog.Int("imgs", len(dockerOnly)))
+	logger.Log(ctx, slog.LevelDebug, "staging also imgs", slog.Int("imgs", len(stgAlso)))
+
 	return dockerOnly, stgAlso
 }
 

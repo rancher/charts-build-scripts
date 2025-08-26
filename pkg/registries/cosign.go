@@ -45,7 +45,8 @@ type repoImage struct {
 
 // sourceRegistry will be either Staging Registry or Docker Hub
 type sourceRegistry struct {
-	ociOpts []ociremote.Option
+	dockerOpts  []ociremote.Option
+	stagingOpts []ociremote.Option
 }
 
 type primeRegistry struct {
@@ -68,8 +69,8 @@ type tagMap func(name.Reference, ...ociremote.Option) (name.Tag, error)
 //
 // There is only one destination:
 //   - Prime Registry
-func Sync(ctx context.Context, primeUser, primePass, primeURL, dockerUser, dockerPass string) error {
-	s, err := prepareSync(ctx, primeUser, primePass, dockerUser, dockerPass)
+func Sync(ctx context.Context, primeUser, primePass, primeURL, dockerUser, dockerPass, stagingUser, stagingPass string) error {
+	s, err := prepareSync(ctx, primeUser, primePass, dockerUser, dockerPass, stagingUser, stagingPass)
 	if err != nil {
 		return err
 	}
@@ -131,7 +132,7 @@ func Sync(ctx context.Context, primeUser, primePass, primeURL, dockerUser, docke
 
 // prepareSync checks if the prime credentials are provided and creates the synchronizer
 // with all the oci,naming and remote options needed.
-func prepareSync(ctx context.Context, primeUser, primePass, dockerUser, dockerPass string) (*synchronizer, error) {
+func prepareSync(ctx context.Context, primeUser, primePass, dockerUser, dockerPass, stagingUser, staginPass string) (*synchronizer, error) {
 	// Use strict validation for pulling and pushing
 	// These options control how image references (e.g., "myregistry/myimage:tag")
 	// are parsed and validated by go-containerregistry's 'name' package.
@@ -151,29 +152,43 @@ func prepareSync(ctx context.Context, primeUser, primePass, dockerUser, dockerPa
 
 	// applied to the puller and subsequently used by cosign's oci/remote
 	// package when fetching signed entities.
-	clientOpts := []remote.Option{
+	dockerClientOpts := []remote.Option{
 		remote.WithContext(ctx),
 		remote.WithUserAgent(uaString),
 		remote.WithAuth(&authn.Basic{Username: dockerUser, Password: dockerPass}),
 		remote.WithTransport(tr),
 	}
+	stagingClientOpts := []remote.Option{
+		remote.WithContext(ctx),
+		remote.WithUserAgent(uaString),
+		remote.WithAuth(&authn.Basic{Username: stagingUser, Password: staginPass}),
+		remote.WithTransport(tr),
+	}
 
 	// reuse new remote puller for efficiency across operations.
 	// puller interacts only with docker.io and staging registry.
-	puller, err := remote.NewPuller(clientOpts...)
+	dockerPuller, err := remote.NewPuller(dockerClientOpts...)
 	if err == nil {
-		clientOpts = append(clientOpts, remote.Reuse(puller))
+		dockerClientOpts = append(dockerClientOpts, remote.Reuse(dockerPuller))
+	}
+	stagingPuller, err := remote.NewPuller(stagingClientOpts...)
+	if err == nil {
+		stagingClientOpts = append(stagingClientOpts, remote.Reuse(stagingPuller))
 	}
 
 	// These options are specifically for cosign's 'pkg/oci/remote' functions
 	// (e.g., ociremote.SignedEntity, ociremote.SignatureTag). They bridge the
 	// 'go-containerregistry' remote options to cosign's operations.
-	pullerOpts := []ociremote.Option{
+	dockerPullerOpts := []ociremote.Option{
+		ociremote.WithNameOptions(nameOpts...),
+	}
+	stagingPullerOpts := []ociremote.Option{
 		ociremote.WithNameOptions(nameOpts...),
 	}
 	// Embed the 'go-containerregistry' remote options
 	// (context, user agent, keychain auth, insecure transport) into cosign's client setup.
-	pullerOpts = append(pullerOpts, ociremote.WithRemoteOptions(clientOpts...))
+	dockerPullerOpts = append(dockerPullerOpts, ociremote.WithRemoteOptions(dockerClientOpts...))
+	stagingPullerOpts = append(stagingPullerOpts, ociremote.WithRemoteOptions(stagingClientOpts...))
 
 	// prime (destination) registry. They use explicit basic authentication?
 	remoteOpts := []remote.Option{
@@ -190,7 +205,8 @@ func prepareSync(ctx context.Context, primeUser, primePass, dockerUser, dockerPa
 	return &synchronizer{
 		nameOpts: nameOpts,
 		sourceRegistry: &sourceRegistry{
-			ociOpts: pullerOpts,
+			dockerOpts:  dockerPullerOpts,
+			stagingOpts: stagingPullerOpts,
 		},
 		primeRegistry: &primeRegistry{
 			pusher:     pusher,
@@ -262,7 +278,7 @@ func (s *synchronizer) pullFromDocker(ctx context.Context, imgRepo string) error
 	// Get the base repository reference for the source image.
 	srcRepoRef := s.repoImage.srcRef.Context()
 
-	root, err := ociremote.SignedEntity(s.repoImage.srcRef, s.sourceRegistry.ociOpts...)
+	root, err := ociremote.SignedEntity(s.repoImage.srcRef, s.sourceRegistry.dockerOpts...)
 	if err != nil {
 		logger.Log(ctx, slog.LevelError, "signedEntity failure", logger.Err(err))
 		return err
@@ -318,7 +334,7 @@ func (s *synchronizer) pullFromStaging(ctx context.Context, imgRepo string) erro
 	dstRepoRef := s.repoImage.dstRef.Context()
 
 	// An oci.SignedEntity represents the image manifest itself AND all its associated
-	root, err := ociremote.SignedEntity(s.repoImage.srcRef, s.sourceRegistry.ociOpts...)
+	root, err := ociremote.SignedEntity(s.repoImage.srcRef, s.sourceRegistry.stagingOpts...)
 	if err != nil {
 		logger.Log(ctx, slog.LevelError, "signedEntity failure", logger.Err(err))
 		return err
@@ -337,7 +353,7 @@ func (s *synchronizer) pullFromStaging(ctx context.Context, imgRepo string) erro
 		copyTag := func(tm tagMap) error {
 			// Construct the *expected name* (e.g., "myimage:sha256-digest.sig")
 			// for the artifact based on its digest. This call does NOT confirm existence yet.
-			src, err := tm(srcDigest, s.sourceRegistry.ociOpts...)
+			src, err := tm(srcDigest, s.sourceRegistry.stagingOpts...)
 			if err != nil {
 				return err
 			}

@@ -69,6 +69,9 @@ const (
 	// Docker Registry authentication
 	defaultDockerUserEnvironmentVariable     = "DOCKER_USER"
 	defaultDockerPasswordEnvironmentVariable = "DOCKER_PASSWORD"
+	// Staging Registry authentication
+	defaultStagingUserEnvironmentVariable     = "STAGING_USER"
+	defaultStagingPasswordEnvironmentVariable = "STAGING_PASSWORD"
 	// Prime Registry authentication
 	defaultPrimeUserEnvironmentVariable     = "PRIME_USER"
 	defaultPrimePasswordEnvironmentVariable = "PRIME_PASSWORD"
@@ -120,6 +123,10 @@ var (
 	DockerUser string
 	// DockerPassword is the password provided by EIO
 	DockerPassword string
+	// StagingUser is the username provided by EIO
+	StagingUser string
+	// StagingPassword is the password provided by EIO
+	StagingPassword string
 	// PrimeUser is the username provided by EIO
 	PrimeUser string
 	// PrimePassword is the password provided by EIO
@@ -305,6 +312,20 @@ func main() {
 		EnvVar:      defaultDockerPasswordEnvironmentVariable,
 		Destination: &DockerPassword,
 	}
+	stagingUserFlag := cli.StringFlag{
+		Name:        "staging-user",
+		Usage:       "--staging-user=******** || STAGING_USER=*******",
+		Required:    true,
+		EnvVar:      defaultStagingUserEnvironmentVariable,
+		Destination: &StagingUser,
+	}
+	stagingPasswordFlag := cli.StringFlag{
+		Name:        "staging-password",
+		Usage:       "--staging-password=******** || STAGING_PASSWORD=*******",
+		Required:    true,
+		EnvVar:      defaultStagingPasswordEnvironmentVariable,
+		Destination: &StagingPassword,
+	}
 	primeUserFlag := cli.StringFlag{
 		Name:        "prime-user",
 		Usage:       "--prime-user=******** || PRIME_USER=*******",
@@ -402,7 +423,7 @@ func main() {
 			Name:   "sync-registries",
 			Usage:  "Fetch, list and compare SUSE's registries and create yaml files with what is supposed to be synced from Docker Hub",
 			Action: syncRegistries,
-			Flags:  []cli.Flag{dockerUserFlag, dockerPasswordFlag, primeUserFlag, primePasswordFlag, primeURLFlag},
+			Flags:  []cli.Flag{dockerUserFlag, dockerPasswordFlag, stagingUserFlag, stagingPasswordFlag, primeUserFlag, primePasswordFlag, primeURLFlag},
 		},
 		{
 			Name:   "index",
@@ -643,16 +664,20 @@ func syncRegistries(c *cli.Context) {
 	emptyURL := PrimeURL == ""
 	emptyDockerUser := DockerUser == ""
 	emptyDockerPass := DockerPassword == ""
-	if emptyUser || emptyPass || emptyURL || emptyDockerUser || emptyDockerPass {
+	emptyStagingUser := StagingUser == ""
+	emptyStagingPass := StagingPassword == ""
+	if emptyUser || emptyPass || emptyURL || emptyDockerUser || emptyDockerPass || emptyStagingUser || emptyStagingPass {
 		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("User Empty", emptyUser))
 		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Password Empty", emptyPass))
 		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("URL Empty", emptyURL))
 		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Docker User Empty", emptyDockerUser))
 		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Docker Pass Empty", emptyDockerPass))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Staging User Empty", emptyStagingUser))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Staging Pass Empty", emptyStagingPass))
 		logger.Fatal(ctx, errors.New("no credentials provided for sync").Error())
 	}
 
-	if err := registries.Sync(ctx, PrimeUser, PrimePassword, PrimeURL, DockerUser, DockerPassword); err != nil {
+	if err := registries.Sync(ctx, PrimeUser, PrimePassword, PrimeURL, DockerUser, DockerPassword, StagingUser, StagingPassword); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }

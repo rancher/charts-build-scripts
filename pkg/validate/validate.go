@@ -75,7 +75,7 @@ func CompareGeneratedAssets(ctx context.Context, repoRoot string, repoFs billy.F
 	}
 
 	// Initialize lifecycle package for validating with assets lifecycle rules
-	lifeCycleDep, err := lifecycle.InitDependencies(ctx, repoRoot, repoFs, lifecycle.ExtractBranchVersion(branch), "")
+	lifeCycleDep, err := lifecycle.InitDependencies(ctx, repoFs, repoRoot, lifecycle.ExtractBranchVersion(branch), "", false)
 	if err != nil {
 		logger.Log(ctx, slog.LevelError, "failed to initialize lifecycle dependencies", logger.Err(err))
 		return response, err

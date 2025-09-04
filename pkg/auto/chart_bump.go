@@ -51,6 +51,7 @@ var ChartTargetsMap = map[string][]string{
 	"sriov":                      {"sriov", "sriov-crd"},
 	"system-upgrade-controller":  {"system-upgrade-controller"},
 	"ui-plugin-operator":         {"ui-plugin-operator", "ui-plugin-operator-crd"},
+	"rancher-turtles":            {"rancher-turtles"},
 }
 
 // Bump represents the chart bump process for a single chart
@@ -124,7 +125,7 @@ var (
 */
 
 // SetupBump will load and parse all related information to the chart that should be bumped.
-func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string, chScriptOpts *options.ChartsScriptOptions) (*Bump, error) {
+func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string, chScriptOpts *options.ChartsScriptOptions, newChart bool) (*Bump, error) {
 	logger.Log(ctx, slog.LevelInfo, "setup auto-chart-bump")
 
 	bump := &Bump{
@@ -144,7 +145,7 @@ func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string
 	}
 
 	//Initialize the lifecycle dependencies because of the versioning rules and the index.yaml mapping.
-	dependencies, err := lifecycle.InitDependencies(ctx, repoRoot, filesystem.GetFilesystem(repoRoot), branch, bump.target.main)
+	dependencies, err := lifecycle.InitDependencies(ctx, filesystem.GetFilesystem(repoRoot), repoRoot, branch, bump.target.main, newChart)
 	if err != nil {
 		err = fmt.Errorf("failure at SetupBump: %w ", err)
 		return bump, err
@@ -210,8 +211,11 @@ func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string
 			slog.Bool("DoNotRelease", bump.Pkg.DoNotRelease),
 			slog.Bool("Auto", bump.Pkg.Auto),
 		),
-		slog.String("last version", bump.assetsVersionsMap[bump.target.main][0].Version),
 	))
+
+	if !newChart {
+		logger.Log(ctx, slog.LevelInfo, "", slog.String("last version", bump.assetsVersionsMap[bump.target.main][0].Version))
+	}
 
 	return bump, nil
 }
@@ -319,7 +323,7 @@ func checkUpstreamOptions(options *options.UpstreamOptions) error {
 
 // BumpChart will execute a similar approach as the defined development workflow for chartowners.
 // The main difference is that between the steps: (make prepare and make patch) we will calculate the next version to release.
-func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs bool) error {
+func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs, newChart bool) error {
 	logger.Log(ctx, slog.LevelInfo, "start auto-chart-bump")
 
 	if err := b.prepare(ctx); err != nil {
@@ -327,7 +331,7 @@ func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs b
 	}
 
 	// Calculate the next version to release
-	if err := b.calculateNextVersion(ctx, versionOverride); err != nil {
+	if err := b.calculateNextVersion(ctx, versionOverride, newChart); err != nil {
 		return err
 	}
 
@@ -348,7 +352,7 @@ func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs b
 	}
 
 	// check if should remove previous RCs versions
-	if !multiRCs {
+	if !multiRCs && !newChart {
 		logger.Log(ctx, slog.LevelWarn, "removing existing RC's")
 		if err := b.checkMultiRC(ctx); err != nil {
 			return err

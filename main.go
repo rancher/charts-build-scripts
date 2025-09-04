@@ -76,6 +76,8 @@ const (
 	defaultPrimeUserEnvironmentVariable     = "PRIME_USER"
 	defaultPrimePasswordEnvironmentVariable = "PRIME_PASSWORD"
 	defaultPrimeURLEnvironmentVariable      = "PRIME_URL"
+	// New Chart Options for Autobump
+	defaultNewChartVariable = "NEW_CHART"
 )
 
 var (
@@ -133,6 +135,8 @@ var (
 	PrimePassword string
 	// PrimeURL of SUSE Prime registry
 	PrimeURL string
+	// NewChart boolean option for creating a net-new chart with auto-bump
+	NewChart bool
 )
 
 func init() {
@@ -383,6 +387,15 @@ func main() {
 		Destination: &OverrideVersion,
 		EnvVar:      defaultOverrideVersionEnvironmentVariable,
 	}
+	newChartFlag := cli.BoolFlag{
+		Name: "new-chart",
+		Usage: `Usage:
+			-new-chart=<false or true>
+		`,
+		Required:    false,
+		Destination: &NewChart,
+		EnvVar:      defaultNewChartVariable,
+	}
 
 	// Commands
 	app.Commands = []cli.Command{
@@ -547,7 +560,7 @@ func main() {
 			Usage:  `Generate a new chart bump PR.`,
 			Action: chartBump,
 			Before: setupCache,
-			Flags:  []cli.Flag{packageFlag, branchFlag, overrideVersionFlag, multiRCFlag},
+			Flags:  []cli.Flag{packageFlag, branchFlag, overrideVersionFlag, multiRCFlag, newChartFlag},
 		},
 	}
 
@@ -979,7 +992,7 @@ func lifecycleStatus(c *cli.Context) {
 
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
-	lifeCycleDep, err := lifecycle.InitDependencies(ctx, RepoRoot, rootFs, c.String("branch-version"), CurrentChart)
+	lifeCycleDep, err := lifecycle.InitDependencies(ctx, rootFs, RepoRoot, c.String("branch-version"), CurrentChart, false)
 	if err != nil {
 		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
 	}
@@ -1005,7 +1018,7 @@ func autoForwardPort(c *cli.Context) {
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
 
-	lifeCycleDep, err := lifecycle.InitDependencies(ctx, RepoRoot, rootFs, c.String("branch-version"), CurrentChart)
+	lifeCycleDep, err := lifecycle.InitDependencies(ctx, rootFs, RepoRoot, c.String("branch-version"), CurrentChart, false)
 	if err != nil {
 		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
 	}
@@ -1042,7 +1055,7 @@ func release(c *cli.Context) {
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
 
-	dependencies, err := lifecycle.InitDependencies(ctx, RepoRoot, rootFs, c.String("branch-version"), CurrentChart)
+	dependencies, err := lifecycle.InitDependencies(ctx, rootFs, RepoRoot, c.String("branch-version"), CurrentChart, false)
 	if err != nil {
 		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
 	}
@@ -1101,7 +1114,7 @@ func validateRelease(c *cli.Context) {
 		logger.Fatal(ctx, "branch must be in the format release-v2.x")
 	}
 
-	dependencies, err := lifecycle.InitDependencies(ctx, RepoRoot, rootFs, strings.TrimPrefix(Branch, "release-v"), "")
+	dependencies, err := lifecycle.InitDependencies(ctx, rootFs, RepoRoot, strings.TrimPrefix(Branch, "release-v"), "", false)
 	if err != nil {
 		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
 	}
@@ -1149,12 +1162,12 @@ func chartBump(c *cli.Context) {
 	ChartsScriptOptionsFile = path.ConfigurationYamlFile
 	chartsScriptOptions := parseScriptOptions(ctx)
 
-	bump, err := auto.SetupBump(ctx, RepoRoot, CurrentPackage, Branch, chartsScriptOptions)
+	bump, err := auto.SetupBump(ctx, RepoRoot, CurrentPackage, Branch, chartsScriptOptions, NewChart)
 	if err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to setup: %w", err).Error())
 	}
 
-	if err := bump.BumpChart(ctx, OverrideVersion, MultiRC); err != nil {
+	if err := bump.BumpChart(ctx, OverrideVersion, MultiRC, NewChart); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to bump: %w", err).Error())
 	}
 }

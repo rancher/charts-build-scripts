@@ -39,7 +39,11 @@ type WalkDirFunc func(ctx context.Context, fs billy.Filesystem, dirPath string, 
 // InitDependencies will check the filesystem, branch version,
 // git status, initialize the Dependencies struct and populate it.
 // If anything fails the operation will be aborted.
-func InitDependencies(ctx context.Context, repoRoot string, rootFs billy.Filesystem, branchVersion string, currentChart string) (*Dependencies, error) {
+func InitDependencies(ctx context.Context, rootFs billy.Filesystem, repoRoot, branchVersion, currentChart string, newChart bool) (*Dependencies, error) {
+	if newChart && currentChart == "" {
+		return nil, errors.New("can't create a new empty chart")
+	}
+
 	var err error
 
 	workDir := repoRoot
@@ -74,6 +78,12 @@ func InitDependencies(ctx context.Context, repoRoot string, rootFs billy.Filesys
 
 	if err := checkFilePaths(ctx, dep.RootFs); err != nil {
 		return nil, err
+	}
+
+	if newChart {
+		dep.AssetsVersionsMap = make(map[string][]Asset)
+		dep.AssetsVersionsMap[currentChart] = []Asset{}
+		return dep, nil
 	}
 
 	// Get the absolute path of the Helm index file and assets versions map to apply rules

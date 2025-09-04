@@ -51,6 +51,7 @@ var ChartTargetsMap = map[string][]string{
 	"sriov":                      {"sriov", "sriov-crd"},
 	"system-upgrade-controller":  {"system-upgrade-controller"},
 	"ui-plugin-operator":         {"ui-plugin-operator", "ui-plugin-operator-crd"},
+	"rancher-turtles":            {"rancher-turtles"},
 }
 
 // Bump represents the chart bump process for a single chart

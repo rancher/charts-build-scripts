@@ -390,7 +390,7 @@ func main() {
 	newChartFlag := cli.BoolFlag{
 		Name: "new-chart",
 		Usage: `Usage:
-			-new-chart=<false or true>
+			--new-chart=<false or true>
 		`,
 		Required:    false,
 		Destination: &NewChart,
@@ -1149,6 +1149,7 @@ func chartBump(c *cli.Context) {
 	logger.Log(ctx, slog.LevelInfo, "", slog.String("branch", Branch))
 	logger.Log(ctx, slog.LevelInfo, "", slog.String("overrideVersion", OverrideVersion))
 	logger.Log(ctx, slog.LevelInfo, "", slog.Bool("multi-RC", MultiRC))
+	logger.Log(ctx, slog.LevelInfo, "", slog.Bool("new-chart", NewChart))
 
 	if CurrentPackage == "" || Branch == "" || OverrideVersion == "" {
 		logger.Fatal(ctx, fmt.Sprintf("must provide values for CurrentPackage[%s], Branch[%s], and OverrideVersion[%s]",

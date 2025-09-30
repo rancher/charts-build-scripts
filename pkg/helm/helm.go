@@ -6,7 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sort"
+	"strconv"
+	"strings"
 
+	"github.com/Masterminds/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
@@ -41,8 +45,8 @@ func CreateOrUpdateHelmIndex(ctx context.Context, rootFs billy.Filesystem) error
 	}
 
 	// Sort entries to ensure consistent ordering
-	helmIndexFile.SortEntries()
-	newHelmIndexFile.SortEntries()
+	SortVersions(helmIndexFile)
+	SortVersions(newHelmIndexFile)
 
 	// Update index
 	helmIndexFile, upToDate := UpdateIndex(ctx, helmIndexFile, newHelmIndexFile)
@@ -127,4 +131,86 @@ func OpenIndexYaml(ctx context.Context, rootFs billy.Filesystem) (*helmRepo.Inde
 	}
 
 	return helmRepo.LoadIndexFile(helmIndexFilePath)
+}
+
+// SortVersions sorts chart versions with custom RC handling
+func SortVersions(index *helmRepo.IndexFile) {
+	for _, versions := range index.Entries {
+		sort.Slice(versions, func(i, j int) bool {
+			return compareVersions(versions[i].Version, versions[j].Version)
+		})
+	}
+}
+
+// compareVersions compares two version strings for sorting
+// Returns true if versionA should come before versionB (descending order)
+func compareVersions(versionA, versionB string) bool {
+	// Parse both versions
+	baseA, rcA, isRCA := parseVersionWithRC(versionA)
+	baseB, rcB, isRCB := parseVersionWithRC(versionB)
+
+	// Parse base versions using semver
+	semverA, errA := semver.NewVersion(baseA)
+	semverB, errB := semver.NewVersion(baseB)
+
+	if errA != nil {
+		return false // push invalid to end
+	}
+	if errB != nil {
+		return true // push invalid to end
+	}
+
+	// If base versions are different, use semver comparison (descending)
+	if !semverA.Equal(semverB) {
+		return semverA.GreaterThan(semverB)
+	}
+
+	// Same base version - handle RC logic
+	// Stable (non-RC) should come first
+	if !isRCA && isRCB {
+		return true // A is stable, B is RC - A comes first
+	}
+	if isRCA && !isRCB {
+		return false // A is RC, B is stable - B comes first
+	}
+
+	// Both are RCs - higher RC number comes first (descending)
+	if isRCA && isRCB {
+		return rcA > rcB
+	}
+
+	// Both are stable with same base version - they're equal
+	return false
+}
+
+// parseVersionWithRC extracts the base version and RC number from a version string
+// Example: "108.0.0+up0.9.0-rc.1" returns ("108.0.0+up0.9.0", 1, true)
+func parseVersionWithRC(version string) (baseVersion string, rcNumber int, isRC bool) {
+	// Split by '+' to separate version from build metadata
+	parts := strings.Split(version, "+")
+	if len(parts) != 2 {
+		return version, 0, false
+	}
+
+	baseVersionNum := parts[0]
+	buildMetadata := parts[1]
+
+	// Check if build metadata contains RC
+	if !strings.Contains(buildMetadata, "-rc.") {
+		return version, 0, false
+	}
+
+	// Extract RC number
+	rcParts := strings.Split(buildMetadata, "-rc.")
+	if len(rcParts) != 2 {
+		return version, 0, false
+	}
+
+	rcNum, err := strconv.Atoi(rcParts[1])
+	if err != nil {
+		return version, 0, false
+	}
+
+	// Return base version with the non-RC part of build metadata
+	return baseVersionNum + "+" + rcParts[0], rcNum, true
 }

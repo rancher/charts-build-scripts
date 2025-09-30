@@ -3,10 +3,8 @@ package lifecycle
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
-	"github.com/Masterminds/semver"
 	"github.com/go-git/go-billy/v5"
 	helmRepo "helm.sh/helm/v3/pkg/repo"
 )
@@ -102,20 +100,4 @@ func (ld *Dependencies) populateAssetsVersionsPath(ctx context.Context) error {
 
 	// Now fileNames slice contains the names of all files in the directories
 	return nil
-}
-
-// sortAssetsVersions will convert to semver and
-// sort the assets for each key in the assetsVersionsMap
-func (ld *Dependencies) sortAssetsVersions() {
-	// Iterate over the map and sort the assets for each key
-	for k, assets := range ld.AssetsVersionsMap {
-		sort.Slice(assets, func(i, j int) bool {
-			vi, _ := semver.NewVersion(assets[i].Version)
-			vj, _ := semver.NewVersion(assets[j].Version)
-			return vi.LessThan(vj)
-		})
-		ld.AssetsVersionsMap[k] = assets
-	}
-
-	return
 }

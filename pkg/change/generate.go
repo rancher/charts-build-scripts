@@ -1,15 +1,17 @@
 package change
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/diff"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -17,79 +19,86 @@ const (
 )
 
 // GenerateChanges generates the change between fromDir and toDir and places it in the appropriate directories within gcDir
-func GenerateChanges(fs billy.Filesystem, fromDir, toDir, gcRootDir string, replacePaths []string) error {
-	logrus.Infof("Generating changes to %s", path.GeneratedChangesDir)
+func GenerateChanges(ctx context.Context, fs billy.Filesystem, fromDir, toDir, gcRootDir string, replacePaths []string) error {
+	logger.Log(ctx, slog.LevelInfo, "generating changes", slog.String("GeneratedChangesDir", path.GeneratedChangesDir))
+
 	// gcRootDir should always end with path.GeneratedChangesDir
 	if !strings.HasSuffix(gcRootDir, path.GeneratedChangesDir) {
 		return fmt.Errorf("root directory for generated changes should end with %s, received: %s", path.GeneratedChangesDir, gcRootDir)
 	}
-	if err := removeAllGeneratedChanges(fs, gcRootDir); err != nil {
+	if err := removeAllGeneratedChanges(ctx, fs, gcRootDir); err != nil {
 		return fmt.Errorf("encountered error while trying to remove all existing generated changes before generating new changes: %s", err)
 	}
 	replacePathsMap := make(map[string]bool, len(replacePaths))
 	for _, path := range replacePaths {
 		replacePathsMap[path] = true
 	}
-	generateOverlayFile := func(fs billy.Filesystem, toPath string, isDir bool) error {
+	generateOverlayFile := func(ctx context.Context, fs billy.Filesystem, toPath string, isDir bool) error {
 		if isDir {
 			return nil
 		}
-		overlayPath, err := filesystem.MovePath(toPath, toDir, filepath.Join(gcRootDir, path.GeneratedChangesOverlayDir))
+		overlayPath, err := filesystem.MovePath(ctx, toPath, toDir, filepath.Join(gcRootDir, path.GeneratedChangesOverlayDir))
 		if err != nil {
 			return err
 		}
-		if err := filesystem.CopyFile(fs, toPath, overlayPath); err != nil {
+		if err := filesystem.CopyFile(ctx, fs, toPath, overlayPath); err != nil {
 			return err
 		}
-		logrus.Infof("Overlay: %s", toPath)
+
+		logger.Log(ctx, slog.LevelInfo, "overlay", slog.String("toPath", toPath))
 		return nil
 	}
-	generateExcludeFile := func(fs billy.Filesystem, fromPath string, isDir bool) error {
+	generateExcludeFile := func(ctx context.Context, fs billy.Filesystem, fromPath string, isDir bool) error {
 		if isDir {
 			return nil
 		}
-		excludePath, err := filesystem.MovePath(fromPath, fromDir, filepath.Join(gcRootDir, path.GeneratedChangesExcludeDir))
+		excludePath, err := filesystem.MovePath(ctx, fromPath, fromDir, filepath.Join(gcRootDir, path.GeneratedChangesExcludeDir))
 		if err != nil {
 			return err
 		}
-		if err := filesystem.CopyFile(fs, fromPath, excludePath); err != nil {
+		if err := filesystem.CopyFile(ctx, fs, fromPath, excludePath); err != nil {
 			return err
 		}
-		logrus.Infof("Exclude: %s", fromPath)
+
+		logger.Log(ctx, slog.LevelInfo, "exclude", slog.String("fromPath", fromPath))
 		return nil
 	}
-	generatePatchFile := func(fs billy.Filesystem, fromPath, toPath string, isDir bool) error {
+	generatePatchFile := func(ctx context.Context, fs billy.Filesystem, fromPath, toPath string, isDir bool) error {
 		if isDir {
 			return nil
 		}
-		p, err := filesystem.MovePath(fromPath, fromDir, "")
+
+		p, err := filesystem.MovePath(ctx, fromPath, fromDir, "")
 		if err != nil {
 			return err
 		}
+
 		if _, ok := replacePathsMap[p]; ok {
-			if err := generateExcludeFile(fs, fromPath, isDir); err != nil {
+			if err := generateExcludeFile(ctx, fs, fromPath, isDir); err != nil {
 				return err
 			}
-			if err := generateOverlayFile(fs, toPath, isDir); err != nil {
+			if err := generateOverlayFile(ctx, fs, toPath, isDir); err != nil {
 				return err
 			}
 			return nil
 		}
+
 		patchPath := filepath.Join(gcRootDir, path.GeneratedChangesPatchDir, p)
 		patchPathWithExt := fmt.Sprintf(patchFmt, patchPath)
-		generatedPatch, err := diff.GeneratePatch(fs, patchPathWithExt, fromPath, toPath)
+		generatedPatch, err := diff.GeneratePatch(ctx, fs, patchPathWithExt, fromPath, toPath)
 		if err != nil {
 			return err
 		}
 		if generatedPatch {
-			logrus.Infof("Patch: %s", patchPath)
+			logger.Log(ctx, slog.LevelInfo, "patch", slog.String("patchPath", patchPath))
 		}
+
 		return nil
 	}
-	return filesystem.CompareDirs(fs, fromDir, toDir, generateExcludeFile, generateOverlayFile, generatePatchFile)
+	return filesystem.CompareDirs(ctx, fs, fromDir, toDir, generateExcludeFile, generateOverlayFile, generatePatchFile)
 }
 
-func removeAllGeneratedChanges(fs billy.Filesystem, gcRootDir string) error {
+func removeAllGeneratedChanges(ctx context.Context, fs billy.Filesystem, gcRootDir string) error {
 	// gcRootDir should always end with path.GeneratedChangesDir
 	if !strings.HasSuffix(gcRootDir, path.GeneratedChangesDir) {
 		return fmt.Errorf("root directory for generated changes should end with %s, received: %s", path.GeneratedChangesDir, gcRootDir)
@@ -107,7 +116,7 @@ func removeAllGeneratedChanges(fs billy.Filesystem, gcRootDir string) error {
 		return err
 	}
 	dependenciesPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir)
-	exists, err := filesystem.PathExists(fs, dependenciesPath)
+	exists, err := filesystem.PathExists(ctx, fs, dependenciesPath)
 	if err != nil {
 		return err
 	}
@@ -125,7 +134,7 @@ func removeAllGeneratedChanges(fs billy.Filesystem, gcRootDir string) error {
 		}
 		dependencyName := fileInfo.Name()
 		newRootDir := filepath.Join(dependenciesPath, dependencyName, path.GeneratedChangesDir)
-		if err := removeAllGeneratedChanges(fs, newRootDir); err != nil {
+		if err := removeAllGeneratedChanges(ctx, fs, newRootDir); err != nil {
 			return err
 		}
 	}

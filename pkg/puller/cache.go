@@ -1,27 +1,27 @@
 package puller
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
+// RootCache is the cache at the root of the repository
 var RootCache cacher = &noopCache{}
 
 // InitRootCache initializes a cache at the repository's root to be used, if it does not currently exist
-func InitRootCache(cacheMode bool, path string) error {
+func InitRootCache(ctx context.Context, repoRoot string, cacheMode bool, path string) error {
 	if !cacheMode {
 		return nil
 	}
-	logrus.Infof("Setting up cache at %s", path)
+
+	logger.Log(ctx, slog.LevelInfo, "setting up cache", slog.String("path", path))
 	// Get repository filesystem
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("unable to get current working directory: %s", err)
-	}
 	rootFs := filesystem.GetFilesystem(repoRoot)
 
 	// Instantiate cache
@@ -40,39 +40,34 @@ func InitRootCache(cacheMode bool, path string) error {
 }
 
 // CleanRootCache removes any existing entries in the cache
-func CleanRootCache(path string) error {
-	// Get repository filesystem
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
+func CleanRootCache(ctx context.Context, repoRoot string, path string) error {
 	rootFs := filesystem.GetFilesystem(repoRoot)
 	if err := filesystem.RemoveAll(rootFs, path); err != nil {
 		return err
 	}
-	return filesystem.PruneEmptyDirsInPath(rootFs, path)
+	return filesystem.PruneEmptyDirsInPath(ctx, rootFs, path)
 }
 
 type cacher interface {
 	// Add adds a provided path in the fs to the cache under the given key
 	// If it was successfully added, it returns true
-	Add(key string, fs billy.Filesystem, path string) (bool, error)
+	Add(ctx context.Context, key string, fs billy.Filesystem, path string) (bool, error)
 
 	// Get gets the value of key from the cache and places it at the path in fs
 	// If it does not exist, it return false
-	Get(key string, fs billy.Filesystem, path string) (bool, error)
+	Get(ctx context.Context, key string, fs billy.Filesystem, path string) (bool, error)
 }
 
 // noopCache doesn't do anything
 type noopCache struct{}
 
 // Add does not do anything
-func (c *noopCache) Add(key string, fs billy.Filesystem, path string) (bool, error) {
+func (c *noopCache) Add(ctx context.Context, key string, fs billy.Filesystem, path string) (bool, error) {
 	return false, nil
 }
 
 // Get does not do anything
-func (c *noopCache) Get(key string, fs billy.Filesystem, path string) (bool, error) {
+func (c *noopCache) Get(ctx context.Context, key string, fs billy.Filesystem, path string) (bool, error) {
 	return false, nil
 }
 
@@ -83,22 +78,22 @@ type cache struct {
 }
 
 // Add copies the contents of the path in fs to the path specified by key in the cacheFs
-func (c *cache) Add(key string, fs billy.Filesystem, path string) (bool, error) {
+func (c *cache) Add(ctx context.Context, key string, fs billy.Filesystem, path string) (bool, error) {
 	if len(key) == 0 {
 		// cannot cache without key
 		return false, nil
 	}
 	// Get paths from perspective of rootFs
-	rootPath, err := c.getRootPath(fs, path)
+	rootPath, err := c.getRootPath(ctx, fs, path)
 	if err != nil {
 		return false, err
 	}
-	rootCacheKeyPath, err := c.getRootPath(c.cacheFs, key)
+	rootCacheKeyPath, err := c.getRootPath(ctx, c.cacheFs, key)
 	if err != nil {
 		return false, err
 	}
 	// Remove any existing keys at that path
-	if err := c.removeKey(key); err != nil {
+	if err := c.removeKey(ctx, key); err != nil {
 		return false, err
 	}
 	// Figure out if you are adding a directory or a file
@@ -111,20 +106,20 @@ func (c *cache) Add(key string, fs billy.Filesystem, path string) (bool, error) 
 		return false, fmt.Errorf("cannot cache directory located at %s: caching files is not supported", filesystem.GetAbsPath(fs, path))
 	}
 	// Perform copying
-	err = filesystem.CopyDir(c.rootFs, rootPath, rootCacheKeyPath)
+	err = filesystem.CopyDir(ctx, c.rootFs, rootPath, rootCacheKeyPath)
 	if err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (c *cache) Get(key string, fs billy.Filesystem, path string) (bool, error) {
+func (c *cache) Get(ctx context.Context, key string, fs billy.Filesystem, path string) (bool, error) {
 	if len(key) == 0 {
 		// cannot cache without key
 		return false, nil
 	}
 	// Check if cache entry exists
-	exists, err := filesystem.PathExists(c.cacheFs, key)
+	exists, err := filesystem.PathExists(ctx, c.cacheFs, key)
 	if err != nil {
 		return false, fmt.Errorf("encountered error while trying to get key %s from cache: %s", key, err)
 	}
@@ -133,11 +128,11 @@ func (c *cache) Get(key string, fs billy.Filesystem, path string) (bool, error) 
 		return false, nil
 	}
 	// Get paths from perspective of rootFs
-	rootPath, err := c.getRootPath(fs, path)
+	rootPath, err := c.getRootPath(ctx, fs, path)
 	if err != nil {
 		return false, err
 	}
-	rootCacheKeyPath, err := c.getRootPath(c.cacheFs, key)
+	rootCacheKeyPath, err := c.getRootPath(ctx, c.cacheFs, key)
 	if err != nil {
 		return false, err
 	}
@@ -151,23 +146,23 @@ func (c *cache) Get(key string, fs billy.Filesystem, path string) (bool, error) 
 		return false, fmt.Errorf("cannot retrieve non-directory located at %s: only retrieving directories from cache is supported", filesystem.GetAbsPath(c.cacheFs, key))
 	}
 	// Perform copying
-	err = filesystem.CopyDir(c.rootFs, rootCacheKeyPath, rootPath)
+	err = filesystem.CopyDir(ctx, c.rootFs, rootCacheKeyPath, rootPath)
 	if err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (c *cache) getRootPath(fs billy.Filesystem, path string) (string, error) {
+func (c *cache) getRootPath(ctx context.Context, fs billy.Filesystem, path string) (string, error) {
 	absPath := filesystem.GetAbsPath(fs, path)
-	rootPath, err := filesystem.MovePath(absPath, c.rootFs.Root(), "")
+	rootPath, err := filesystem.MovePath(ctx, absPath, c.rootFs.Root(), "")
 	if err != nil {
 		return "", fmt.Errorf("unable to find %s in %s: %s", absPath, c.rootFs.Root(), err)
 	}
 	return rootPath, err
 }
 
-func (c *cache) removeKey(key string) error {
+func (c *cache) removeKey(ctx context.Context, key string) error {
 	if err := filesystem.RemoveAll(c.cacheFs, key); err != nil {
 		return fmt.Errorf("unable to remove key %s from cache: %s", key, err)
 	}

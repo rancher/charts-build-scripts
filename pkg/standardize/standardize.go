@@ -1,15 +1,17 @@
 package standardize
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/zip"
-	"github.com/sirupsen/logrus"
 
 	helmChart "helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
@@ -18,21 +20,21 @@ import (
 // RestructureChartsAndAssets takes in a Helm repository and restructures the contents of assets/ based on the contents of charts/
 // It then dumps the created assets/ back into charts/ and regenerates the Helm index.
 // As a result, the final outputted Helm repository can now be used by the charts-build-scripts as it has been standardized.
-func RestructureChartsAndAssets(repoFs billy.Filesystem) error {
-	exists, err := filesystem.PathExists(repoFs, path.RepositoryChartsDir)
+func RestructureChartsAndAssets(ctx context.Context, repoFs billy.Filesystem) error {
+	exists, err := filesystem.PathExists(ctx, repoFs, path.RepositoryChartsDir)
 	if err != nil {
 		return fmt.Errorf("encountered error while checking if %s exists: %s", path.RepositoryChartsDir, err)
 	}
 	if !exists {
 		return fmt.Errorf("could not find charts in repository rooted at %s", repoFs.Root())
 	}
-	return standardizeAssetsFromCharts(repoFs)
+	return standardizeAssetsFromCharts(ctx, repoFs)
 }
 
-func standardizeAssetsFromCharts(repoFs billy.Filesystem) error {
+func standardizeAssetsFromCharts(ctx context.Context, repoFs billy.Filesystem) error {
 	// Collect all valid charts from charts directory
 	targetChartPaths := make(map[string]*helmChart.Chart)
-	collectAllValidCharts := func(fs billy.Filesystem, path string, isDir bool) error {
+	collectAllValidCharts := func(ctx context.Context, fs billy.Filesystem, path string, isDir bool) error {
 		if isDir {
 			return nil
 		}
@@ -48,18 +50,20 @@ func standardizeAssetsFromCharts(repoFs billy.Filesystem) error {
 		}
 		return nil
 	}
-	logrus.Infof("Collecting valid charts from %s", path.RepositoryChartsDir)
-	if err := filesystem.WalkDir(repoFs, path.RepositoryChartsDir, collectAllValidCharts); err != nil {
+	// Collect all charts from charts directory
+	logger.Log(ctx, slog.LevelInfo, "collecting valid charts", slog.String("RepositoryChartsDir", path.RepositoryChartsDir))
+
+	if err := filesystem.WalkDir(ctx, repoFs, path.RepositoryChartsDir, collectAllValidCharts); err != nil {
 		return fmt.Errorf("encountered error while trying to find Helm charts in repository: %s", err)
 	}
 	// Ensure you do not collect subcharts defined within charts
-	logrus.Infof("Removing collected subcharts")
+	logger.Log(ctx, slog.LevelInfo, "removing collected subcharts")
 	for chartPath := range targetChartPaths {
 		chartPathDir := chartPath
 		for {
 			chartPathDir = filepath.Dir(chartPathDir)
 			if chartPathDir == "." {
-				logrus.Debugf("Identified chart at path %s", chartPath)
+				logger.Log(ctx, slog.LevelDebug, "identified chart", slog.String("chartPath", chartPath))
 				break
 			}
 			_, ok := targetChartPaths[chartPathDir]
@@ -71,7 +75,7 @@ func standardizeAssetsFromCharts(repoFs billy.Filesystem) error {
 		}
 	}
 	// Ensure that charts names + versions are unique
-	logrus.Infof("Ensuring chart versions are unique")
+	logger.Log(ctx, slog.LevelInfo, "ensuring chart versions are unique")
 	targetChartsVersions := make(map[string]string)
 	for chartPath, chart := range targetChartPaths {
 		chartVersion := fmt.Sprintf("%s-%s", chart.Metadata.Name, chart.Metadata.Version)
@@ -80,6 +84,9 @@ func standardizeAssetsFromCharts(repoFs billy.Filesystem) error {
 			targetChartsVersions[chartVersion] = chartPath
 			continue
 		}
+
+		logger.Log(ctx, slog.LevelError, "chart version conflict", slog.String("chart.Metadata.Name", chart.Metadata.Name), slog.String("chart.Metadata.Version", chart.Metadata.Version))
+		logger.Log(ctx, slog.LevelError, "chart version conflict", slog.String("currChartPath", currChartPath), slog.String("chartPath", chartPath))
 		return fmt.Errorf("chart %s at version %s is declared in %s and %s", chart.Metadata.Name, chart.Metadata.Version, currChartPath, chartPath)
 	}
 	// Archive charts into assets
@@ -88,7 +95,7 @@ func standardizeAssetsFromCharts(repoFs billy.Filesystem) error {
 	}
 	for chartPath, chart := range targetChartPaths {
 		chartAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, chart.Metadata.Name)
-		if _, err := helm.GenerateArchive(repoFs, repoFs, chartPath, chartAssetsDirpath, nil); err != nil {
+		if _, err := helm.GenerateArchive(ctx, repoFs, repoFs, chartPath, chartAssetsDirpath, nil); err != nil {
 			return fmt.Errorf("encountered error while trying to update archive based on chart in %s: %s", chartPath, err)
 		}
 	}
@@ -97,11 +104,11 @@ func standardizeAssetsFromCharts(repoFs billy.Filesystem) error {
 		return fmt.Errorf("unable to remove all assets to reconstruct directory: %s", err)
 	}
 	// Reconstruct charts
-	if err := zip.DumpAssets(repoFs.Root(), ""); err != nil {
+	if err := zip.DumpAssets(ctx, repoFs.Root(), ""); err != nil {
 		return fmt.Errorf("encountered error while trying to dump Helm charts in repository: %s", err)
 	}
 	// Reconstruct index.yaml
-	if err := helm.CreateOrUpdateHelmIndex(repoFs); err != nil {
+	if err := helm.CreateOrUpdateHelmIndex(ctx, repoFs); err != nil {
 		return fmt.Errorf("encountered error while trying to recreate Helm index: %s", err)
 	}
 	return nil

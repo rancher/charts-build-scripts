@@ -1,27 +1,29 @@
 package charts
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"github.com/sirupsen/logrus"
 	"helm.sh/helm/v3/pkg/registry"
 )
 
 // GetPackages returns all packages found within the repository. If there is a specific package provided, it will return just that Package in the list
-func GetPackages(repoRoot string, specificPackage string) ([]*Package, error) {
+func GetPackages(ctx context.Context, repoRoot, specificPackage string) ([]*Package, error) {
 	var packageList []string
 	var err error
 
 	// Parse option or get list of all packages in the repo
-	packageList, err = ListPackages(repoRoot, specificPackage)
+	packageList, err = ListPackages(ctx, repoRoot, specificPackage)
 	if err != nil {
 		return nil, fmt.Errorf("encountered error while listing packages: %v", err)
 	}
@@ -30,7 +32,7 @@ func GetPackages(repoRoot string, specificPackage string) ([]*Package, error) {
 	var packages []*Package
 	rootFs := filesystem.GetFilesystem(repoRoot)
 	for _, packagePath := range packageList {
-		pkg, err := GetPackage(rootFs, packagePath)
+		pkg, err := GetPackage(ctx, rootFs, packagePath)
 		if err != nil {
 			return nil, err
 		}
@@ -42,49 +44,51 @@ func GetPackages(repoRoot string, specificPackage string) ([]*Package, error) {
 	return packages, nil
 }
 
-func ListPackages(repoRoot string, specificPackage string) ([]string, error) {
+// ListPackages returns a list of packages found within the repository. If there is a specific package provided, it will return just that Package in the list
+func ListPackages(ctx context.Context, repoRoot string, specificPackage string) ([]string, error) {
 	var packageList []string
 	rootFs := filesystem.GetFilesystem(repoRoot)
-	exists, err := filesystem.PathExists(rootFs, path.RepositoryPackagesDir)
+	exists, err := filesystem.PathExists(ctx, rootFs, path.RepositoryPackagesDir)
 	if err != nil || !exists {
 		return packageList, err
 	}
 
-	listPackages := func(fs billy.Filesystem, dirPath string, isDir bool) error {
+	listPackages := func(ctx context.Context, fs billy.Filesystem, dirPath string, isDir bool) error {
 		if !isDir {
 			return nil
 		}
 		if len(specificPackage) > 0 {
 			packagePrefix := filepath.Join(path.RepositoryPackagesDir, specificPackage)
 			if dirPath != packagePrefix && !strings.HasPrefix(dirPath, packagePrefix+"/") {
-				logrus.Debugf("ignore %s based on packagePrefix %s", dirPath, packagePrefix)
 				// Ignore packages not selected by specificPackage
 				return nil
 			}
 		}
-		exists, err := filesystem.PathExists(rootFs, filepath.Join(dirPath, path.PackageOptionsFile))
+		exists, err := filesystem.PathExists(ctx, rootFs, filepath.Join(dirPath, path.PackageOptionsFile))
 		if err != nil {
 			return err
 		}
 		if !exists {
 			return nil
 		}
-		packageName, err := filesystem.MovePath(dirPath, path.RepositoryPackagesDir, "")
+		packageName, err := filesystem.MovePath(ctx, dirPath, path.RepositoryPackagesDir, "")
 		if err != nil {
 			return err
 		}
 		packageList = append(packageList, packageName)
+		logger.Log(ctx, slog.LevelDebug, "package list", slog.Any("packageList", packageList))
+
 		return nil
 	}
 
-	return packageList, filesystem.WalkDir(rootFs, path.RepositoryPackagesDir, listPackages)
+	return packageList, filesystem.WalkDir(ctx, rootFs, path.RepositoryPackagesDir, listPackages)
 }
 
 // GetPackage returns a Package based on the options provided
-func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
+func GetPackage(ctx context.Context, rootFs billy.Filesystem, name string) (*Package, error) {
 	// Get pkgFs
 	packageRoot := filepath.Join(path.RepositoryPackagesDir, name)
-	exists, err := filesystem.PathExists(rootFs, packageRoot)
+	exists, err := filesystem.PathExists(ctx, rootFs, packageRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -96,10 +100,11 @@ func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 		return nil, err
 	}
 	// Get package options from package.yaml
-	packageOpt, err := options.LoadPackageOptionsFromFile(pkgFs, path.PackageOptionsFile)
+	packageOpt, err := options.LoadPackageOptionsFromFile(ctx, pkgFs, path.PackageOptionsFile)
 	if err != nil {
 		return nil, err
 	}
+
 	// version and packageVersion can not exist at the same time although both are optional
 	if packageOpt.Version != nil && packageOpt.PackageVersion != nil {
 		return nil, fmt.Errorf("cannot have both version and packageVersion at the same time")
@@ -114,13 +119,13 @@ func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 	}
 
 	// Get charts
-	chart, err := GetChartFromOptions(packageOpt.MainChartOptions)
+	chart, err := GetChartFromOptions(ctx, packageOpt.MainChartOptions)
 	if err != nil {
 		return nil, err
 	}
 	var additionalCharts []*AdditionalChart
 	for _, additionalChartOptions := range packageOpt.AdditionalChartOptions {
-		additionalChart, err := GetAdditionalChartFromOptions(additionalChartOptions)
+		additionalChart, err := GetAdditionalChartFromOptions(ctx, additionalChartOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -134,6 +139,7 @@ func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 		PackageVersion:   packageOpt.PackageVersion,
 		AdditionalCharts: additionalCharts,
 		DoNotRelease:     packageOpt.DoNotRelease,
+		Auto:             packageOpt.Auto,
 
 		fs:     pkgFs,
 		rootFs: rootFs,
@@ -142,8 +148,8 @@ func GetPackage(rootFs billy.Filesystem, name string) (*Package, error) {
 }
 
 // GetChartFromOptions returns a Chart based on the options provided
-func GetChartFromOptions(opt options.ChartOptions) (Chart, error) {
-	upstream, err := GetUpstream(opt.UpstreamOptions)
+func GetChartFromOptions(ctx context.Context, opt options.ChartOptions) (Chart, error) {
+	upstream, err := GetUpstream(ctx, opt.UpstreamOptions)
 	if err != nil {
 		return Chart{}, err
 	}
@@ -160,7 +166,7 @@ func GetChartFromOptions(opt options.ChartOptions) (Chart, error) {
 }
 
 // GetAdditionalChartFromOptions returns an AdditionalChart based on the options provided
-func GetAdditionalChartFromOptions(opt options.AdditionalChartOptions) (AdditionalChart, error) {
+func GetAdditionalChartFromOptions(ctx context.Context, opt options.AdditionalChartOptions) (AdditionalChart, error) {
 	var a AdditionalChart
 	if opt.UpstreamOptions == nil && opt.CRDChartOptions == nil {
 		return a, fmt.Errorf("cannot parse additional chart options: you must either provide a URL (UpstreamOptions) or provide CRDChartOptions")
@@ -177,7 +183,7 @@ func GetAdditionalChartFromOptions(opt options.AdditionalChartOptions) (Addition
 		ReplacePaths:       opt.ReplacePaths,
 	}
 	if opt.UpstreamOptions != nil {
-		upstream, err := GetUpstream(*opt.UpstreamOptions)
+		upstream, err := GetUpstream(ctx, *opt.UpstreamOptions)
 		if err != nil {
 			return a, err
 		}
@@ -210,7 +216,7 @@ func GetAdditionalChartFromOptions(opt options.AdditionalChartOptions) (Addition
 }
 
 // GetUpstream returns the appropriate Upstream given the options provided
-func GetUpstream(opt options.UpstreamOptions) (puller.Puller, error) {
+func GetUpstream(ctx context.Context, opt options.UpstreamOptions) (puller.Puller, error) {
 	if opt.URL == "" {
 		return nil, fmt.Errorf("URL is not defined")
 	}
@@ -219,7 +225,7 @@ func GetUpstream(opt options.UpstreamOptions) (puller.Puller, error) {
 		return upstream, nil
 	}
 	if strings.HasPrefix(opt.URL, "packages/") {
-		packageName, err := filesystem.MovePath(opt.URL, "packages", "")
+		packageName, err := filesystem.MovePath(ctx, opt.URL, "packages", "")
 		if err != nil {
 			return nil, err
 		}
@@ -238,7 +244,7 @@ func GetUpstream(opt options.UpstreamOptions) (puller.Puller, error) {
 		return upstream, nil
 	}
 	if strings.HasSuffix(opt.URL, ".git") {
-		upstream, err := puller.GetGithubRepository(opt, nil)
+		upstream, err := puller.GetGithubRepository(opt, opt.ChartRepoBranch)
 		if err != nil {
 			return nil, err
 		}

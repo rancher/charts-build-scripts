@@ -1,13 +1,15 @@
 package charts
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/sirupsen/logrus"
 )
 
 // LocalPackage represents source that is a package
@@ -18,11 +20,11 @@ type LocalPackage struct {
 }
 
 // Pull grabs the package
-func (u LocalPackage) Pull(rootFs, fs billy.Filesystem, path string) error {
+func (u LocalPackage) Pull(ctx context.Context, rootFs, fs billy.Filesystem, path string) error {
 	if strings.HasPrefix(path, u.Name) {
 		return fmt.Errorf("cannot add package to itself")
 	}
-	pkg, err := GetPackage(rootFs, u.Name)
+	pkg, err := GetPackage(ctx, rootFs, u.Name)
 	if err != nil {
 		return err
 	}
@@ -30,17 +32,17 @@ func (u LocalPackage) Pull(rootFs, fs billy.Filesystem, path string) error {
 		return fmt.Errorf("could not find local package %s", u.Name)
 	}
 	// Check if the chart's working directory has already been prepared
-	packageAlreadyPrepared, err := filesystem.PathExists(pkg.fs, pkg.Chart.WorkingDir)
+	packageAlreadyPrepared, err := filesystem.PathExists(ctx, pkg.fs, pkg.Chart.WorkingDir)
 	if err != nil {
 		return fmt.Errorf("encountered error while checking if package %s was already prepared: %s", u.Name, err)
 	}
 	if packageAlreadyPrepared {
-		logrus.Infof("Package %s seems to be already prepared, skipping prepare", u.Name)
+		logger.Log(ctx, slog.LevelInfo, "package already prepared", slog.String("name", u.Name))
 	} else {
-		if err := pkg.Prepare(); err != nil {
+		if err := pkg.Prepare(ctx); err != nil {
 			return err
 		}
-		defer pkg.Clean()
+		defer pkg.Clean(ctx)
 	}
 	// Copy
 	repositoryPackageWorkingDir, err := filesystem.GetRelativePath(rootFs, filesystem.GetAbsPath(pkg.fs, pkg.Chart.WorkingDir))
@@ -51,11 +53,11 @@ func (u LocalPackage) Pull(rootFs, fs billy.Filesystem, path string) error {
 	if err != nil {
 		return err
 	}
-	if err := filesystem.CopyDir(rootFs, repositoryPackageWorkingDir, repositoryPath); err != nil {
+	if err := filesystem.CopyDir(ctx, rootFs, repositoryPackageWorkingDir, repositoryPath); err != nil {
 		return fmt.Errorf("encountered error while copying prepared package into path: %s", err)
 	}
 	if u.Subdirectory != nil && len(*u.Subdirectory) > 0 {
-		if err := filesystem.MakeSubdirectoryRoot(fs, path, *u.Subdirectory); err != nil {
+		if err := filesystem.MakeSubdirectoryRoot(ctx, fs, path, *u.Subdirectory); err != nil {
 			return err
 		}
 	}
@@ -82,7 +84,7 @@ func (u LocalPackage) String() string {
 type Local struct{}
 
 // Pull grabs the Helm chart by preparing the package itself
-func (u Local) Pull(rootFs, fs billy.Filesystem, path string) error {
+func (u Local) Pull(ctx context.Context, rootFs, fs billy.Filesystem, path string) error {
 	return nil
 }
 

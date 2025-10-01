@@ -6,16 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/Masterminds/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-github/v41/github"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"golang.org/x/oauth2"
@@ -76,7 +80,7 @@ func loadPullRequestValidation(token, prNum string, dep *lifecycle.Dependencies)
 //   - Checkpoint 0: release.yaml file is valid
 //   - TODO: Checkpoint 1: Compare contents of assets/ to charts/
 //   - TODO: Checkpoint 2: Compare assets against index.yaml
-func ValidatePullRequest(token, prNum string, dep *lifecycle.Dependencies) error {
+func ValidatePullRequest(ctx context.Context, token, prNum string, dep *lifecycle.Dependencies) error {
 
 	v, err := loadPullRequestValidation(token, prNum, dep)
 	if err != nil {
@@ -84,11 +88,11 @@ func ValidatePullRequest(token, prNum string, dep *lifecycle.Dependencies) error
 	}
 
 	// Checkpoint 0
-	releaseOpts, err := options.LoadReleaseOptionsFromFile(dep.RootFs, path.RepositoryReleaseYaml)
+	releaseOpts, err := options.LoadReleaseOptionsFromFile(ctx, dep.RootFs, path.RepositoryReleaseYaml)
 	if err != nil {
 		return err
 	}
-	if err := v.validateReleaseYaml(releaseOpts); err != nil {
+	if err := v.validateReleaseYaml(ctx, releaseOpts); err != nil {
 		return err
 	}
 
@@ -99,7 +103,7 @@ func ValidatePullRequest(token, prNum string, dep *lifecycle.Dependencies) error
 //   - each chart version in release.yaml does not modify an already released chart.
 //   - each chart version in release.yaml is exactly 1 more patch/minor version than the previous chart version if the chart is being released.
 //   - each chart version in release.yaml that is being forward-ported is within the range of the current branch version.
-func (v *validation) validateReleaseYaml(releaseOpts options.ReleaseOptions) error {
+func (v *validation) validateReleaseYaml(ctx context.Context, releaseOpts options.ReleaseOptions) error {
 	assetFilePaths := make(map[string]string, len(releaseOpts))
 
 	for chart, versions := range releaseOpts {
@@ -113,8 +117,8 @@ func (v *validation) validateReleaseYaml(releaseOpts options.ReleaseOptions) err
 			if len(releasedVersions) <= 1 {
 				continue // net-new chart
 			}
-			latestReleasedVersion := releasedVersions[1].Version
-			if err := v.checkMinorPatchVersion(version, latestReleasedVersion); err != nil {
+
+			if err := v.checkMinorPatchVersion(ctx, version, releasedVersions); err != nil {
 				return err
 			}
 		}
@@ -124,9 +128,12 @@ func (v *validation) validateReleaseYaml(releaseOpts options.ReleaseOptions) err
 }
 
 // checkMinorPatchVersion will check if the chart version is exactly 1 more patch/minor version than the previous chart version or if the chart is being released. If the chart is being forward-ported, this validation is skipped.
-func (v *validation) checkMinorPatchVersion(version string, latestReleasedVersion string) error {
+func (v *validation) checkMinorPatchVersion(ctx context.Context, version string, releasedVersions []lifecycle.Asset) error {
+
+	latestReleasedVersion := releasedVersions[0].Version
+
 	// check if the chart version is being released or forward-ported
-	release, err := v.dep.VR.CheckChartVersionToRelease(version)
+	release, err := v.dep.VR.CheckChartVersionToRelease(ctx, version)
 	if err != nil {
 		return err
 	}
@@ -140,9 +147,35 @@ func (v *validation) checkMinorPatchVersion(version string, latestReleasedVersio
 	if err != nil {
 		return err
 	}
+
 	newVer, err := semver.NewVersion(version)
 	if err != nil {
 		return err
+	}
+
+	if newVer.Minor() < latestVer.Minor() {
+		// get the latest version that will be the 1 minor version below the new version
+		for _, releasedVersion := range releasedVersions {
+			releasedSemver, err := semver.NewVersion(releasedVersion.Version)
+			if err != nil {
+				continue
+			}
+			if newVer.Minor() > releasedSemver.Minor() {
+				continue
+			}
+			if releasedSemver.Patch() == newVer.Patch() &&
+				releasedSemver.Minor() == newVer.Minor() &&
+				releasedSemver.Major() == newVer.Major() {
+				continue
+			}
+			if newVer.Minor() == releasedSemver.Minor() {
+				if newVer.Patch() == releasedSemver.Patch()+1 {
+					latestVer = releasedSemver
+					break
+				}
+			}
+
+		}
 	}
 
 	// calculate the version bumps
@@ -151,7 +184,7 @@ func (v *validation) checkMinorPatchVersion(version string, latestReleasedVersio
 
 	// the version bump must be exactly 1 more patch or minor version than the previous chart version
 	if minorDiff > 1 || patchDiff > 1 || minorDiff > 0 && patchDiff > 0 {
-		return fmt.Errorf("%w; version: %s; latest version: %s", errMinorPatchVersion, version, latestReleasedVersion)
+		return fmt.Errorf("%w: version: %s", errMinorPatchVersion, version)
 	}
 
 	return nil
@@ -181,9 +214,9 @@ func (v *validation) checkNeverModifyReleasedChart(assetFilePaths map[string]str
 }
 
 // CompareIndexFiles will load the current index.yaml file from the root filesystem and compare it with the index.yaml file from charts.rancher.io
-func CompareIndexFiles(rootFs billy.Filesystem) error {
+func CompareIndexFiles(ctx context.Context, rootFs billy.Filesystem) error {
 	// verify, search & open current index.yaml file
-	localIndexYaml, err := helm.OpenIndexYaml(rootFs)
+	localIndexYaml, err := helm.OpenIndexYaml(ctx, rootFs)
 	if err != nil {
 		return err
 	}
@@ -224,8 +257,81 @@ func CompareIndexFiles(rootFs billy.Filesystem) error {
 
 	// compare both index.yaml files
 	if diff := cmp.Diff(localIndexYaml, tempIndexYaml); diff != "" {
-		fmt.Println(diff)
+		logger.Log(ctx, slog.LevelDebug, "index.yaml files are different", slog.String("diff", diff))
 		return errors.New("index.yaml files are different at git repository and charts.rancher.io")
 	}
+	return nil
+}
+
+// ValidateIcons will check if the icons are present in the local filesystem and if they are not, it will return an error.
+func ValidateIcons(ctx context.Context, rootFs billy.Filesystem) error {
+	releaseOpts, err := options.LoadReleaseOptionsFromFile(ctx, rootFs, path.RepositoryReleaseYaml)
+	if err != nil {
+		return err
+	}
+
+	releaseOpts.SortBySemver(ctx)
+
+	logger.Log(ctx, slog.LevelInfo, "checking if icons are present in the local filesystem")
+	for chart, versions := range releaseOpts {
+		if isIconException(chart) {
+			logger.Log(ctx, slog.LevelDebug, "skipping icon check for:", slog.String("chart", chart))
+			continue
+		}
+
+		version := versions[len(versions)-1]
+		logger.Log(ctx, slog.LevelDebug, "checking chart", slog.String("chart", chart))
+		if err := loadAndCheckIconPrefix(ctx, rootFs, chart, version); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func isIconException(chart string) bool {
+	if strings.Contains(chart, "-crd") ||
+		strings.Contains(chart, "fleet") ||
+		strings.Contains(chart, "harvester") ||
+		chart == "rancher-webhook" ||
+		chart == "rancher-aks-operator" ||
+		chart == "rancher-eks-operator" ||
+		chart == "rancher-gke-operator" ||
+		chart == "rancher-provisioning-capi" ||
+		chart == "rancher-pushprox" ||
+		chart == "rancher-wins-upgrader" ||
+		chart == "remotedialer-proxy" ||
+		chart == "system-upgrade-controller" ||
+		chart == "ui-plugin-operator" ||
+		chart == "rancher-csp-adapter" {
+		return true
+	}
+	return false
+}
+
+func loadAndCheckIconPrefix(ctx context.Context, rootFs billy.Filesystem, chart string, chartVersion string) error {
+	metaData, err := loadChartYaml(rootFs, chart, chartVersion)
+	if err != nil {
+		return err
+	}
+
+	logger.Log(ctx, slog.LevelDebug, "checking if chart has downloaded icon")
+	iconField := metaData.Icon
+
+	// Check file prefix if it is a URL just skip this process
+	if !strings.HasPrefix(iconField, "file://") {
+		logger.Log(ctx, slog.LevelError, "icon path is not a file:// prefix")
+		return errors.New("icon path is not a file:// prefix, after make prepare, you need to run make icon for chart:" + chart)
+	}
+
+	exist, err := filesystem.PathExists(ctx, rootFs, strings.TrimPrefix(iconField, "file://"))
+	if err != nil {
+		return err
+	}
+
+	if !exist {
+		return errors.New("icon path is a file:// prefix, but the icon does not exist, after 'make prepare', you need to run 'make icon' for chart:" + chart)
+	}
+
 	return nil
 }

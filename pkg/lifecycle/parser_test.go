@@ -1,6 +1,7 @@
 package lifecycle
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -46,6 +47,7 @@ func Test_getAssetsMapFromIndex(t *testing.T) {
 
 func Test_populateAssetsVersionsPath(t *testing.T) {
 	t.Run("Populate assets versions map successfully", func(t *testing.T) {
+		ctx := context.Background()
 		// Create a test instance of Dependencies with a pre-populated assetsVersionsMap
 		ld := &Dependencies{
 			// rootFs: fs,
@@ -57,20 +59,20 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 					{Version: "1.0.0"},
 				},
 			},
-			walkDirWrapper: func(fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error {
+			walkDirWrapper: func(ctx context.Context, fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error {
 				// Simulate the behavior of filesystem.WalkDir as needed for your test.
 				if dirPath == "assets/chart1" {
-					doFunc(nil, "assets/chart1/chart1-1.0.0.tgz", false)
+					doFunc(ctx, nil, "assets/chart1/chart1-1.0.0.tgz", false)
 				}
 				if dirPath == "assets/chart2" {
-					doFunc(nil, "assets/chart2/chart2-1.0.0.tgz", false)
+					doFunc(ctx, nil, "assets/chart2/chart2-1.0.0.tgz", false)
 				}
 				return nil
 			},
 		}
 
 		// Call the function we're testing
-		err := ld.populateAssetsVersionsPath()
+		err := ld.populateAssetsVersionsPath(ctx)
 		assert.Nil(t, err, "populateAssetsVersionsPath should not have returned an error")
 
 		// Check that the assetsVersionsMap was populated correctly
@@ -94,44 +96,13 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 					{Version: "1.0.0"},
 				},
 			},
-			walkDirWrapper: func(fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error {
-				doFunc(nil, "", false)
+			walkDirWrapper: func(ctx context.Context, fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error {
+				doFunc(ctx, nil, "", false)
 				return fmt.Errorf("Some random error")
 			},
 		}
 
-		err := dependency.populateAssetsVersionsPath()
+		err := dependency.populateAssetsVersionsPath(context.Background())
 		assert.Error(t, err, "populateAssetsVersionsPath should have returned an error")
 	})
-}
-
-func Test_sortAssetsVersions(t *testing.T) {
-	// Arrange
-	dependency := &Dependencies{
-		AssetsVersionsMap: map[string][]Asset{
-			"chart1": {
-				{Version: "1.0.0"},
-				{Version: "0.1.0"},
-				{Version: "0.0.1"},
-			},
-			"chart2": {
-				{Version: "2.0.0"},
-				{Version: "1.1.0"},
-				{Version: "1.0.1"},
-			},
-		},
-	}
-
-	// Act
-	dependency.sortAssetsVersions()
-
-	// Assertions
-	assert.Equal(t, len(dependency.AssetsVersionsMap), 2, "Expected 2 charts in the assetsVersionsMap")
-	assert.Equal(t, dependency.AssetsVersionsMap["chart1"][0].Version, "0.0.1", "Expected 0.0.1")
-	assert.Equal(t, dependency.AssetsVersionsMap["chart1"][1].Version, "0.1.0", "Expected 0.1.0")
-	assert.Equal(t, dependency.AssetsVersionsMap["chart1"][2].Version, "1.0.0", "Expected 1.0.0")
-
-	assert.Equal(t, dependency.AssetsVersionsMap["chart2"][0].Version, "1.0.1", "Expected 1.0.1")
-	assert.Equal(t, dependency.AssetsVersionsMap["chart2"][1].Version, "1.1.0", "Expected 1.1.0")
-	assert.Equal(t, dependency.AssetsVersionsMap["chart2"][2].Version, "2.0.0", "Expected 2.0.0")
 }

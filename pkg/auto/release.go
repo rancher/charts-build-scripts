@@ -1,16 +1,21 @@
 package auto
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"io"
+	"log/slog"
 	"os"
+	"strings"
 
+	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"gopkg.in/yaml.v3"
+	"helm.sh/helm/v3/pkg/chart"
+	helmChartutil "helm.sh/helm/v3/pkg/chartutil"
 )
 
 // Release holds necessary metadata to release a chart version
@@ -26,7 +31,7 @@ type Release struct {
 }
 
 // InitRelease will create the Release struct with access to the necessary dependencies.
-func InitRelease(d *lifecycle.Dependencies, s *lifecycle.Status, v, c, f string) (*Release, error) {
+func InitRelease(ctx context.Context, d *lifecycle.Dependencies, s *lifecycle.Status, v, c, f string) (*Release, error) {
 	r := &Release{
 		git:           d.Git,
 		VR:            d.VR,
@@ -65,7 +70,7 @@ func InitRelease(d *lifecycle.Dependencies, s *lifecycle.Status, v, c, f string)
 	}
 
 	// Check if we have a release.yaml file in the expected path
-	if exist, err := filesystem.PathExists(d.RootFs, path.RepositoryReleaseYaml); err != nil || !exist {
+	if exist, err := filesystem.PathExists(ctx, d.RootFs, path.RepositoryReleaseYaml); err != nil || !exist {
 		return nil, errors.New("release.yaml not found")
 	}
 
@@ -107,65 +112,99 @@ func mountAssetVersionPath(chart, version string) (string, string) {
 	return assetPath, assetTgz
 }
 
-func (r *Release) readReleaseYaml() (map[string][]string, error) {
-	var releaseVersions = make(map[string][]string, 0)
-
-	file, err := os.Open(r.ReleaseYamlPath)
+func readReleaseYaml(ctx context.Context, path string) (map[string][]string, error) {
+	releaseVersions, err := filesystem.LoadYamlFile[map[string][]string](ctx, path, true)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
-	decoder := yaml.NewDecoder(file)
-	if err := decoder.Decode(&releaseVersions); err != nil {
-		if err == io.EOF {
-			// Handle EOF error gracefully
-			return releaseVersions, nil
-		}
-		return nil, err
+	if releaseVersions == nil {
+		return map[string][]string{}, nil
 	}
 
-	return releaseVersions, nil
+	return *releaseVersions, nil
 }
 
-// UpdateReleaseYaml reads and parse the release.yaml file to a struct, appends the new version and writes it back to the file.
-func (r *Release) UpdateReleaseYaml() error {
-	releaseVersions, err := r.readReleaseYaml()
+// UpdateReleaseYaml reads and parse the release.yaml file to a map, appends the new version and writes it back to the file.
+func (r *Release) UpdateReleaseYaml(ctx context.Context, overwrite bool) error {
+	releaseVersions, err := readReleaseYaml(ctx, r.ReleaseYamlPath)
 	if err != nil {
 		return err
 	}
 
-	// Append new version and remove duplicates if any
-	releaseVersions[r.Chart] = append(releaseVersions[r.Chart], r.ChartVersion)
-	releaseVersions[r.Chart] = removeDuplicates(releaseVersions[r.Chart])
+	// Overwrite with the target version or append
+	if overwrite {
+		releaseVersions[r.Chart] = []string{r.ChartVersion}
+	} else {
+		releaseVersions[r.Chart] = append(releaseVersions[r.Chart], r.ChartVersion)
+	}
 
-	// Since we opened and read the file before we can truncate it.
-	outputFile, err := os.Create(r.ReleaseYamlPath)
+	file, err := filesystem.CreateAndOpenYamlFile(ctx, r.ReleaseYamlPath, true)
 	if err != nil {
 		return err
 	}
-	defer outputFile.Close()
 
-	encoder := yaml.NewEncoder(outputFile)
-	encoder.SetIndent(2)
-	if err := encoder.Encode(releaseVersions); err != nil {
+	return filesystem.UpdateYamlFile(file, releaseVersions)
+}
+
+// PullIcon will pull the icon from the chart and save it to the local assets/logos directory
+func (r *Release) PullIcon(ctx context.Context, rootFs billy.Filesystem) error {
+	logger.Log(ctx, slog.LevelInfo, "starting to pull icon process")
+
+	// Get Chart.yaml path and load it
+	chartMetadata, err := loadChartYaml(rootFs, r.Chart, r.ChartVersion)
+	if err != nil {
 		return err
 	}
 
-	return nil
-}
+	logger.Log(ctx, slog.LevelDebug, "checking if chart has downloaded icon")
+	iconField := chartMetadata.Icon
 
-// removeDuplicates takes a slice of strings and returns a new slice with duplicates removed.
-func removeDuplicates(slice []string) []string {
-	seen := make(map[string]struct{}) // map to keep track of seen strings
-	var result []string               // slice to hold the results
-
-	for _, val := range slice {
-		if _, ok := seen[val]; !ok {
-			seen[val] = struct{}{}       // mark string as seen
-			result = append(result, val) // append to result if not seen before
-		}
+	// Check file prefix if it is a URL just skip this process
+	if !strings.HasPrefix(iconField, "file://") {
+		logger.Log(ctx, slog.LevelInfo, "icon path is not a file:// prefix")
+		return nil
 	}
 
-	return result
+	relativeIconPath, _ := strings.CutPrefix(iconField, "file://")
+
+	// Check if icon is already present
+	exists, err := filesystem.PathExists(ctx, rootFs, relativeIconPath)
+	if err != nil {
+		return err
+	}
+
+	// Icon is already present, no need to pull it
+	if exists {
+		logger.Log(ctx, slog.LevelDebug, "icon already exists")
+		return nil
+	}
+
+	// Check if the icon exists in the dev branch
+	if err := r.git.CheckFileExists(relativeIconPath, r.VR.DevBranch); err != nil {
+		logger.Log(ctx, slog.LevelError, "icon file not found in dev branch but should", slog.String("icon", relativeIconPath), logger.Err(err))
+		return errors.New("icon file not found in dev branch but should: " + err.Error())
+	}
+
+	// checkout the icon file from the dev branch
+	if err := r.git.CheckoutFile(r.VR.DevBranch, relativeIconPath); err != nil {
+		return err
+	}
+
+	// git reset return
+	return r.git.ResetHEAD()
+}
+
+func loadChartYaml(rootFs billy.Filesystem, chart string, chartVersion string) (*chart.Metadata, error) {
+	// Get Chart.yaml path and load it
+	chartYamlPath := path.RepositoryChartsDir + "/" + chart + "/" + chartVersion + "/Chart.yaml"
+	absChartPath := filesystem.GetAbsPath(rootFs, chartYamlPath)
+
+	// Load Chart.yaml file
+	chartMetadata, err := helmChartutil.LoadChartfile(absChartPath)
+	if err != nil {
+		return nil, errors.New("could not load: " + chartYamlPath + " err: " + err.Error())
+	}
+
+	return chartMetadata, nil
 }

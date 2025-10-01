@@ -1,8 +1,9 @@
 package repository
 
 import (
+	"context"
 	"fmt"
-	"io/ioutil"
+	"log/slog"
 	"os"
 	"path"
 	"time"
@@ -10,7 +11,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
 // GetRepo returns an existing GitRepository at the path provided
@@ -69,7 +70,7 @@ func CheckoutBranch(repo *git.Repository, branch string) error {
 }
 
 // CommitAll commits all changes, whether or not they have been staged, and creates a commit
-func CommitAll(repo *git.Repository, commitMessage string) error {
+func CommitAll(ctx context.Context, repo *git.Repository, commitMessage string) error {
 	wt, err := repo.Worktree()
 	if err != nil {
 		return err
@@ -81,7 +82,8 @@ func CommitAll(repo *git.Repository, commitMessage string) error {
 	if status.IsClean() {
 		return fmt.Errorf("cannot create commit since there are no files to be committed")
 	}
-	logrus.Infof("Committing the following modified files:\n%s", status)
+
+	logger.Log(ctx, slog.LevelDebug, "committing modified files", slog.String("status", status.String()))
 	if _, err = wt.Add("."); err != nil {
 		return err
 	}
@@ -113,15 +115,15 @@ func GetRepoPath(repo *git.Repository) (string, error) {
 }
 
 // CreateInitialCommit creates an initial commit for a Github repository at the repoPath provided
-func CreateInitialCommit(repo *git.Repository) error {
+func CreateInitialCommit(ctx context.Context, repo *git.Repository) error {
 	repoPath, err := GetRepoPath(repo)
 	if err != nil {
 		return err
 	}
-	if err = ioutil.WriteFile(path.Join(repoPath, "README.md"), []byte{}, 0644); err != nil {
+	if err = os.WriteFile(path.Join(repoPath, "README.md"), []byte{}, 0644); err != nil {
 		return err
 	}
-	return CommitAll(repo, "Create initial commit")
+	return CommitAll(ctx, repo, "Create initial commit")
 }
 
 // GetLocalBranchRefName returns the reference name of a given local branch

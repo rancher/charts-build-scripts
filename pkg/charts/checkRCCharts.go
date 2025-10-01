@@ -1,30 +1,22 @@
 package charts
 
 import (
-	"os"
+	"context"
 	"strings"
 
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/sirupsen/logrus"
 )
 
 // CheckRCCharts checks for any charts that have RC versions
-func CheckRCCharts() map[string][]string {
-
-	// Get the current working directory
-	repoRoot, err := os.Getwd()
-	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
-	}
-
+func CheckRCCharts(ctx context.Context, repoRoot string) (map[string][]string, error) {
 	// Get the filesystem on the repo root
 	repoFs := filesystem.GetFilesystem(repoRoot)
 
 	// Load the release options from the release.yaml file
-	releaseOptions, err := options.LoadReleaseOptionsFromFile(repoFs, "release.yaml")
+	releaseOptions, err := options.LoadReleaseOptionsFromFile(ctx, repoFs, "release.yaml")
 	if err != nil {
-		logrus.Fatalf("Unable to unmarshall release.yaml: %s", err)
+		return nil, err
 	}
 
 	rcChartVersionMap := make(map[string][]string, 0)
@@ -38,5 +30,5 @@ func CheckRCCharts() map[string][]string {
 		}
 	}
 
-	return rcChartVersionMap
+	return rcChartVersionMap, nil
 }

@@ -2,17 +2,18 @@ package charts
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
 
@@ -36,8 +37,8 @@ const ValidateInstallCRDContentsFmt = `#{{- if gt (len (lookup "rbac.authorizati
 const ValidateInstallCRDPerGVKFmt = `# {{- set $found "%s" false -}}`
 
 // GenerateCRDChartFromTemplate copies templateDir over to dstPath
-func GenerateCRDChartFromTemplate(fs billy.Filesystem, dstHelmChartPath, templateDir, crdsDir string) error {
-	exists, err := filesystem.PathExists(fs, templateDir)
+func GenerateCRDChartFromTemplate(ctx context.Context, fs billy.Filesystem, dstHelmChartPath, templateDir, crdsDir string) error {
+	exists, err := filesystem.PathExists(ctx, fs, templateDir)
 	if err != nil {
 		return err
 	}
@@ -47,16 +48,17 @@ func GenerateCRDChartFromTemplate(fs billy.Filesystem, dstHelmChartPath, templat
 	if err := fs.MkdirAll(filepath.Join(dstHelmChartPath, crdsDir), os.ModePerm); err != nil {
 		return err
 	}
-	if err := filesystem.CopyDir(fs, templateDir, dstHelmChartPath); err != nil {
+	if err := filesystem.CopyDir(ctx, fs, templateDir, dstHelmChartPath); err != nil {
 		return err
 	}
 	return nil
 }
 
 // AddCRDValidationToChart adds the validate-install-crd.yaml to helmChartPathWithoutCRDs based on CRDs located in crdsDir within helmChartPathWithCRDs
-func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helmChartPathWithCRDs, crdsDir string) error {
+func AddCRDValidationToChart(ctx context.Context, fs billy.Filesystem, helmChartPathWithoutCRDs, helmChartPathWithCRDs, crdsDir string) error {
 	// Get the CRDs
-	logrus.Infof("Adding %s to main chart", path.ChartValidateInstallCRDFile)
+	logger.Log(ctx, slog.LevelDebug, "adding CRD validation to main chart", slog.String("ChartValidateInstallCRDFile", path.ChartValidateInstallCRDFile))
+
 	crdsDirpath := filepath.Join(helmChartPathWithCRDs, crdsDir)
 	var crdGVKs []string
 	type k8sCRDResource struct {
@@ -72,12 +74,12 @@ func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helm
 			} `yaml:"versions,omitempty"`
 		} `yaml:"spec,omitempty"`
 	}
-	err := filesystem.WalkDir(fs, crdsDirpath, func(fs billy.Filesystem, path string, isDir bool) error {
+	err := filesystem.WalkDir(ctx, fs, crdsDirpath, func(ctx context.Context, fs billy.Filesystem, path string, isDir bool) error {
 		if isDir {
 			return nil
 		}
 		absPath := filesystem.GetAbsPath(fs, path)
-		yamlFile, err := ioutil.ReadFile(absPath)
+		yamlFile, err := os.ReadFile(absPath)
 		if err != nil {
 			return fmt.Errorf("unable to read file %s: %s", absPath, err)
 		}
@@ -133,7 +135,7 @@ func AddCRDValidationToChart(fs billy.Filesystem, helmChartPathWithoutCRDs, helm
 	validateInstallCRDsContents := fmt.Sprintf(ValidateInstallCRDContentsFmt, strings.Join(formattedCRDs, "\n"))
 	validateInstallCRDsDestpath := filepath.Join(helmChartPathWithoutCRDs, path.ChartValidateInstallCRDFile)
 	// Write to file
-	err = ioutil.WriteFile(filesystem.GetAbsPath(fs, validateInstallCRDsDestpath), []byte(validateInstallCRDsContents), os.ModePerm)
+	err = os.WriteFile(filesystem.GetAbsPath(fs, validateInstallCRDsDestpath), []byte(validateInstallCRDsContents), os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("encountered error while writing into %s: %s", validateInstallCRDsDestpath, err)
 	}

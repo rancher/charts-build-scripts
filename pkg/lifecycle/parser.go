@@ -1,11 +1,10 @@
 package lifecycle
 
 import (
+	"context"
 	"fmt"
-	"sort"
 	"strings"
 
-	"github.com/Masterminds/semver"
 	"github.com/go-git/go-billy/v5"
 	helmRepo "helm.sh/helm/v3/pkg/repo"
 )
@@ -52,7 +51,7 @@ func getAssetsMapFromIndex(absRepositoryHelmIndexFile, currentChart string) (map
 // populateAssetsVersionsPath will combine the information from the index.yaml file and the assets directory to get the path of each asset version for each chart.
 // It will populate the assetsVersionsMap with the path of the assets.
 // It walks through the assets directory and compares the version of the assets with the version of the assets in the index.yaml file.
-func (ld *Dependencies) populateAssetsVersionsPath() error {
+func (ld *Dependencies) populateAssetsVersionsPath(ctx context.Context) error {
 	// Return a complet map of assets with their version and path in the repository
 	var assetsVersionsMap = make(map[string][]Asset)
 
@@ -62,7 +61,7 @@ func (ld *Dependencies) populateAssetsVersionsPath() error {
 	// during its traversal of the directory specified by dirPath
 	// All results will be appended fo filePaths
 	var filePaths []string
-	doFunc := func(fs billy.Filesystem, path string, isDir bool) error {
+	doFunc := func(ctx context.Context, fs billy.Filesystem, path string, isDir bool) error {
 		if !isDir {
 			filePaths = append(filePaths, path)
 		}
@@ -74,7 +73,7 @@ func (ld *Dependencies) populateAssetsVersionsPath() error {
 
 		dirPath := fmt.Sprintf("assets/%s", chart)
 
-		if err := ld.walkDirWrapper(ld.RootFs, dirPath, doFunc); err != nil {
+		if err := ld.walkDirWrapper(ctx, ld.RootFs, dirPath, doFunc); err != nil {
 			return fmt.Errorf("encountered error while walking through the assets directory: %w", err)
 		}
 
@@ -101,20 +100,4 @@ func (ld *Dependencies) populateAssetsVersionsPath() error {
 
 	// Now fileNames slice contains the names of all files in the directories
 	return nil
-}
-
-// sortAssetsVersions will convert to semver and
-// sort the assets for each key in the assetsVersionsMap
-func (ld *Dependencies) sortAssetsVersions() {
-	// Iterate over the map and sort the assets for each key
-	for k, assets := range ld.AssetsVersionsMap {
-		sort.Slice(assets, func(i, j int) bool {
-			vi, _ := semver.NewVersion(assets[i].Version)
-			vj, _ := semver.NewVersion(assets[j].Version)
-			return vi.LessThan(vj)
-		})
-		ld.AssetsVersionsMap[k] = assets
-	}
-
-	return
 }

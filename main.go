@@ -1,35 +1,39 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"io/ioutil"
+	"log/slog"
 	"os"
 	"strings"
+
+	"github.com/lmittmann/tint"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/rancher/charts-build-scripts/pkg/auto"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
-	"github.com/rancher/charts-build-scripts/pkg/images"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"github.com/rancher/charts-build-scripts/pkg/regsync"
+	"github.com/rancher/charts-build-scripts/pkg/registries"
 	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/rancher/charts-build-scripts/pkg/standardize"
 	"github.com/rancher/charts-build-scripts/pkg/update"
 	"github.com/rancher/charts-build-scripts/pkg/validate"
 	"github.com/rancher/charts-build-scripts/pkg/zip"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"gopkg.in/yaml.v2"
 )
 
 const (
 	// defaultChartsScriptOptionsFile is the default path to look a file containing options for the charts scripts to use for this branch
-	defaultChartsScriptOptionsFile = "configuration.yaml"
+	defaultChartsScriptOptionsFile = path.ConfigurationYamlFile
 	// defaultPackageEnvironmentVariable is the default environment variable for picking a specific package
 	defaultPackageEnvironmentVariable = "PACKAGE"
 	// defaultChartEnvironmentVariable is the default environment variable for picking a specific chart
@@ -52,11 +56,32 @@ const (
 	defaultGHTokenEnvironmentVariable = "GH_TOKEN"
 	// defaultPRNumberEnvironmentVariable is the default environment variable that indicates the PR number
 	defaultPRNumberEnvironmentVariable = "PR_NUMBER"
-
 	// default environment variables used by OCI Registry
 	defaultOciDNS      = "OCI_DNS"
 	defaultOciUser     = "OCI_USER"
 	defaultOciPassword = "OCI_PASS"
+	// defaultSkipEnvironmentVariable is the default environment variable that indicates whether to skip execution
+	defaultSkipEnvironmentVariable = "SKIP"
+	// softErrorsEnvironmentVariable is the default environment variable that indicates if soft error mode is enabled
+	softErrorsEnvironmentVariable = "SOFT_ERRORS"
+	// defaultLogLevelEnvironmentVariable is the default environment variable that indicates the log level
+	defaultLogLevelEnvironmentVariable = "LOG"
+	// defaultOverrideVersionEnvironmentVariable is the default environment variable that indicates the version to override
+	defaultOverrideVersionEnvironmentVariable = "OVERRIDE_VERSION"
+	// defaultMultiRCEnvironmentVariable is the default environment variable that indicates if the auto-bump should not remove previous RC versions
+	defaultMultiRCEnvironmentVariable = "MULTI_RC"
+	// Docker Registry authentication
+	defaultDockerUserEnvironmentVariable     = "DOCKER_USER"
+	defaultDockerPasswordEnvironmentVariable = "DOCKER_PASSWORD"
+	// Staging Registry authentication
+	defaultStagingUserEnvironmentVariable     = "STAGING_USER"
+	defaultStagingPasswordEnvironmentVariable = "STAGING_PASSWORD"
+	// Prime Registry authentication
+	defaultPrimeUserEnvironmentVariable     = "PRIME_USER"
+	defaultPrimePasswordEnvironmentVariable = "PRIME_PASSWORD"
+	defaultPrimeURLEnvironmentVariable      = "PRIME_URL"
+	// New Chart Options for Autobump
+	defaultNewChartVariable = "NEW_CHART"
 )
 
 var (
@@ -98,12 +123,65 @@ var (
 	OciUser string
 	// OciPassword represents the password of the OCI Registry
 	OciPassword string
+	// Skip indicates whether to skip execution
+	Skip = false
+	// SoftErrorMode indicates if certain non-fatal errors will be turned into warnings
+	SoftErrorMode = false
+	// RepoRoot represents the root path of the repository
+	RepoRoot string
+	// OverrideVersion is the type of version override (patch, minor, auto)
+	OverrideVersion string
+	// MultiRC indicates if the auto-bump should not remove previous RC versions
+	MultiRC bool
+	// DockerUser is the username provided by EIO
+	DockerUser string
+	// DockerPassword is the password provided by EIO
+	DockerPassword string
+	// StagingUser is the username provided by EIO
+	StagingUser string
+	// StagingPassword is the password provided by EIO
+	StagingPassword string
+	// PrimeUser is the username provided by EIO
+	PrimeUser string
+	// PrimePassword is the password provided by EIO
+	PrimePassword string
+	// PrimeURL of SUSE Prime registry
+	PrimeURL string
+	// NewChart boolean option for creating a net-new chart with auto-bump
+	NewChart bool
 )
 
-func main() {
-	if len(os.Getenv("DEBUG")) > 0 {
-		logrus.SetLevel(logrus.DebugLevel)
+func init() {
+	tintOptions := &tint.Options{
+		AddSource:  true,
+		TimeFormat: "15:04:05",
 	}
+
+	// Set the log level based on the LOG environment variable
+	lvl := os.Getenv("LOG")
+	if lvl != "" {
+		switch lvl {
+		case "DEBUG":
+			tintOptions.Level = slog.LevelDebug
+		case "INFO":
+			tintOptions.Level = slog.LevelInfo
+		case "WARN":
+			tintOptions.Level = slog.LevelWarn
+		case "ERROR":
+			tintOptions.Level = slog.LevelError
+		default:
+			tintOptions.Level = slog.LevelInfo
+		}
+	}
+	// Create a new slog logger with tint handler
+	newLogger := slog.New(tint.NewHandler(os.Stderr, tintOptions))
+	slog.SetDefault(newLogger)
+	logger.Log(context.Background(), slog.LevelInfo, "charts-build-scripts", slog.String("LOG", os.Getenv("LOG")))
+}
+
+func main() {
+	util.InitSoftErrorMode()
+
 	app := cli.NewApp()
 	app.Name = "charts-build-scripts"
 	app.Version = fmt.Sprintf("%s (%s)", Version, GitCommit)
@@ -169,7 +247,7 @@ func main() {
 			BRANCH_VERSION="x.y" make <command>
 
 		The branch version line to compare against.
-		Available inputs: (2.5; 2.6; 2.7; 2.8; 2.9).
+		Available inputs: (2.5; 2.6; 2.7; 2.8; 2.9; 2.10; 2.11; 2.12).
 		Default Environment Variable:
 		`,
 		Required: true,
@@ -226,6 +304,144 @@ func main() {
 		Destination: &OciPassword,
 		EnvVar:      defaultOciPassword,
 	}
+	branchFlag := cli.StringFlag{
+		Name: "branch,b",
+		Usage: `Usage:
+					./bin/charts-build-scripts <command> --branch="release-v2.y" OR
+					BRANCH="dev-v2.y" make <command>
+					Available branches: (release-v2.8; dev-v2.9; release-v2.10.)
+					`,
+		Required:    true,
+		EnvVar:      defaultBranchEnvironmentVariable,
+		Destination: &Branch,
+	}
+	localModeFlag := cli.BoolFlag{
+		Name:        "local,l",
+		Usage:       "Only perform local validation of the contents of assets and charts",
+		Required:    false,
+		Destination: &LocalMode,
+	}
+	remoteModeFlag := cli.BoolFlag{
+		Name:        "remote,r",
+		Usage:       "Only perform upstream validation of the contents of assets and charts",
+		Required:    false,
+		Destination: &RemoteMode,
+	}
+	multiRCFlag := cli.BoolFlag{
+		Name:        "multi-rc",
+		Usage:       "default is false, if passed, auto-bump will not remove previous RC versions",
+		Required:    false,
+		EnvVar:      defaultMultiRCEnvironmentVariable,
+		Destination: &MultiRC,
+	}
+	ghTokenFlag := cli.StringFlag{
+		Name: "gh_token",
+		Usage: `Usage:
+					./bin/charts-build-scripts <command> --gh_token="********"
+					GH_TOKEN="*********" make <command>
+
+					Github Auth Token provided by Github Actions job
+					`,
+		Required:    true,
+		EnvVar:      defaultGHTokenEnvironmentVariable,
+		Destination: &GithubToken,
+	}
+	dockerUserFlag := cli.StringFlag{
+		Name:        "docker-user",
+		Usage:       "--docker-user=******** || DOCKER_USER=*******",
+		Required:    true,
+		EnvVar:      defaultDockerUserEnvironmentVariable,
+		Destination: &DockerUser,
+	}
+	dockerPasswordFlag := cli.StringFlag{
+		Name:        "docker-password",
+		Usage:       "--docker-password=******** || DOCKER_PASSWORD=*******",
+		Required:    true,
+		EnvVar:      defaultDockerPasswordEnvironmentVariable,
+		Destination: &DockerPassword,
+	}
+	stagingUserFlag := cli.StringFlag{
+		Name:        "staging-user",
+		Usage:       "--staging-user=******** || STAGING_USER=*******",
+		Required:    true,
+		EnvVar:      defaultStagingUserEnvironmentVariable,
+		Destination: &StagingUser,
+	}
+	stagingPasswordFlag := cli.StringFlag{
+		Name:        "staging-password",
+		Usage:       "--staging-password=******** || STAGING_PASSWORD=*******",
+		Required:    true,
+		EnvVar:      defaultStagingPasswordEnvironmentVariable,
+		Destination: &StagingPassword,
+	}
+	primeUserFlag := cli.StringFlag{
+		Name:        "prime-user",
+		Usage:       "--prime-user=******** || PRIME_USER=*******",
+		Required:    true,
+		EnvVar:      defaultPrimeUserEnvironmentVariable,
+		Destination: &PrimeUser,
+	}
+	primePasswordFlag := cli.StringFlag{
+		Name:        "prime-password",
+		Usage:       "--prime-password=******** || PRIME_PASSWORD=*******",
+		Required:    true,
+		EnvVar:      defaultPrimePasswordEnvironmentVariable,
+		Destination: &PrimePassword,
+	}
+	primeURLFlag := cli.StringFlag{
+		Name:        "prime-url",
+		Usage:       "--prime-url=******** || PRIME_URL=*******",
+		Required:    true,
+		EnvVar:      defaultPrimeURLEnvironmentVariable,
+		Destination: &PrimeURL,
+	}
+	prNumberFlag := cli.StringFlag{
+		Name: "pr_number",
+		Usage: `Usage:
+					./bin/charts-build-scripts <command> --pr_number="****"
+					PR_NUMBER="****" make <command>
+
+					Pull Request identifying number provided by Github Actions job
+					`,
+		Required:    true,
+		EnvVar:      defaultPRNumberEnvironmentVariable,
+		Destination: &PullRequest,
+	}
+	skipFlag := cli.BoolFlag{
+		Name:        "skip",
+		Usage:       "Skip the execution and return success",
+		EnvVar:      defaultSkipEnvironmentVariable,
+		Destination: &Skip,
+	}
+	softErrorsFlag := cli.BoolFlag{
+		Name:        "soft-errors",
+		Usage:       "Enables soft error mode - some non-fatal errors will become warnings",
+		EnvVar:      softErrorsEnvironmentVariable,
+		Destination: &SoftErrorMode,
+	}
+	overrideVersionFlag := cli.StringFlag{
+		Name: "override",
+		Usage: `Usage:
+			- "patch"
+			- "minor"
+			- "auto"
+			- ""
+		`,
+		Required:    false,
+		Destination: &OverrideVersion,
+		EnvVar:      defaultOverrideVersionEnvironmentVariable,
+	}
+	newChartFlag := cli.BoolFlag{
+		Name: "new-chart",
+		Usage: `Usage:
+			--new-chart=<false or true>
+		`,
+		Required:    false,
+		Destination: &NewChart,
+		EnvVar:      defaultNewChartVariable,
+	}
+
+	// Commands
 	app.Commands = []cli.Command{
 		{
 			Name:   "list",
@@ -238,7 +454,7 @@ func main() {
 			Usage:  "Pull in the chart specified from upstream to the charts directory and apply any patch files",
 			Action: prepareCharts,
 			Before: setupCache,
-			Flags:  []cli.Flag{packageFlag, cacheFlag},
+			Flags:  []cli.Flag{packageFlag, cacheFlag, softErrorsFlag},
 		},
 		{
 			Name:   "patch",
@@ -255,9 +471,16 @@ func main() {
 			Flags:  []cli.Flag{packageFlag, configFlag, cacheFlag},
 		},
 		{
-			Name:   "regsync",
-			Usage:  "Create a regsync config file containing all images used for the particular Rancher version",
-			Action: generateRegSyncConfigFile,
+			Name:   "scan-registries",
+			Usage:  "Fetch, list and compare SUSE's registries and create yaml files with what is supposed to be synced from Docker Hub",
+			Action: scanRegistries,
+			Flags:  []cli.Flag{primeURLFlag},
+		},
+		{
+			Name:   "sync-registries",
+			Usage:  "Fetch, list and compare SUSE's registries and create yaml files with what is supposed to be synced from Docker Hub",
+			Action: syncRegistries,
+			Flags:  []cli.Flag{dockerUserFlag, dockerPasswordFlag, stagingUserFlag, stagingPasswordFlag, primeUserFlag, primePasswordFlag, primeURLFlag},
 		},
 		{
 			Name:   "index",
@@ -291,18 +514,7 @@ func main() {
 			Name:   "validate",
 			Usage:  "Run validation to ensure that contents of assets and charts won't overwrite released charts",
 			Action: validateRepo,
-			Flags: []cli.Flag{packageFlag, configFlag, cli.BoolFlag{
-				Name:        "local,l",
-				Usage:       "Only perform local validation of the contents of assets and charts",
-				Required:    false,
-				Destination: &LocalMode,
-			}, cli.BoolFlag{
-				Name:        "remote,r",
-				Usage:       "Only perform upstream validation of the contents of assets and charts",
-				Required:    false,
-				Destination: &RemoteMode,
-			},
-			},
+			Flags:  []cli.Flag{packageFlag, configFlag, localModeFlag, remoteModeFlag, skipFlag},
 		},
 		{
 			Name:   "standardize",
@@ -315,6 +527,7 @@ func main() {
 			Name:   "template",
 			Action: createOrUpdateTemplate,
 			Flags: []cli.Flag{
+				// TODO: verify if this is the correct way to pass the variables
 				configFlag,
 				cli.StringFlag{
 					Name:        "repositoryUrl,r",
@@ -377,66 +590,21 @@ func main() {
 			Usage: `Check charts to release in PR.
 			`,
 			Action: validateRelease,
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name: "branch,b",
-					Usage: `Usage:
-					./bin/charts-build-scripts <command> --branch="release-v2.y"
-					BRANCH="release-v2.y" make <command>
-					Available branches for release: (release-v2.8; release-v2.9; release-v2.10...)
-					`,
-					Required:    true,
-					EnvVar:      defaultBranchEnvironmentVariable,
-					Destination: &Branch,
-				},
-				cli.StringFlag{
-					Name: "gh_token",
-					Usage: `Usage:
-					./bin/charts-build-scripts <command> --gh_token="********"
-					GH_TOKEN="*********" make <command>
-
-					Github Auth Token provided by Github Actions job
-					`,
-					Required:    true,
-					EnvVar:      defaultGHTokenEnvironmentVariable,
-					Destination: &GithubToken,
-				},
-				cli.StringFlag{
-					Name: "pr_number",
-					Usage: `Usage:
-					./bin/charts-build-scripts <command> --pr_number="****"
-					PR_NUMBER="****" make <command>
-
-					Pull Request identifying number provided by Github Actions job
-					`,
-					Required:    true,
-					EnvVar:      defaultPRNumberEnvironmentVariable,
-					Destination: &PullRequest,
-				},
-				cli.BoolFlag{
-					Name:  "skip",
-					Usage: "Skip the execution and return success",
-				},
-			},
+			Flags:  []cli.Flag{branchFlag, ghTokenFlag, prNumberFlag, skipFlag},
 		},
 		{
 			Name: "compare-index-files",
 			Usage: `Compare the index.yaml between github repository and charts.rancher.io.
 			`,
 			Action: compareIndexFiles,
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name: "branch,b",
-					Usage: `Usage:
-					./bin/charts-build-scripts <command> --branch="release-v2.y"
-					BRANCH="release-v2.y" make <command>
-					Available branches for release: (release-v2.8; release-v2.9; release-v2.10...)
-					`,
-					Required:    true,
-					EnvVar:      defaultBranchEnvironmentVariable,
-					Destination: &Branch,
-				},
-			},
+			Flags:  []cli.Flag{branchFlag},
+		},
+		{
+			Name:   "chart-bump",
+			Usage:  `Generate a new chart bump PR.`,
+			Action: chartBump,
+			Before: setupCache,
+			Flags:  []cli.Flag{packageFlag, branchFlag, overrideVersionFlag, multiRCFlag, newChartFlag},
 		},
 
 		{
@@ -451,40 +619,48 @@ func main() {
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		logrus.Fatal(err)
+		logger.Fatal(context.Background(), err.Error())
 	}
 }
 
 func listPackages(c *cli.Context) {
-	repoRoot := getRepoRoot()
-	packageList, err := charts.ListPackages(repoRoot, CurrentPackage)
+	ctx := context.Background()
+
+	getRepoRoot()
+	packageList, err := charts.ListPackages(ctx, RepoRoot, CurrentPackage)
 	if err != nil {
-		logrus.Fatal(err)
+		logger.Fatal(ctx, err.Error())
 	}
 	if PorcelainMode {
-		fmt.Println(strings.Join(packageList, " "))
+		logger.Log(ctx, slog.LevelInfo, "", slog.String("packageList", strings.Join(packageList, " ")))
 		return
 
 	}
-	logrus.Infof("Found the following packages: %v", packageList)
+
+	logger.Log(ctx, slog.LevelInfo, "", slog.Any("packageList", packageList))
 }
 
 func prepareCharts(c *cli.Context) {
+	ctx := context.Background()
+
+	util.SetSoftErrorMode(SoftErrorMode)
 	packages := getPackages()
 	if len(packages) == 0 {
-		logrus.Fatal("Could not find any packages in packages/")
+		logger.Fatal(ctx, "could not find any packages in packages/ folder")
 	}
 	for _, p := range packages {
-		if err := p.Prepare(); err != nil {
-			logrus.Fatal(err)
+		if err := p.Prepare(ctx); err != nil {
+			logger.Fatal(ctx, err.Error())
 		}
 	}
 }
 
 func generatePatch(c *cli.Context) {
+	ctx := context.Background()
+
 	packages := getPackages()
 	if len(packages) == 0 {
-		logrus.Infof("No packages found.")
+		logger.Log(ctx, slog.LevelInfo, "no packages found")
 		return
 	}
 	if len(packages) != 1 {
@@ -492,349 +668,477 @@ func generatePatch(c *cli.Context) {
 		for i, pkg := range packages {
 			packageNames[i] = pkg.Name
 		}
-		logrus.Fatalf(
-			"PACKAGE=\"%s\" must be set to point to exactly one package. Currently found the following packages: %s",
-			CurrentPackage, packageNames,
-		)
+		logger.Fatal(ctx, fmt.Sprintf("PACKAGE=\"%s\"; is wrong, it must be set to point to one package", CurrentPackage))
 	}
-	if err := packages[0].GeneratePatch(); err != nil {
-		logrus.Fatal(err)
+	if err := packages[0].GeneratePatch(ctx); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 }
 
 func generateCharts(c *cli.Context) {
+	ctx := context.Background()
+
 	packages := getPackages()
 	if len(packages) == 0 {
-		logrus.Infof("No packages found.")
+		logger.Log(ctx, slog.LevelInfo, "no packages found")
 		return
 	}
-	chartsScriptOptions := parseScriptOptions()
+
+	chartsScriptOptions := parseScriptOptions(ctx)
 	for _, p := range packages {
-		if err := p.GenerateCharts(chartsScriptOptions.OmitBuildMetadataOnExport); err != nil {
-			logrus.Fatal(err)
+		if p.Auto == false {
+			if err := p.GenerateCharts(ctx, chartsScriptOptions.OmitBuildMetadataOnExport); err != nil {
+				logger.Fatal(ctx, err.Error())
+			}
 		}
 	}
 }
 
 func downloadIcon(c *cli.Context) {
+	ctx := context.Background()
+
 	packages := getPackages()
 	if len(packages) == 0 {
-		logrus.Infof("No packages found.")
+		logger.Log(ctx, slog.LevelInfo, "no packages found")
 		return
 	}
 	for _, p := range packages {
-		err := p.DownloadIcon()
+		err := p.DownloadIcon(ctx)
 		if err != nil {
-			logrus.Fatal(err)
+			logger.Fatal(ctx, err.Error())
 		}
 	}
 }
 
-func generateRegSyncConfigFile(c *cli.Context) {
-	if err := regsync.GenerateConfigFile(); err != nil {
-		logrus.Fatal(err)
+func scanRegistries(c *cli.Context) {
+	ctx := context.Background()
+
+	if PrimeURL == "" {
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("URL Empty", true))
+		logger.Fatal(ctx, errors.New("no Prime URL provided").Error())
+	}
+
+	if err := registries.Scan(ctx, PrimeURL+"/"); err != nil {
+		logger.Fatal(ctx, err.Error())
+	}
+}
+
+func syncRegistries(c *cli.Context) {
+	ctx := context.Background()
+
+	emptyUser := PrimeUser == ""
+	emptyPass := PrimePassword == ""
+	emptyURL := PrimeURL == ""
+	emptyDockerUser := DockerUser == ""
+	emptyDockerPass := DockerPassword == ""
+	emptyStagingUser := StagingUser == ""
+	emptyStagingPass := StagingPassword == ""
+	if emptyUser || emptyPass || emptyURL || emptyDockerUser || emptyDockerPass || emptyStagingUser || emptyStagingPass {
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("User Empty", emptyUser))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Password Empty", emptyPass))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("URL Empty", emptyURL))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Docker User Empty", emptyDockerUser))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Docker Pass Empty", emptyDockerPass))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Staging User Empty", emptyStagingUser))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Staging Pass Empty", emptyStagingPass))
+		logger.Fatal(ctx, errors.New("no credentials provided for sync").Error())
+	}
+
+	if err := registries.Sync(ctx, PrimeUser, PrimePassword, PrimeURL, DockerUser, DockerPassword, StagingUser, StagingPassword); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 }
 
 func createOrUpdateIndex(c *cli.Context) {
-	repoRoot := getRepoRoot()
-	if err := helm.CreateOrUpdateHelmIndex(filesystem.GetFilesystem(repoRoot)); err != nil {
-		logrus.Fatal(err)
+	ctx := context.Background()
+
+	getRepoRoot()
+	if err := helm.CreateOrUpdateHelmIndex(ctx, filesystem.GetFilesystem(RepoRoot)); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 }
 
 func zipCharts(c *cli.Context) {
-	repoRoot := getRepoRoot()
-	if err := zip.ArchiveCharts(repoRoot, CurrentChart); err != nil {
-		logrus.Fatal(err)
+	ctx := context.Background()
+
+	getRepoRoot()
+	if err := zip.ArchiveCharts(ctx, RepoRoot, CurrentChart); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 	createOrUpdateIndex(c)
 }
 
 func unzipAssets(c *cli.Context) {
-	repoRoot := getRepoRoot()
-	if err := zip.DumpAssets(repoRoot, CurrentAsset); err != nil {
-		logrus.Fatal(err)
+	ctx := context.Background()
+
+	getRepoRoot()
+	if err := zip.DumpAssets(ctx, RepoRoot, CurrentAsset); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 	createOrUpdateIndex(c)
 }
 
 func cleanRepo(c *cli.Context) {
+	ctx := context.Background()
+
 	packages := getPackages()
 	if len(packages) == 0 {
-		logrus.Infof("No packages found.")
+		logger.Log(ctx, slog.LevelInfo, "no packages found")
 		return
 	}
+
 	for _, p := range packages {
-		if err := p.Clean(); err != nil {
-			logrus.Fatal(err)
+		if err := p.Clean(ctx); err != nil {
+			logger.Fatal(ctx, err.Error())
 		}
 	}
 }
 
 func validateRepo(c *cli.Context) {
+	ctx := context.Background()
+	getRepoRoot()
+	rootFs := filesystem.GetFilesystem(RepoRoot)
+
 	if LocalMode && RemoteMode {
-		logrus.Fatalf("cannot specify both local and remote validation")
+		logger.Fatal(ctx, "cannot specify both local and remote validation")
 	}
 
-	CurrentPackage = "" // Validate always runs on all packages
-	chartsScriptOptions := parseScriptOptions()
+	chartsScriptOptions := parseScriptOptions(ctx)
 
-	logrus.Infof("Checking if Git is clean")
+	logger.Log(ctx, slog.LevelInfo, "checking if Git is clean")
 	_, _, status := getGitInfo()
 	if !status.IsClean() {
-		logrus.Warnf("Git is not clean:\n%s", status)
-		logrus.Fatal("Repository must be clean to run validation")
+		logger.Fatal(ctx, "repository must be clean to run validation")
+	}
+
+	// Only skip icon validations for forward-ports
+	if !Skip {
+		if err := auto.ValidateIcons(ctx, rootFs); err != nil {
+			logger.Fatal(ctx, err.Error())
+		}
 	}
 
 	if RemoteMode {
-		logrus.Infof("Running remote validation only, skipping generating charts locally")
+		logger.Log(ctx, slog.LevelInfo, "remove validation only")
 	} else {
-		logrus.Infof("Generating charts")
+		logger.Log(ctx, slog.LevelInfo, "generating charts")
 		generateCharts(c)
 
-		logrus.Infof("Checking if Git is clean after generating charts")
+		logger.Log(ctx, slog.LevelInfo, "checking if Git is clean after generating charts")
 		_, _, status = getGitInfo()
-		if !status.IsClean() {
-			logrus.Warnf("Generated charts produced the following changes in Git.\n%s", status)
-			logrus.Fatalf("Please commit these changes and run validation again.")
+		if err := validate.StatusExceptions(ctx, status); err != nil {
+			logger.Fatal(ctx, err.Error())
 		}
-		logrus.Infof("Successfully validated that current charts and assets are up to date.")
+
+		logger.Log(ctx, slog.LevelInfo, "successfully validated that current charts and assets are up-to-date")
 	}
 
 	if chartsScriptOptions.ValidateOptions != nil {
 		if LocalMode {
-			logrus.Infof("Running local validation only, skipping pulling upstream")
+			logger.Log(ctx, slog.LevelInfo, "local validation only")
 		} else {
-			repoRoot := getRepoRoot()
-			repoFs := filesystem.GetFilesystem(repoRoot)
-			releaseOptions, err := options.LoadReleaseOptionsFromFile(repoFs, "release.yaml")
+			getRepoRoot()
+			repoFs := filesystem.GetFilesystem(RepoRoot)
+			releaseOptions, err := options.LoadReleaseOptionsFromFile(ctx, repoFs, "release.yaml")
 			if err != nil {
-				logrus.Fatalf("Unable to unmarshall release.yaml: %s", err)
+				logger.Fatal(ctx, fmt.Errorf("unable to unmarshall release.yaml: %w", err).Error())
 			}
 			u := chartsScriptOptions.ValidateOptions.UpstreamOptions
 			branch := chartsScriptOptions.ValidateOptions.Branch
-			logrus.Infof("Performing upstream validation against repository %s at branch %s", u.URL, branch)
-			compareGeneratedAssetsResponse, err := validate.CompareGeneratedAssets(repoFs, u, branch, releaseOptions)
+
+			logger.Log(ctx, slog.LevelInfo, "upstream validation against repository", slog.String("url", u.URL), slog.String("branch", branch))
+			compareGeneratedAssetsResponse, err := validate.CompareGeneratedAssets(ctx, RepoRoot, repoFs, u, branch, releaseOptions)
 			if err != nil {
-				logrus.Fatal(err)
+				logger.Fatal(ctx, err.Error())
 			}
 			if !compareGeneratedAssetsResponse.PassedValidation() {
 				// Output charts that have been modified
-				compareGeneratedAssetsResponse.LogDiscrepancies()
-				logrus.Infof("Dumping release.yaml tracking changes that have been introduced")
-				if err := compareGeneratedAssetsResponse.DumpReleaseYaml(repoFs); err != nil {
-					logrus.Errorf("Unable to dump newly generated release.yaml: %s", err)
+				compareGeneratedAssetsResponse.LogDiscrepancies(ctx)
+
+				logger.Log(ctx, slog.LevelInfo, "dumping release.yaml to track changes that have been introduced")
+				if err := compareGeneratedAssetsResponse.DumpReleaseYaml(ctx, repoFs); err != nil {
+					logger.Log(ctx, slog.LevelError, "unable to dump newly generated release.yaml", logger.Err(err))
 				}
-				logrus.Infof("Updating index.yaml")
-				if err := helm.CreateOrUpdateHelmIndex(repoFs); err != nil {
-					logrus.Fatal(err)
+
+				logger.Log(ctx, slog.LevelInfo, "updating index.yaml")
+				if err := helm.CreateOrUpdateHelmIndex(ctx, repoFs); err != nil {
+					logger.Fatal(ctx, err.Error())
 				}
-				logrus.Fatalf("Validation against upstream repository %s at branch %s failed.", u.URL, branch)
+
+				logger.Fatal(ctx, fmt.Sprintf("validation against upstream repository %s at branch %s failed.", u.URL, branch))
 			}
 		}
 	}
 
-	logrus.Info("Zipping charts to ensure that contents of assets, charts, and index.yaml are in sync.")
+	logger.Log(ctx, slog.LevelInfo, "zipping charts to ensure that contents of assets, charts, and index.yaml are in sync")
 	zipCharts(c)
 
-	logrus.Info("Doing a final check to ensure Git is clean")
+	logger.Log(ctx, slog.LevelInfo, "final check if Git is clean")
 	_, _, status = getGitInfo()
 	if !status.IsClean() {
-		logrus.Warnf("Git is not clean:\n%s", status)
-		logrus.Fatal("Repository must be clean to pass validation")
+		logger.Fatal(ctx, fmt.Sprintf("repository must be clean to pass validation; status: %s", status.String()))
 	}
 
-	logrus.Info("Successfully validated current repository!")
+	logger.Log(ctx, slog.LevelInfo, "make validate success")
 }
 
 func standardizeRepo(c *cli.Context) {
-	repoRoot := getRepoRoot()
-	repoFs := filesystem.GetFilesystem(repoRoot)
-	if err := standardize.RestructureChartsAndAssets(repoFs); err != nil {
-		logrus.Fatal(err)
+	ctx := context.Background()
+
+	getRepoRoot()
+	repoFs := filesystem.GetFilesystem(RepoRoot)
+	if err := standardize.RestructureChartsAndAssets(ctx, repoFs); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 }
 
 func createOrUpdateTemplate(c *cli.Context) {
-	repoRoot := getRepoRoot()
-	repoFs := filesystem.GetFilesystem(repoRoot)
-	chartsScriptOptions := parseScriptOptions()
-	if err := update.ApplyUpstreamTemplate(repoFs, *chartsScriptOptions); err != nil {
-		logrus.Fatalf("Failed to update repository based on upstream template: %s", err)
+	ctx := context.Background()
+
+	getRepoRoot()
+	repoFs := filesystem.GetFilesystem(RepoRoot)
+	chartsScriptOptions := parseScriptOptions(ctx)
+	if err := update.ApplyUpstreamTemplate(ctx, repoFs, *chartsScriptOptions); err != nil {
+		logger.Fatal(ctx, fmt.Errorf("failed to update repository based on upstream template: %w", err).Error())
 	}
-	logrus.Infof("Successfully updated repository based on upstream template.")
+
+	logger.Log(ctx, slog.LevelInfo, "successfully updated repository based on upstream template")
 }
 
 func setupCache(c *cli.Context) error {
-	return puller.InitRootCache(CacheMode, path.DefaultCachePath)
+	ctx := context.Background()
+
+	getRepoRoot()
+	return puller.InitRootCache(ctx, RepoRoot, CacheMode, path.DefaultCachePath)
 }
 
 func cleanCache(c *cli.Context) {
-	if err := puller.CleanRootCache(path.DefaultCachePath); err != nil {
-		logrus.Fatal(err)
+	ctx := context.Background()
+
+	getRepoRoot()
+	if err := puller.CleanRootCache(ctx, RepoRoot, path.DefaultCachePath); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 }
 
-func parseScriptOptions() *options.ChartsScriptOptions {
-	configYaml, err := ioutil.ReadFile(ChartsScriptOptionsFile)
+func parseScriptOptions(ctx context.Context) *options.ChartsScriptOptions {
+	configYaml, err := os.ReadFile(ChartsScriptOptionsFile)
 	if err != nil {
-		logrus.Fatalf("Unable to find configuration file: %s", err)
+		logger.Fatal(ctx, fmt.Errorf("unable to find configuration file: %w", err).Error())
 	}
 	chartsScriptOptions := options.ChartsScriptOptions{}
 	if err := yaml.UnmarshalStrict(configYaml, &chartsScriptOptions); err != nil {
-		logrus.Fatalf("Unable to unmarshall configuration file: %s", err)
+		logger.Fatal(ctx, fmt.Errorf("unable to unmarshall configuration file: %w", err).Error())
 	}
+
+	if chartsScriptOptions.ValidateOptions != nil {
+		logger.Log(ctx, slog.LevelInfo, "chart script options", slog.Group("opts",
+			slog.Group("validate",
+				slog.String("branch", chartsScriptOptions.ValidateOptions.Branch),
+				slog.Group("upstream",
+					slog.String("url", chartsScriptOptions.ValidateOptions.UpstreamOptions.URL),
+					slog.Any("commit", chartsScriptOptions.ValidateOptions.UpstreamOptions.Commit),
+					slog.Any("subdirectory", chartsScriptOptions.ValidateOptions.UpstreamOptions.Subdirectory),
+				),
+			),
+			slog.Group("helmRepo",
+				slog.String("CNAME", chartsScriptOptions.HelmRepoConfiguration.CNAME),
+			),
+			slog.String("template", chartsScriptOptions.Template),
+			slog.Bool("omitBuildMetadata", chartsScriptOptions.OmitBuildMetadataOnExport),
+		))
+	}
+
 	return &chartsScriptOptions
 }
 
-func getRepoRoot() string {
+func getRepoRoot() {
+	ctx := context.Background()
+
+	RepoRoot = os.Getenv("DEV_REPO_ROOT")
+	if RepoRoot != "" {
+		logger.Log(ctx, slog.LevelDebug, "using customized repo root: ", slog.String("repoRoot", RepoRoot))
+	}
+
 	repoRoot, err := os.Getwd()
 	if err != nil {
-		logrus.Fatalf("Unable to get current working directory: %s", err)
+		logger.Fatal(ctx, fmt.Errorf("unable to get current working directory: %w", err).Error())
 	}
-	return repoRoot
+	if repoRoot == "" {
+		logger.Fatal(ctx, "unable to get current working directory")
+	}
+
+	logger.Log(ctx, slog.LevelDebug, "using current working directory as repo root: ", slog.String("repoRoot", repoRoot))
+	RepoRoot = repoRoot
 }
 
 func getPackages() []*charts.Package {
-	repoRoot := getRepoRoot()
-	packages, err := charts.GetPackages(repoRoot, CurrentPackage)
+	ctx := context.Background()
+
+	getRepoRoot()
+	packages, err := charts.GetPackages(ctx, RepoRoot, CurrentPackage)
 	if err != nil {
-		logrus.Fatal(err)
+		logger.Fatal(ctx, err.Error())
 	}
 	return packages
 }
 
 func getGitInfo() (*git.Repository, *git.Worktree, git.Status) {
-	repoRoot := getRepoRoot()
-	repo, err := repository.GetRepo(repoRoot)
+	ctx := context.Background()
+
+	getRepoRoot()
+	repo, err := repository.GetRepo(RepoRoot)
 	if err != nil {
-		logrus.Fatal(err)
+		logger.Fatal(ctx, err.Error())
 	}
+
 	// Check if git is clean
 	wt, err := repo.Worktree()
 	if err != nil {
-		logrus.Fatal(err)
+		logger.Fatal(ctx, err.Error())
 	}
+
 	status, err := wt.Status()
 	if err != nil {
-		logrus.Fatal(err)
+		logger.Fatal(ctx, err.Error())
 	}
+
 	return repo, wt, status
 }
 
 func checkImages(c *cli.Context) {
-	if err := images.CheckImages(); err != nil {
-		logrus.Fatal(err)
+	ctx := context.Background()
+
+	if err := registries.DockerScan(ctx); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 }
 
 func checkRCTagsAndVersions(c *cli.Context) {
+	ctx := context.Background()
+
+	getRepoRoot()
 	// Grab all images that contain RC tags
-	rcImageTagMap := images.CheckRCTags()
+	rcImageTagMap := registries.DockerCheckRCTags(ctx, RepoRoot)
 
 	// Grab all chart versions that contain RC tags
-	rcChartVersionMap := charts.CheckRCCharts()
+	rcChartVersionMap, err := charts.CheckRCCharts(ctx, RepoRoot)
+	if err != nil {
+		logger.Fatal(ctx, fmt.Errorf("unable to check for RC charts: %w", err).Error())
+	}
 
 	// If there are any charts that contains RC version or images that contains RC tags
 	// log them and return an error
 	if len(rcChartVersionMap) > 0 || len(rcImageTagMap) > 0 {
-		logrus.Errorf("found images with RC tags: %v", rcImageTagMap)
-		logrus.Errorf("found charts with RC version: %v", rcChartVersionMap)
-		logrus.Fatal("RC check has failed")
+		logger.Log(ctx, slog.LevelError, "found images with RC tags", slog.Any("rcImageTagMap", rcImageTagMap))
+		logger.Log(ctx, slog.LevelError, "found charts with RC version", slog.Any("rcChartVersionMap", rcChartVersionMap))
+		logger.Fatal(ctx, "RC check has failed")
 	}
 
-	logrus.Info("RC check has succeeded")
+	logger.Log(ctx, slog.LevelInfo, "successfully checked RC tags and versions")
 }
 
 func lifecycleStatus(c *cli.Context) {
+	ctx := context.Background()
+
 	// Initialize dependencies with branch-version and current chart
-	logrus.Info("Initializing dependencies for lifecycle-status")
-	rootFs := filesystem.GetFilesystem(getRepoRoot())
-	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart)
+	logger.Log(ctx, slog.LevelDebug, "initialize lifecycle-status")
+
+	getRepoRoot()
+	rootFs := filesystem.GetFilesystem(RepoRoot)
+	lifeCycleDep, err := lifecycle.InitDependencies(ctx, rootFs, RepoRoot, c.String("branch-version"), CurrentChart, false)
 	if err != nil {
-		logrus.Fatalf("encountered error while initializing dependencies: %s", err)
+		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
 	}
 
 	// Execute lifecycle status check and save the logs
-	logrus.Info("Checking lifecycle status and saving logs")
-	_, err = lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
+	logger.Log(ctx, slog.LevelDebug, "checking lifecycle status and saving logs")
+	_, err = lifeCycleDep.CheckLifecycleStatusAndSave(ctx, CurrentChart)
 	if err != nil {
-		logrus.Fatalf("Failed to check lifecycle status: %s", err)
+		logger.Fatal(ctx, fmt.Errorf("failed to check lifecycle status: %w", err).Error())
 	}
 }
 
 func autoForwardPort(c *cli.Context) {
+	ctx := context.Background()
+
 	if ForkURL == "" {
-		logrus.Fatal("FORK environment variable must be set to run auto-forward-port")
+		logger.Fatal(ctx, "FORK environment variable must be set to run auto-forward-port")
 	}
 
 	// Initialize dependencies with branch-version and current chart
-	logrus.Info("Initializing dependencies for auto-forward-port")
-	rootFs := filesystem.GetFilesystem(getRepoRoot())
-	lifeCycleDep, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart)
+	logger.Log(ctx, slog.LevelDebug, "initialize auto forward port")
+
+	getRepoRoot()
+	rootFs := filesystem.GetFilesystem(RepoRoot)
+
+	lifeCycleDep, err := lifecycle.InitDependencies(ctx, rootFs, RepoRoot, c.String("branch-version"), CurrentChart, false)
 	if err != nil {
-		logrus.Fatalf("encountered error while initializing dependencies: %v", err)
+		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
 	}
 
 	// Execute lifecycle status check and save the logs
-	logrus.Info("Checking lifecycle status and saving logs")
-	status, err := lifeCycleDep.CheckLifecycleStatusAndSave(CurrentChart)
+	logger.Log(ctx, slog.LevelInfo, "checking lifecycle status and saving logs")
+	status, err := lifeCycleDep.CheckLifecycleStatusAndSave(ctx, CurrentChart)
 	if err != nil {
-		logrus.Fatalf("Failed to check lifecycle status: %v", err)
+		logger.Fatal(ctx, fmt.Errorf("failed to check lifecycle status: %w", err).Error())
 	}
 
 	// Execute forward port with loaded information from status
-	logrus.Info("Preparing forward port data")
-	fp, err := auto.CreateForwardPortStructure(lifeCycleDep, status.AssetsToBeForwardPorted, ForkURL)
+	fp, err := auto.CreateForwardPortStructure(ctx, lifeCycleDep, status.AssetsToBeForwardPorted, ForkURL)
 	if err != nil {
-		logrus.Fatalf("Failed to prepare forward port: %v", err)
+		logger.Fatal(ctx, fmt.Errorf("failed to prepare forward port: %w", err).Error())
 	}
 
-	logrus.Info("Starting forward port execution")
-	err = fp.ExecuteForwardPort(CurrentChart)
+	err = fp.ExecuteForwardPort(ctx, CurrentChart)
 	if err != nil {
-		logrus.Fatalf("Failed to execute forward port: %v", err)
+		logger.Fatal(ctx, fmt.Errorf("failed to execute forward port: %w", err).Error())
 	}
 }
 
 func release(c *cli.Context) {
+	ctx := context.Background()
+
 	if ForkURL == "" {
-		logrus.Fatal("FORK environment variable must be set to run release cmd")
+		logger.Fatal(ctx, "FORK environment variable must be set to run release cmd")
 	}
 
 	if CurrentChart == "" {
-		logrus.Fatal("CHART environment variable must be set to run release cmd")
+		logger.Fatal(ctx, "CHART environment variable must be set to run release cmd")
 	}
+	getRepoRoot()
+	rootFs := filesystem.GetFilesystem(RepoRoot)
 
-	rootFs := filesystem.GetFilesystem(getRepoRoot())
-
-	dependencies, err := lifecycle.InitDependencies(rootFs, c.String("branch-version"), CurrentChart)
+	dependencies, err := lifecycle.InitDependencies(ctx, rootFs, RepoRoot, c.String("branch-version"), CurrentChart, false)
 	if err != nil {
-		logrus.Fatalf("encountered error while initializing dependencies: %v", err)
+		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
 	}
 
 	status, err := lifecycle.LoadState(rootFs)
 	if err != nil {
-		logrus.Fatalf("could not load state; please run lifecycle-status before this command: %v", err)
+		logger.Fatal(ctx, fmt.Errorf("could not load state; please run lifecycle-status before this command: %w", err).Error())
 	}
 
-	release, err := auto.InitRelease(dependencies, status, ChartVersion, CurrentChart, ForkURL)
+	release, err := auto.InitRelease(ctx, dependencies, status, ChartVersion, CurrentChart, ForkURL)
 	if err != nil {
-		logrus.Fatalf("failed to initialize release: %v", err)
+		logger.Fatal(ctx, fmt.Errorf("failed to initialize release: %w", err).Error())
 	}
 
 	if err := release.PullAsset(); err != nil {
-		logrus.Fatalf("failed to execute release: %v", err)
+		logger.Fatal(ctx, fmt.Errorf("failed to execute release: %w", err).Error())
 	}
 
 	// Unzip Assets: ASSET=<chart>/<chart>-<version.tgz make unzip
 	CurrentAsset = release.Chart + "/" + release.AssetTgz
 	unzipAssets(c)
 
+	if err := release.PullIcon(ctx, rootFs); err != nil {
+		logger.Fatal(ctx, fmt.Errorf("failed to pull icon: %w", err).Error())
+	}
+
 	// update release.yaml
-	if err := release.UpdateReleaseYaml(); err != nil {
-		logrus.Fatalf("failed to update release.yaml: %v", err)
+	if err := release.UpdateReleaseYaml(ctx, true); err != nil {
+		logger.Fatal(ctx, fmt.Errorf("failed to update release.yaml: %w", err).Error())
 	}
 
 	// make index
@@ -842,66 +1146,98 @@ func release(c *cli.Context) {
 }
 
 func validateRelease(c *cli.Context) {
-	if c.Bool("skip") {
-		fmt.Println("skipping execution...")
+	ctx := context.Background()
+
+	if Skip {
+		logger.Log(ctx, slog.LevelInfo, "skipping release validation")
 		return
 	}
 	if GithubToken == "" {
-		fmt.Println("GH_TOKEN environment variable must be set to run validate-release-charts")
-		os.Exit(1)
+		logger.Fatal(ctx, "GH_TOKEN environment variable must be set to run validate-release-charts")
 	}
 	if PullRequest == "" {
-		fmt.Println("PR_NUMBER environment variable must be set to run validate-release-charts")
-		os.Exit(1)
+		logger.Fatal(ctx, "PR_NUMBER environment variable must be set to run validate-release-charts")
 	}
 	if Branch == "" {
-		fmt.Println("BRANCH environment variable must be set to run validate-release-charts")
-		os.Exit(1)
+		logger.Fatal(ctx, "BRANCH environment variable must be set to run validate-release-charts")
 	}
-
-	rootFs := filesystem.GetFilesystem(getRepoRoot())
+	getRepoRoot()
+	rootFs := filesystem.GetFilesystem(RepoRoot)
 
 	if !strings.HasPrefix(Branch, "release-v") {
-		fmt.Println("Branch must be in the format release-v2.x")
-		os.Exit(1)
+		logger.Fatal(ctx, "branch must be in the format release-v2.x")
 	}
 
-	dependencies, err := lifecycle.InitDependencies(rootFs, strings.TrimPrefix(Branch, "release-v"), "")
+	dependencies, err := lifecycle.InitDependencies(ctx, rootFs, RepoRoot, strings.TrimPrefix(Branch, "release-v"), "", false)
 	if err != nil {
-		fmt.Printf("encountered error while initializing d: %v \n", err)
-		os.Exit(1)
+		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
 	}
 
-	if err := auto.ValidatePullRequest(GithubToken, PullRequest, dependencies); err != nil {
-		fmt.Printf("failed to validate pull request: %v \n", err)
-		os.Exit(1)
+	if err := auto.ValidatePullRequest(ctx, GithubToken, PullRequest, dependencies); err != nil {
+		logger.Fatal(ctx, fmt.Errorf("failed to validate pull request: %w", err).Error())
 	}
 }
 
 func compareIndexFiles(c *cli.Context) {
+	ctx := context.Background()
+
 	if Branch == "" {
-		fmt.Println("BRANCH environment variable must be set to run validate-release-charts")
-		os.Exit(1)
+		logger.Fatal(ctx, "BRANCH environment variable must be set to run compare-index-files")
 	}
 
-	rootFs := filesystem.GetFilesystem(getRepoRoot())
+	getRepoRoot()
+	rootFs := filesystem.GetFilesystem(RepoRoot)
 
-	if err := auto.CompareIndexFiles(rootFs); err != nil {
-		fmt.Printf("failed to compare index files: %v \n", err)
-		os.Exit(1)
+	if err := auto.CompareIndexFiles(ctx, rootFs); err != nil {
+		logger.Fatal(ctx, fmt.Errorf("failed to compare index files: %w", err).Error())
 	}
-	fmt.Println("index.yaml files are the same at git repository and charts.rancher.io")
+
+	logger.Log(ctx, slog.LevelInfo, "index.yaml files are the same at git repository and charts.rancher.io")
+}
+
+func chartBump(c *cli.Context) {
+	ctx := context.Background()
+
+	logger.Log(ctx, slog.LevelInfo, "received parameters")
+	logger.Log(ctx, slog.LevelInfo, "", slog.String("package", CurrentPackage))
+	logger.Log(ctx, slog.LevelInfo, "", slog.String("branch", Branch))
+	logger.Log(ctx, slog.LevelInfo, "", slog.String("overrideVersion", OverrideVersion))
+	logger.Log(ctx, slog.LevelInfo, "", slog.Bool("multi-RC", MultiRC))
+	logger.Log(ctx, slog.LevelInfo, "", slog.Bool("new-chart", NewChart))
+
+	if CurrentPackage == "" || Branch == "" || OverrideVersion == "" {
+		logger.Fatal(ctx, fmt.Sprintf("must provide values for CurrentPackage[%s], Branch[%s], and OverrideVersion[%s]",
+			CurrentPackage, Branch, OverrideVersion))
+	}
+
+	if OverrideVersion != "patch" && OverrideVersion != "minor" && OverrideVersion != "auto" {
+		logger.Fatal(ctx, "OverrideVersion must be set to either patch, minor, or auto")
+	}
+
+	ChartsScriptOptionsFile = path.ConfigurationYamlFile
+	chartsScriptOptions := parseScriptOptions(ctx)
+
+	bump, err := auto.SetupBump(ctx, RepoRoot, CurrentPackage, Branch, chartsScriptOptions, NewChart)
+	if err != nil {
+		logger.Fatal(ctx, fmt.Errorf("failed to setup: %w", err).Error())
+	}
+
+	if err := bump.BumpChart(ctx, OverrideVersion, MultiRC, NewChart); err != nil {
+		logger.Fatal(ctx, fmt.Errorf("failed to bump: %w", err).Error())
+	}
 }
 
 func updateOCIRegistry(c *cli.Context) {
+	ctx := context.Background()
 
 	if OciDNS == "" || OciUser == "" || OciPassword == "" {
 		fmt.Printf("OCI_DNS, OCI_USER, OCI_PASS environment variables must be set to run update-oci-registry\n")
 		os.Exit(1)
 	}
 
-	rootFs := filesystem.GetFilesystem(getRepoRoot())
-	if err := auto.UpdateOCI(rootFs, OciDNS, OciUser, OciPassword, DebugMode); err != nil {
+	getRepoRoot()
+	rootFs := filesystem.GetFilesystem(RepoRoot)
+	if err := auto.UpdateOCI(ctx, rootFs, OciDNS, OciUser, OciPassword, DebugMode); err != nil {
 		fmt.Printf("failed to update oci registry: %v \n", err)
 		os.Exit(1)
 	}

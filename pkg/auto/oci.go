@@ -1,6 +1,7 @@
 package auto
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -29,9 +30,9 @@ type oci struct {
 }
 
 // UpdateOCI pushes Helm charts to an OCI registry
-func UpdateOCI(rootFs billy.Filesystem, ociDNS, ociUser, ociPass string, debug bool) error {
+func UpdateOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, ociUser, ociPass string, debug bool) error {
 
-	release, err := options.LoadReleaseOptionsFromFile(rootFs, path.RepositoryReleaseYaml)
+	release, err := options.LoadReleaseOptionsFromFile(ctx, rootFs, path.RepositoryReleaseYaml)
 	if err != nil {
 		return err
 	}

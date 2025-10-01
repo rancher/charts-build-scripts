@@ -1,32 +1,37 @@
-package regsync
+package filesystem
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unicode"
 
-	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
-// GenerateFilteredImageTagMap returns a map of container images and their tags
-func GenerateFilteredImageTagMap(filter map[string][]string) (map[string][]string, error) {
-	imageTagMap := make(map[string][]string)
-
-	err := walkFilteredAssetsFolder(imageTagMap, filter)
-	if err != nil {
-		return imageTagMap, err
+// walkMap walks inputMap and calls the callback function on all map type nodes including the root node.
+func walkMap(inputMap interface{}, callback func(map[interface{}]interface{})) {
+	switch data := inputMap.(type) {
+	case map[interface{}]interface{}:
+		callback(data)
+		for _, value := range data {
+			walkMap(value, callback)
+		}
+	case []interface{}:
+		for _, elem := range data {
+			walkMap(elem, callback)
+		}
 	}
-
-	return imageTagMap, nil
 }
 
-// walkAssetsFolder walks over the assets folder, untars files if their name matches one of the filter values,
+// WalkAssetsFolder walks over the assets folder, untars files if their name matches one of the filter values,
 // stores the values.yaml content into a map and then iterates over the map to collect the image repo and tag values
 // into another map.
-func walkFilteredAssetsFolder(imageTagMap, filter map[string][]string) error {
+func WalkFilteredAssetsFolder(ctx context.Context, imageTagMap, filter map[string][]string, chartsToIgnoreTags map[string]string) error {
 
 	assetErrorMap := make(map[string]error)
 	// Walk through the assets folder of the repo
@@ -41,7 +46,7 @@ func walkFilteredAssetsFolder(imageTagMap, filter map[string][]string) error {
 		// Check if the file name ends with tgz ? since we only care about them
 		// to untar them and check for values.yaml files.
 		if strings.HasSuffix(filename, ".tgz") {
-			valuesYamlMaps, err := decodeValuesFilesInTgz(path)
+			valuesYamlMaps, err := DecodeValueYamlInTgz(context.Background(), path, []string{"values.yaml", "values.yml"})
 			if err != nil {
 				assetErrorMap[filename] = err
 				return fmt.Errorf("error occurred while getting values yaml into map in %s:%s", path, err)
@@ -59,8 +64,7 @@ func walkFilteredAssetsFolder(imageTagMap, filter map[string][]string) error {
 				if strings.Compare(chartName, chart) == 0 {
 					for _, version := range versions {
 						if strings.Compare(chartVersion, version) == 0 {
-
-							logrus.Infof("collecting images and tags for chart %s version %s", chartName, chartVersion)
+							logger.Log(ctx, slog.LevelInfo, "collecting images and tags for chart", slog.String("chartName", chartName), slog.String("chartVersion", chartVersion))
 
 							// There can be multiple values yaml files for single chart. So, making a for loop.
 							for _, valuesYaml := range valuesYamlMaps {

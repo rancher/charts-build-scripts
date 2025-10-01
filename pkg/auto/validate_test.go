@@ -1,6 +1,7 @@
 package auto
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -301,9 +302,11 @@ func Test_validateReleaseYaml(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.i.validation.validateReleaseYaml(tt.i.releaseOpts)
+			err := tt.i.validation.validateReleaseYaml(ctx, tt.i.releaseOpts)
 			if tt.ex.err == nil {
 				assert.Nil(t, err, "expected nil error")
 			} else {
@@ -326,9 +329,9 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 	}
 
 	type input struct {
-		validation            validation
-		version               string
-		latestReleasedVersion string
+		validation       validation
+		version          string
+		releasedVersions []lifecycle.Asset
 	}
 	type expected struct {
 		err error
@@ -341,33 +344,153 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 
 	tests := []test{
 		{
-			name: "Test #1 [patch update] : Expected NIL",
+			name: "Test #1.0 [patch update] : Expected NIL",
 			i: input{
 				validation: validation{
 					dep: &lifecycle.Dependencies{
 						VR: vr,
 					},
 				},
-				version:               "104.0.1",
-				latestReleasedVersion: "104.0.0",
+				version:          "104.0.1",
+				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}},
 			},
 			ex: expected{
 				err: nil,
 			},
 		},
 		{
-			name: "Test #2 [minor update] : Expected NIL",
+			name: "Test #1.1 [minor update] : Expected NIL",
 			i: input{
 				validation: validation{
 					dep: &lifecycle.Dependencies{
 						VR: vr,
 					},
 				},
-				version:               "104.1.0",
-				latestReleasedVersion: "104.0.0",
+				version:          "104.1.0",
+				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}},
 			},
 			ex: expected{
 				err: nil,
+			},
+		},
+		{
+			name: "Test #1.2 [minor update && > 1 released chart] : Expected NIL",
+			i: input{
+				validation: validation{
+					dep: &lifecycle.Dependencies{
+						VR: vr,
+					},
+				},
+				version:          "104.2.0",
+				releasedVersions: []lifecycle.Asset{{Version: "104.1.0"}, {Version: "104.0.0"}},
+			},
+			ex: expected{
+				err: nil,
+			},
+		},
+		{
+			name: "Test #1.3 [patch update && > 1 released chart] : Expected NIL",
+			i: input{
+				validation: validation{
+					dep: &lifecycle.Dependencies{
+						VR: vr,
+					},
+				},
+				version:          "104.2.1",
+				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
+			},
+			ex: expected{
+				err: nil,
+			},
+		},
+		{
+			name: "Test #1.4 [patch update (old chart) && > 1 released chart] : Expected NIL",
+			i: input{
+				validation: validation{
+					dep: &lifecycle.Dependencies{
+						VR: vr,
+					},
+				},
+				version:          "104.1.1",
+				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
+			},
+			ex: expected{
+				err: nil,
+			},
+		},
+		{
+			name: "Test #1.5 [patch update (old chart) && > 1 released chart] : Expected NIL",
+			i: input{
+				validation: validation{
+					dep: &lifecycle.Dependencies{
+						VR: vr,
+					},
+				},
+				version:          "104.0.1",
+				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
+			},
+			ex: expected{
+				err: nil,
+			},
+		},
+		{
+			name: "Test #2.0 [patch update (old chart) && > 1 released chart] : Expected ERR",
+			i: input{
+				validation: validation{
+					dep: &lifecycle.Dependencies{
+						VR: vr,
+					},
+				},
+				version:          "104.0.2",
+				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
+			},
+			ex: expected{
+				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.0.2"),
+			},
+		},
+		{
+			name: "Test #2.1 [patch update (old chart) && > 1 released chart] : Expected ERR",
+			i: input{
+				validation: validation{
+					dep: &lifecycle.Dependencies{
+						VR: vr,
+					},
+				},
+				version:          "104.1.2",
+				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
+			},
+			ex: expected{
+				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.1.2"),
+			},
+		},
+		{
+			name: "Test #2.2 [patch update (new chart) && > 1 released chart] : Expected ERR",
+			i: input{
+				validation: validation{
+					dep: &lifecycle.Dependencies{
+						VR: vr,
+					},
+				},
+				version:          "104.2.2",
+				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
+			},
+			ex: expected{
+				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.2.2"),
+			},
+		},
+		{
+			name: "Test #2.3 [minor/patch update (new chart) && > 1 released chart] : Expected ERR",
+			i: input{
+				validation: validation{
+					dep: &lifecycle.Dependencies{
+						VR: vr,
+					},
+				},
+				version:          "104.3.1",
+				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
+			},
+			ex: expected{
+				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.3.1"),
 			},
 		},
 		{
@@ -378,11 +501,11 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 						VR: vr,
 					},
 				},
-				version:               "104.1.1",
-				latestReleasedVersion: "104.0.0",
+				version:          "104.1.1",
+				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}},
 			},
 			ex: expected{
-				err: fmt.Errorf("%w; version: %s; latest version: %s", errMinorPatchVersion, "104.1.1", "104.0.0"),
+				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.1.1"),
 			},
 		},
 		{
@@ -393,11 +516,11 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 						VR: vr,
 					},
 				},
-				version:               "104.0.2",
-				latestReleasedVersion: "104.0.0",
+				version:          "104.0.2",
+				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}},
 			},
 			ex: expected{
-				err: fmt.Errorf("%w; version: %s; latest version: %s", errMinorPatchVersion, "104.0.2", "104.0.0"),
+				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.0.2"),
 			},
 		},
 		{
@@ -408,11 +531,11 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 						VR: vr,
 					},
 				},
-				version:               "104.3.0",
-				latestReleasedVersion: "104.0.0",
+				version:          "104.3.0",
+				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}},
 			},
 			ex: expected{
-				err: fmt.Errorf("%w; version: %s; latest version: %s", errMinorPatchVersion, "104.3.0", "104.0.0"),
+				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.3.0"),
 			},
 		},
 		{
@@ -423,8 +546,8 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 						VR: vr,
 					},
 				},
-				version:               "103.1.5",
-				latestReleasedVersion: "104.1.2",
+				version:          "103.1.5",
+				releasedVersions: []lifecycle.Asset{{Version: "104.1.2"}},
 			},
 			ex: expected{
 				err: nil,
@@ -432,9 +555,10 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.i.validation.checkMinorPatchVersion(tt.i.version, tt.i.latestReleasedVersion)
+			err := tt.i.validation.checkMinorPatchVersion(ctx, tt.i.version, tt.i.releasedVersions)
 			if tt.ex.err == nil {
 				assert.Nil(t, err, "expected nil error")
 			} else {

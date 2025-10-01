@@ -1,12 +1,14 @@
 package lifecycle
 
 import (
+	"context"
 	"errors"
-	"os"
+	"log/slog"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/git"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 )
 
@@ -32,20 +34,21 @@ type Dependencies struct {
 }
 
 // WalkDirFunc is a function type that will be used to walk through the filesystem
-type WalkDirFunc func(fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error
+type WalkDirFunc func(ctx context.Context, fs billy.Filesystem, dirPath string, doFunc filesystem.RelativePathFunc) error
 
 // InitDependencies will check the filesystem, branch version,
 // git status, initialize the Dependencies struct and populate it.
 // If anything fails the operation will be aborted.
-func InitDependencies(rootFs billy.Filesystem, branchVersion string, currentChart string) (*Dependencies, error) {
-	var err error
-
-	workDir, err := os.Getwd()
-	if err != nil {
-		return nil, err
+func InitDependencies(ctx context.Context, rootFs billy.Filesystem, repoRoot, branchVersion, currentChart string, newChart bool) (*Dependencies, error) {
+	if newChart && currentChart == "" {
+		return nil, errors.New("can't create a new empty chart")
 	}
 
-	git, err := git.OpenGitRepo(workDir)
+	var err error
+
+	workDir := repoRoot
+
+	git, err := git.OpenGitRepo(ctx, workDir)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +61,7 @@ func InitDependencies(rootFs billy.Filesystem, branchVersion string, currentChar
 	}
 
 	// Git tree must be clean before proceeding with removing charts
-	clean, err := git.StatusProcelain()
+	clean, err := git.StatusProcelain(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -67,13 +70,20 @@ func InitDependencies(rootFs billy.Filesystem, branchVersion string, currentChar
 	}
 
 	// Initialize, load, and check version rules for the current branch
-	dep.VR, err = dep.rules(branchVersion, loadFromJSON)
+	dep.VR, err = dep.rules(ctx, branchVersion, loadFromJSON)
 	if err != nil {
 		return nil, err
 	}
+	logger.Log(ctx, slog.LevelDebug, "version rules loaded", slog.Any("dep.VR.Rules[branchVersion]", dep.VR.Rules[branchVersion]))
 
-	if err := checkFilePaths(dep.RootFs); err != nil {
+	if err := checkFilePaths(ctx, dep.RootFs); err != nil {
 		return nil, err
+	}
+
+	if newChart {
+		dep.AssetsVersionsMap = make(map[string][]Asset)
+		dep.AssetsVersionsMap[currentChart] = []Asset{}
+		return dep, nil
 	}
 
 	// Get the absolute path of the Helm index file and assets versions map to apply rules
@@ -89,16 +99,16 @@ func InitDependencies(rootFs billy.Filesystem, branchVersion string, currentChar
 	return dep, nil
 }
 
-func checkFilePaths(rootFs billy.Filesystem) error {
+func checkFilePaths(ctx context.Context, rootFs billy.Filesystem) error {
 	// Check if the assets folder and Helm index file exists in the repository
-	exists, err := filesystem.PathExists(rootFs, path.RepositoryAssetsDir)
+	exists, err := filesystem.PathExists(ctx, rootFs, path.RepositoryAssetsDir)
 	if err != nil {
 		return err
 	}
 	if !exists {
 		return errChartRepository
 	}
-	exists, err = filesystem.PathExists(rootFs, path.RepositoryHelmIndexFile)
+	exists, err = filesystem.PathExists(ctx, rootFs, path.RepositoryHelmIndexFile)
 	if err != nil {
 		return err
 	}

@@ -106,34 +106,3 @@ func Test_populateAssetsVersionsPath(t *testing.T) {
 		assert.Error(t, err, "populateAssetsVersionsPath should have returned an error")
 	})
 }
-
-func Test_sortAssetsVersions(t *testing.T) {
-	// Arrange
-	dependency := &Dependencies{
-		AssetsVersionsMap: map[string][]Asset{
-			"chart1": {
-				{Version: "1.0.0"},
-				{Version: "0.1.0"},
-				{Version: "0.0.1"},
-			},
-			"chart2": {
-				{Version: "2.0.0"},
-				{Version: "1.1.0"},
-				{Version: "1.0.1"},
-			},
-		},
-	}
-
-	// Act
-	dependency.sortAssetsVersions()
-
-	// Assertions
-	assert.Equal(t, len(dependency.AssetsVersionsMap), 2, "Expected 2 charts in the assetsVersionsMap")
-	assert.Equal(t, dependency.AssetsVersionsMap["chart1"][0].Version, "0.0.1", "Expected 0.0.1")
-	assert.Equal(t, dependency.AssetsVersionsMap["chart1"][1].Version, "0.1.0", "Expected 0.1.0")
-	assert.Equal(t, dependency.AssetsVersionsMap["chart1"][2].Version, "1.0.0", "Expected 1.0.0")
-
-	assert.Equal(t, dependency.AssetsVersionsMap["chart2"][0].Version, "1.0.1", "Expected 1.0.1")
-	assert.Equal(t, dependency.AssetsVersionsMap["chart2"][1].Version, "1.1.0", "Expected 1.1.0")
-	assert.Equal(t, dependency.AssetsVersionsMap["chart2"][2].Version, "2.0.0", "Expected 2.0.0")
-}

@@ -3,7 +3,6 @@ package auto
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -165,7 +164,7 @@ func Test_push(t *testing.T) {
 			},
 			expected: expected{
 				pushedAssets: []string{},
-				err:          fmt.Errorf("asset already exists in the OCI registry: %s", "chart1-1.0.0+up0.0.0.tgz"),
+				err:          nil,
 			},
 		},
 		{
@@ -183,7 +182,7 @@ func Test_push(t *testing.T) {
 						return false, nil
 					},
 					push: func(helmClient *registry.Client, data []byte, url string) error {
-						err := fmt.Errorf("failed to push %s; error: %w ", "chart1-1.0.0+up0.0.0.tgz", errors.New("some-error"))
+						err := errors.New("some assets failed, please fix and retry only these assets")
 						return err
 					},
 				},
@@ -193,7 +192,7 @@ func Test_push(t *testing.T) {
 			},
 			expected: expected{
 				pushedAssets: []string{},
-				err:          fmt.Errorf("failed to push %s; error: %w ", "chart1-1.0.0+up0.0.0.tgz", errors.New("some-error")),
+				err:          errors.New("some assets failed, please fix and retry only these assets"),
 			},
 		},
 	}

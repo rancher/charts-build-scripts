@@ -1,6 +1,7 @@
 package auto
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -164,7 +165,7 @@ func Test_push(t *testing.T) {
 			},
 			expected: expected{
 				pushedAssets: []string{},
-				err:          fmt.Errorf("asset %s already exists in the OCI registry", "chart1-1.0.0+up0.0.0.tgz"),
+				err:          fmt.Errorf("asset already exists in the OCI registry: %s", "chart1-1.0.0+up0.0.0.tgz"),
 			},
 		},
 		{
@@ -199,14 +200,14 @@ func Test_push(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assets, err := test.input.o.update(&test.input.release)
+			assets, err := test.input.o.update(context.Background(), &test.input.release)
 			if test.expected.err == nil {
 				if err != nil {
-					t.Errorf("Expected no error, got %v", err)
+					t.Errorf("Expected no error, got: [%v]", err)
 				}
 			} else {
 				if !strings.Contains(err.Error(), test.expected.err.Error()) {
-					t.Errorf("Expected error %v, got %v", test.expected.err, err)
+					t.Errorf("Expected error: [%v], got: [%v]", test.expected.err, err)
 				}
 			}
 

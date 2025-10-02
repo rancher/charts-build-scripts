@@ -2,11 +2,14 @@ package auto
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 
@@ -31,7 +34,6 @@ type oci struct {
 
 // UpdateOCI pushes Helm charts to an OCI registry
 func UpdateOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, ociUser, ociPass string, debug bool) error {
-
 	release, err := options.LoadReleaseOptionsFromFile(ctx, rootFs, path.RepositoryReleaseYaml)
 	if err != nil {
 		return err
@@ -42,13 +44,12 @@ func UpdateOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, ociUser, oc
 		return err
 	}
 
-	pushedAssets, err := oci.update(&release)
+	pushedAssets, err := oci.update(ctx, &release)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Pushed assets: %v", pushedAssets)
-
+	logger.Log(ctx, slog.LevelInfo, "pushed", slog.Any("assets", pushedAssets))
 	return nil
 }
 
@@ -118,7 +119,7 @@ func setupHelm(ociDNS, ociUser, ociPass string, debug bool) (*registry.Client, e
 	return regClient, nil
 }
 
-func (o *oci) update(release *options.ReleaseOptions) ([]string, error) {
+func (o *oci) update(ctx context.Context, release *options.ReleaseOptions) ([]string, error) {
 	var pushedAssets []string
 
 	for chart, versions := range *release {
@@ -126,7 +127,7 @@ func (o *oci) update(release *options.ReleaseOptions) ([]string, error) {
 			asset := chart + "-" + version + ".tgz"
 			assetData, err := o.loadAsset(chart, asset)
 			if err != nil {
-				fmt.Printf("Failed to load asset: %s; error: %s \n", asset, err.Error())
+				logger.Log(ctx, slog.LevelError, "failed to load asset", slog.String("asset", asset))
 				return pushedAssets, err
 			}
 
@@ -134,18 +135,17 @@ func (o *oci) update(release *options.ReleaseOptions) ([]string, error) {
 			// Never overwrite a previously released chart!
 			exists, err := o.checkAsset(o.helmClient, o.DNS, chart, version)
 			if err != nil {
-				fmt.Printf("Failed to check registry for %s; error: %s \n", asset, err.Error())
+				logger.Log(ctx, slog.LevelError, "failed to check registry for asset", slog.String("asset", asset))
 				return pushedAssets, err
 			}
 			if exists {
-				fmt.Printf("Asset %s already exists in the OCI registry \n", asset)
-				return pushedAssets, fmt.Errorf("asset %s already exists in the OCI registry", asset)
+				logger.Log(ctx, slog.LevelError, "asset already exists", slog.String("asset", asset))
+				return pushedAssets, errors.New("asset already exists in the OCI registry: " + asset)
 			}
 
-			fmt.Printf("Pushing asset to OCI Registry: %s \n", asset)
+			logger.Log(ctx, slog.LevelDebug, "pushing asset to OCI Registry", slog.String("asset", asset))
 			if err := o.push(o.helmClient, assetData, buildPushURL(o.DNS, chart, version)); err != nil {
-				err = fmt.Errorf("failed to push %s; error: %w ", asset, err)
-				fmt.Printf(err.Error())
+				logger.Log(ctx, slog.LevelError, "failed to push asset", slog.String("asset", asset))
 				return pushedAssets, err
 			}
 			pushedAssets = append(pushedAssets, asset)

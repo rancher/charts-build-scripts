@@ -115,21 +115,20 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 	var regClient *registry.Client
 	var err error
 
-	registryHost := extractRegistryHost(ociDNS)
-	isLocalHost := strings.HasPrefix(registryHost, "localhost:")
+	isLocalHost := strings.HasPrefix(ociDNS, "localhost:")
 
 	switch {
 	// Debug Mode but pointing to a server with custom-certificates
 	case debug && !isLocalHost:
 		logger.Log(ctx, slog.LevelDebug, "debug mode", slog.Bool("localhost", isLocalHost))
-		caFile := "/etc/docker/certs.d/" + registryHost + "/ca.crt"
+		caFile := "/etc/docker/certs.d/" + ociDNS + "/ca.crt"
 		regClient, err = registry.NewRegistryClientWithTLS(os.Stdout, "", "", caFile, false, "", true)
 		if err != nil {
 			logger.Log(ctx, slog.LevelError, "failed to create registry client with TLS")
 			return nil, err
 		}
 		if err = regClient.Login(
-			registryHost,
+			ociDNS,
 			registry.LoginOptInsecure(false),
 			registry.LoginOptTLSClientConfig("", "", caFile),
 			registry.LoginOptBasicAuth(ociUser, ociPass),
@@ -149,7 +148,7 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 			logger.Log(ctx, slog.LevelError, "failed to create registry client")
 			return nil, err
 		}
-		if err = regClient.Login(registryHost,
+		if err = regClient.Login(ociDNS,
 			registry.LoginOptInsecure(true), // true for localhost, false for production
 			registry.LoginOptBasicAuth(ociUser, ociPass)); err != nil {
 			logger.Log(ctx, slog.LevelError, "failed to login to registry", slog.Group(ociDNS, ociUser, ociPass))
@@ -166,7 +165,7 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 			logger.Log(ctx, slog.LevelError, "failed to create registry client")
 			return nil, err
 		}
-		if err = regClient.Login(registryHost,
+		if err = regClient.Login(ociDNS,
 			registry.LoginOptInsecure(false),
 			registry.LoginOptBasicAuth(ociUser, ociPass)); err != nil {
 			logger.Log(ctx, slog.LevelError, "failed to login")
@@ -176,14 +175,6 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 	}
 
 	return regClient, nil
-}
-
-// extractRegistryHost will extract the DNS for login
-func extractRegistryHost(ociDNS string) string {
-	if idx := strings.Index(ociDNS, "/"); idx != -1 {
-		return ociDNS[:idx]
-	}
-	return ociDNS
 }
 
 // update will attempt to update a helm chart to an OCI registry.
@@ -297,7 +288,7 @@ func buildPushURL(ociDNS, chart, version string) string {
 func checkAsset(ctx context.Context, helmClient *registry.Client, ociDNS, chart, version string) (bool, error) {
 	// Once issue is resolved: https://github.com/helm/helm/issues/13368
 	// Replace by: helmClient.Tags(ociDNS + "/" + chart + ":" + version)
-	tagsURL := ociDNS + "/" + chart
+	tagsURL := ociDNS + "/rancher/charts/" + chart
 	logger.Log(ctx, slog.LevelDebug, "checking tags",
 		slog.String("ociDNS", ociDNS),
 		slog.String("chart", chart),
@@ -330,7 +321,7 @@ func (o *oci) checkRegistryTagExists(ctx context.Context, ociDNS, chart, tag str
 	ociTag := strings.ReplaceAll(tag, "+", "_")
 
 	// Build repository reference first (host + path, no tag)
-	repoStr := ociDNS + "/" + chart
+	repoStr := ociDNS + "/rancher/charts/" + chart
 	repo, err := name.NewRepository(repoStr, nameOpts...)
 	if err != nil {
 		logger.Log(ctx, slog.LevelError, "failed to parse repository", logger.Err(err))

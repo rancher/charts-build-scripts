@@ -1244,8 +1244,6 @@ func updateOCIRegistry(c *cli.Context) {
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
 	if err := auto.UpdateOCI(ctx, rootFs, OciDNS, OciUser, OciPassword, DebugMode); err != nil {
-		fmt.Printf("failed to update oci registry: %v \n", err)
-		os.Exit(1)
+		logger.Fatal(ctx, err.Error())
 	}
-
 }

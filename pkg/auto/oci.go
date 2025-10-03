@@ -19,7 +19,7 @@ import (
 )
 
 type loadAssetFunc func(chart, asset string) ([]byte, error)
-type checkAssetFunc func(regClient *registry.Client, ociDNS, chart, version string) (bool, error)
+type checkAssetFunc func(ctx context.Context, regClient *registry.Client, ociDNS, chart, version string) (bool, error)
 type pushFunc func(helmClient *registry.Client, data []byte, url string) error
 
 type oci struct {
@@ -39,7 +39,7 @@ func UpdateOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, ociUser, oc
 		return err
 	}
 
-	oci, err := setupOCI(ociDNS, ociUser, ociPass, debug)
+	oci, err := setupOCI(ctx, ociDNS, ociUser, ociPass, debug)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func UpdateOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, ociUser, oc
 	return nil
 }
 
-func setupOCI(ociDNS, ociUser, ociPass string, debug bool) (*oci, error) {
+func setupOCI(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool) (*oci, error) {
 	var err error
 	o := &oci{
 		DNS:      ociDNS,
@@ -61,7 +61,7 @@ func setupOCI(ociDNS, ociUser, ociPass string, debug bool) (*oci, error) {
 		password: ociPass,
 	}
 
-	o.helmClient, err = setupHelm(o.DNS, o.user, o.password, debug)
+	o.helmClient, err = setupHelm(ctx, o.DNS, o.user, o.password, debug)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func setupOCI(ociDNS, ociUser, ociPass string, debug bool) (*oci, error) {
 	return o, nil
 }
 
-func setupHelm(ociDNS, ociUser, ociPass string, debug bool) (*registry.Client, error) {
+func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool) (*registry.Client, error) {
 	settings := cli.New()
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), settings.Namespace(), os.Getenv("HELM_DRIVER"), func(format string, v ...interface{}) {
@@ -83,40 +83,71 @@ func setupHelm(ociDNS, ociUser, ociPass string, debug bool) (*registry.Client, e
 	}
 
 	var regClient *registry.Client
+	var err error
 
-	if debug {
-		fmt.Println("debug mode you need to provide a self-signed certificate")
-		caFile := "/etc/docker/certs.d/" + ociDNS + "/ca.crt"
+	registryHost := extractRegistryHost(ociDNS)
+	isLocalHost := strings.HasPrefix(registryHost, "localhost:")
 
-		regClient, err := registry.NewRegistryClientWithTLS(os.Stdout, "", "", caFile, false, "", true)
+	switch {
+	// Debug Mode but pointing to a server with custom-certificates
+	case debug && !isLocalHost:
+		logger.Log(ctx, slog.LevelDebug, "debug mode", slog.Bool("localhost", isLocalHost))
+		caFile := "/etc/docker/certs.d/" + registryHost + "/ca.crt"
+		regClient, err = registry.NewRegistryClientWithTLS(os.Stdout, "", "", caFile, false, "", true)
 		if err != nil {
+			logger.Log(ctx, slog.LevelError, "failed to create registry client with TLS")
 			return nil, err
 		}
-
-		if err := regClient.Login(
-			ociDNS,
+		if err = regClient.Login(
+			registryHost,
 			registry.LoginOptInsecure(false),
 			registry.LoginOptTLSClientConfig("", "", caFile),
 			registry.LoginOptBasicAuth(ociUser, ociPass),
 		); err != nil {
+			logger.Log(ctx, slog.LevelError, "failed to login to registry with TLS", slog.Group(ociDNS, ociUser, ociPass))
 			return nil, err
 		}
 
-		return regClient, nil
-	}
+	// Debug Mode at localhost without TLS
+	case debug && isLocalHost:
+		logger.Log(ctx, slog.LevelDebug, "debug mode", slog.Bool("localhost", isLocalHost))
+		regClient, err = registry.NewClient(
+			registry.ClientOptDebug(true),
+			registry.ClientOptPlainHTTP(),
+		)
+		if err != nil {
+			logger.Log(ctx, slog.LevelError, "failed to create registry client")
+			return nil, err
+		}
+		if err = regClient.Login(registryHost,
+			registry.LoginOptInsecure(true), // true for localhost, false for production
+			registry.LoginOptBasicAuth(ociUser, ociPass)); err != nil {
+			logger.Log(ctx, slog.LevelError, "failed to login to registry", slog.Group(ociDNS, ociUser, ociPass))
+			return nil, err
+		}
 
-	regClient, err := registry.NewClient(registry.ClientOptDebug(false))
-	if err != nil {
-		return nil, err
-	}
-
-	if err := regClient.Login(ociDNS,
-		registry.LoginOptInsecure(false),
-		registry.LoginOptBasicAuth(ociUser, ociPass)); err != nil {
-		return nil, err
+	// Production code with Secure Mode and authentication
+	default:
+		regClient, err = registry.NewClient(registry.ClientOptDebug(false))
+		if err != nil {
+			return nil, err
+		}
+		if err = regClient.Login(registryHost,
+			registry.LoginOptInsecure(false),
+			registry.LoginOptBasicAuth(ociUser, ociPass)); err != nil {
+			return nil, err
+		}
 	}
 
 	return regClient, nil
+}
+
+// extractRegistryHost will extract the DNS for login
+func extractRegistryHost(ociDNS string) string {
+	if idx := strings.Index(ociDNS, "/"); idx != -1 {
+		return ociDNS[:idx]
+	}
+	return ociDNS
 }
 
 // update will attempt to update a helm chart to an OCI registry.
@@ -148,7 +179,7 @@ func (o *oci) update(ctx context.Context, release *options.ReleaseOptions) ([]st
 
 			// Check if the asset version already exists in the OCI registry
 			// Never overwrite a previously released chart!
-			exists, err := o.checkAsset(o.helmClient, o.DNS, chart, version)
+			exists, err := o.checkAsset(ctx, o.helmClient, o.DNS, chart, version)
 			if err != nil {
 				logger.Log(ctx, slog.LevelError, "failed to check registry for asset", slog.String("asset", asset))
 				return pushedAssets, err
@@ -221,14 +252,16 @@ func buildPushURL(ociDNS, chart, version string) string {
 }
 
 // checkAsset checks if a specific asset version exists in the OCI registry
-func checkAsset(helmClient *registry.Client, ociDNS, chart, version string) (bool, error) {
+func checkAsset(ctx context.Context, helmClient *registry.Client, ociDNS, chart, version string) (bool, error) {
 	// Once issue is resolved: https://github.com/helm/helm/issues/13368
 	// Replace by: helmClient.Tags(ociDNS + "/" + chart + ":" + version)
 	existingVersions, err := helmClient.Tags(ociDNS + "/" + chart)
 	if err != nil {
 		if strings.Contains(err.Error(), "unexpected status code 404: name unknown: repository name not known to registry") {
+			logger.Log(ctx, slog.LevelDebug, "asset does not exist at registry", slog.String("chart", chart))
 			return false, nil
 		}
+		logger.Err(err)
 		return false, err
 	}
 

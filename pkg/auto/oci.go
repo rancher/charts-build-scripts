@@ -54,6 +54,10 @@ func UpdateOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, ociUser, oc
 }
 
 func setupOCI(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool) (*oci, error) {
+	// Strip http:// or https:// scheme if present
+	ociDNS = strings.TrimPrefix(ociDNS, "https://")
+	ociDNS = strings.TrimPrefix(ociDNS, "http://")
+
 	var err error
 	o := &oci{
 		DNS:      ociDNS,
@@ -128,13 +132,23 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 
 	// Production code with Secure Mode and authentication
 	default:
-		regClient, err = registry.NewClient(registry.ClientOptDebug(false))
+		logger.Log(ctx, slog.LevelInfo, "production mode")
+		regClient, err = registry.NewRegistryClientWithTLS(
+			os.Stdout, // output writer
+			"",        // certFile (none)
+			"",        // keyFile (none)
+			"",        // caFile (none)
+			false,     // insecureSkipTLSverify
+			"",        // registryConfig (use default)
+			false,     // debug
+		)
 		if err != nil {
 			return nil, err
 		}
 		if err = regClient.Login(registryHost,
 			registry.LoginOptInsecure(false),
 			registry.LoginOptBasicAuth(ociUser, ociPass)); err != nil {
+			logger.Log(ctx, slog.LevelError, "failed to login")
 			return nil, err
 		}
 	}
@@ -181,7 +195,6 @@ func (o *oci) update(ctx context.Context, release *options.ReleaseOptions) ([]st
 			// Never overwrite a previously released chart!
 			exists, err := o.checkAsset(ctx, o.helmClient, o.DNS, chart, version)
 			if err != nil {
-				logger.Log(ctx, slog.LevelError, "failed to check registry for asset", slog.String("asset", asset))
 				return pushedAssets, err
 			}
 			if exists {
@@ -261,7 +274,7 @@ func checkAsset(ctx context.Context, helmClient *registry.Client, ociDNS, chart,
 			logger.Log(ctx, slog.LevelDebug, "asset does not exist at registry", slog.String("chart", chart))
 			return false, nil
 		}
-		logger.Err(err)
+		logger.Log(ctx, slog.LevelError, "failed to check registry for asset", slog.String("asset", chart))
 		return false, err
 	}
 

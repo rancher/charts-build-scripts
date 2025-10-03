@@ -2,16 +2,23 @@ package auto
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
+	"github.com/rancher/charts-build-scripts/pkg/registries"
 
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
@@ -23,14 +30,14 @@ type checkAssetFunc func(ctx context.Context, regClient *registry.Client, ociDNS
 type pushFunc func(helmClient *registry.Client, data []byte, url string) error
 
 type oci struct {
-	DNS              string
-	user             string
-	password         string
-	helmClient       *registry.Client
-	helmReaderClient *registry.Client // anonymous for Tags
-	loadAsset        loadAssetFunc
-	checkAsset       checkAssetFunc
-	push             pushFunc
+	DNS             string
+	user            string
+	password        string
+	helmClient      *registry.Client
+	registryOptions []remote.Option
+	loadAsset       loadAssetFunc
+	checkAsset      checkAssetFunc
+	push            pushFunc
 }
 
 // UpdateOCI pushes Helm charts to an OCI registry
@@ -71,13 +78,29 @@ func setupOCI(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool) 
 		return nil, err
 	}
 
-	o.helmReaderClient, _ = registry.NewClient()
+	o.registryOptions = setupRegistryReader(ctx, o.DNS, o.user, o.password)
 
 	o.loadAsset = loadAsset
 	o.checkAsset = checkAsset
 	o.push = push
 
 	return o, nil
+}
+
+func setupRegistryReader(ctx context.Context, ociDNS, ociUser, ociPass string) []remote.Option {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: false,
+	}
+
+	registryClientOpts := []remote.Option{
+		remote.WithContext(ctx),
+		remote.WithUserAgent(registries.UaString),
+		remote.WithAuth(&authn.Basic{Username: ociUser, Password: ociPass}),
+		remote.WithTransport(tr),
+	}
+
+	return registryClientOpts
 }
 
 func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool) (*registry.Client, error) {
@@ -192,7 +215,14 @@ func (o *oci) update(ctx context.Context, release *options.ReleaseOptions) ([]st
 
 			// Check if the asset version already exists in the OCI registry
 			// Never overwrite a previously released chart!
-			exists, err := o.checkAsset(ctx, o.helmReaderClient, o.DNS, chart, version)
+			existsTest, err := o.checkRegistryTagExists(ctx, o.DNS, chart, version)
+			if err != nil {
+				logger.Log(ctx, slog.LevelError, "checkRegistryTagExists")
+				return pushedAssets, err
+			}
+			logger.Log(ctx, slog.LevelWarn, "exists worked?", slog.Bool("exist", existsTest))
+
+			exists, err := o.checkAsset(ctx, o.helmClient, o.DNS, chart, version)
 			if err != nil {
 				return pushedAssets, err
 			}
@@ -289,4 +319,40 @@ func checkAsset(ctx context.Context, helmClient *registry.Client, ociDNS, chart,
 	}
 
 	return false, nil
+}
+
+// checkRegistryTagExists checks if a given source already exists at the target Registry
+func (o *oci) checkRegistryTagExists(ctx context.Context, ociDNS, chart, tag string) (bool, error) {
+	var nameOpts []name.Option
+	nameOpts = append(nameOpts, name.StrictValidation)
+	nameOpts = append(nameOpts, name.Insecure)
+
+	ociTag := strings.ReplaceAll(tag, "+", "_")
+
+	// Build repository reference first (host + path, no tag)
+	repoStr := ociDNS + "/" + chart
+	repo, err := name.NewRepository(repoStr, nameOpts...)
+	if err != nil {
+		logger.Log(ctx, slog.LevelError, "failed to parse repository", logger.Err(err))
+		return false, err
+	}
+	// Then create tag reference from repository
+	dst := repo.Tag(ociTag)
+
+	// ----------------------------------------------------
+	exist := true
+	if _, err := remote.Head(dst, o.registryOptions...); err != nil {
+		exist = false
+
+		var te *transport.Error
+		if errors.As(err, &te) && te.StatusCode == http.StatusNotFound {
+			// 404s are not treated as errors, means the img/tag does not exist
+			err = nil
+		} else {
+			logger.Log(ctx, slog.LevelError, "failure to check prime tag", logger.Err(err))
+		}
+	}
+
+	logger.Log(ctx, slog.LevelDebug, "checking", slog.Bool("exist", exist), slog.String("dst", dst.Name()))
+	return exist, err
 }

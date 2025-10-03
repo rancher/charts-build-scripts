@@ -57,7 +57,7 @@ type primeRegistry struct {
 var (
 	// uaString is meant to resemble the User-Agent sent by browsers with requests.
 	// See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/User-Agent
-	uaString = fmt.Sprintf("cosign/%s (%s; %s)", version.GetVersionInfo().GitVersion, runtime.GOOS, runtime.GOARCH)
+	UaString = fmt.Sprintf("cosign/%s (%s; %s)", version.GetVersionInfo().GitVersion, runtime.GOOS, runtime.GOARCH)
 )
 
 type tagMap func(name.Reference, ...ociremote.Option) (name.Tag, error)
@@ -154,13 +154,13 @@ func prepareSync(ctx context.Context, primeUser, primePass, dockerUser, dockerPa
 	// package when fetching signed entities.
 	dockerClientOpts := []remote.Option{
 		remote.WithContext(ctx),
-		remote.WithUserAgent(uaString),
+		remote.WithUserAgent(UaString),
 		remote.WithAuth(&authn.Basic{Username: dockerUser, Password: dockerPass}),
 		remote.WithTransport(tr),
 	}
 	stagingClientOpts := []remote.Option{
 		remote.WithContext(ctx),
-		remote.WithUserAgent(uaString),
+		remote.WithUserAgent(UaString),
 		remote.WithAuth(&authn.Basic{Username: stagingUser, Password: staginPass}),
 		remote.WithTransport(tr),
 	}

@@ -23,13 +23,14 @@ type checkAssetFunc func(ctx context.Context, regClient *registry.Client, ociDNS
 type pushFunc func(helmClient *registry.Client, data []byte, url string) error
 
 type oci struct {
-	DNS        string
-	user       string
-	password   string
-	helmClient *registry.Client
-	loadAsset  loadAssetFunc
-	checkAsset checkAssetFunc
-	push       pushFunc
+	DNS              string
+	user             string
+	password         string
+	helmClient       *registry.Client
+	helmReaderClient *registry.Client // anonymous for Tags
+	loadAsset        loadAssetFunc
+	checkAsset       checkAssetFunc
+	push             pushFunc
 }
 
 // UpdateOCI pushes Helm charts to an OCI registry
@@ -69,6 +70,8 @@ func setupOCI(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool) 
 	if err != nil {
 		return nil, err
 	}
+
+	o.helmReaderClient, _ = registry.NewClient()
 
 	o.loadAsset = loadAsset
 	o.checkAsset = checkAsset
@@ -133,14 +136,8 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 	// Production code with Secure Mode and authentication
 	default:
 		logger.Log(ctx, slog.LevelInfo, "production mode")
-		regClient, err = registry.NewRegistryClientWithTLS(
-			os.Stdout, // output writer
-			"",        // certFile (none)
-			"",        // keyFile (none)
-			"",        // caFile (none)
-			false,     // insecureSkipTLSverify
-			"",        // registryConfig (use default)
-			false,     // debug
+		regClient, err = registry.NewClient(
+			registry.ClientOptDebug(false),
 		)
 		if err != nil {
 			logger.Log(ctx, slog.LevelError, "failed to create registry client")
@@ -148,7 +145,6 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 		}
 		if err = regClient.Login(registryHost,
 			registry.LoginOptInsecure(false),
-			registry.LoginOptTLSClientConfig("", "", ""),
 			registry.LoginOptBasicAuth(ociUser, ociPass)); err != nil {
 			logger.Log(ctx, slog.LevelError, "failed to login")
 			return nil, err
@@ -196,7 +192,7 @@ func (o *oci) update(ctx context.Context, release *options.ReleaseOptions) ([]st
 
 			// Check if the asset version already exists in the OCI registry
 			// Never overwrite a previously released chart!
-			exists, err := o.checkAsset(ctx, o.helmClient, o.DNS, chart, version)
+			exists, err := o.checkAsset(ctx, o.helmReaderClient, o.DNS, chart, version)
 			if err != nil {
 				return pushedAssets, err
 			}

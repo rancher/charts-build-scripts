@@ -148,6 +148,7 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 		}
 		if err = regClient.Login(registryHost,
 			registry.LoginOptInsecure(false),
+			registry.LoginOptTLSClientConfig("", "", ""),
 			registry.LoginOptBasicAuth(ociUser, ociPass)); err != nil {
 			logger.Log(ctx, slog.LevelError, "failed to login")
 			return nil, err
@@ -269,7 +270,12 @@ func buildPushURL(ociDNS, chart, version string) string {
 func checkAsset(ctx context.Context, helmClient *registry.Client, ociDNS, chart, version string) (bool, error) {
 	// Once issue is resolved: https://github.com/helm/helm/issues/13368
 	// Replace by: helmClient.Tags(ociDNS + "/" + chart + ":" + version)
-	existingVersions, err := helmClient.Tags(ociDNS + "/" + chart)
+	tagsURL := ociDNS + "/" + chart
+	logger.Log(ctx, slog.LevelDebug, "checking tags",
+		slog.String("ociDNS", ociDNS),
+		slog.String("chart", chart),
+		slog.String("fullURL", tagsURL))
+	existingVersions, err := helmClient.Tags(tagsURL)
 	if err != nil {
 		if strings.Contains(err.Error(), "unexpected status code 404: name unknown: repository name not known to registry") {
 			logger.Log(ctx, slog.LevelDebug, "asset does not exist at registry", slog.String("chart", chart))

@@ -153,6 +153,7 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 			logger.Log(ctx, slog.LevelError, "failed to login")
 			return nil, err
 		}
+		logger.Log(ctx, slog.LevelDebug, "creds", slog.String("u", ociUser), slog.String("p", ociPass))
 	}
 
 	return regClient, nil

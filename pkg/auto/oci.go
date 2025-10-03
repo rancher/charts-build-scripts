@@ -143,6 +143,7 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 			false,     // debug
 		)
 		if err != nil {
+			logger.Log(ctx, slog.LevelError, "failed to create registry client")
 			return nil, err
 		}
 		if err = regClient.Login(registryHost,

@@ -56,6 +56,10 @@ const (
 	defaultGHTokenEnvironmentVariable = "GH_TOKEN"
 	// defaultPRNumberEnvironmentVariable is the default environment variable that indicates the PR number
 	defaultPRNumberEnvironmentVariable = "PR_NUMBER"
+	// default environment variables used by OCI Registry
+	defaultOciDNS      = "OCI_DNS"
+	defaultOciUser     = "OCI_USER"
+	defaultOciPassword = "OCI_PASS"
 	// defaultSkipEnvironmentVariable is the default environment variable that indicates whether to skip execution
 	defaultSkipEnvironmentVariable = "SKIP"
 	// softErrorsEnvironmentVariable is the default environment variable that indicates if soft error mode is enabled
@@ -99,6 +103,8 @@ var (
 	LocalMode bool
 	// RemoteMode indicates that only remote validation should be run
 	RemoteMode bool
+	// DebugMode indicates debug mode
+	DebugMode bool
 	// CacheMode indicates that caching should be used on all remotely pulled resources
 	CacheMode = false
 	// ForkURL represents the fork URL configured as a remote in your local git repository
@@ -111,6 +117,12 @@ var (
 	PullRequest = ""
 	// GithubToken represents the Github Auth token
 	GithubToken string
+	// OciDNS represents the DNS of the OCI Registry
+	OciDNS string
+	// OciUser represents the user of the OCI Registry
+	OciUser string
+	// OciPassword represents the password of the OCI Registry
+	OciPassword string
 	// Skip indicates whether to skip execution
 	Skip = false
 	// SoftErrorMode indicates if certain non-fatal errors will be turned into warnings
@@ -174,7 +186,12 @@ func main() {
 	app.Name = "charts-build-scripts"
 	app.Version = fmt.Sprintf("%s (%s)", Version, GitCommit)
 	app.Usage = "Build scripts used to maintain patches on Helm charts forked from other repositories"
-	// Flags
+	debugFlag := cli.BoolFlag{
+		Name:        "debug,d",
+		Usage:       "Debug mode",
+		Required:    false,
+		Destination: &DebugMode,
+	}
 	configFlag := cli.StringFlag{
 		Name:        "config",
 		Usage:       "A configuration file with additional options for allowing this branch to interact with other branches",
@@ -259,6 +276,33 @@ func main() {
 		Required:    true,
 		Destination: &ChartVersion,
 		EnvVar:      defaultChartVersionEnvironmentVariable,
+	}
+	ociDNS := cli.StringFlag{
+		Name: "oci-dns",
+		Usage: `Usage:
+			Provided OCI registry DNS.
+		`,
+		Required:    true,
+		Destination: &OciDNS,
+		EnvVar:      defaultOciDNS,
+	}
+	ociUser := cli.StringFlag{
+		Name: "oci-user",
+		Usage: `Usage:
+			Provided OCI registry User.
+		`,
+		Required:    true,
+		Destination: &OciUser,
+		EnvVar:      defaultOciUser,
+	}
+	ociPass := cli.StringFlag{
+		Name: "oci-pass",
+		Usage: `Usage:
+			Provided OCI registry Password.
+		`,
+		Required:    true,
+		Destination: &OciPassword,
+		EnvVar:      defaultOciPassword,
 	}
 	branchFlag := cli.StringFlag{
 		Name: "branch,b",
@@ -561,6 +605,16 @@ func main() {
 			Action: chartBump,
 			Before: setupCache,
 			Flags:  []cli.Flag{packageFlag, branchFlag, overrideVersionFlag, multiRCFlag, newChartFlag},
+		},
+
+		{
+			Name: "update-oci-registry",
+			Usage: `Update the oci-registry with the given assets or push all assets.
+			`,
+			Action: updateOCIRegistry,
+			Flags: []cli.Flag{
+				debugFlag, ociDNS, ociUser, ociPass,
+			},
 		},
 	}
 
@@ -1170,5 +1224,26 @@ func chartBump(c *cli.Context) {
 
 	if err := bump.BumpChart(ctx, OverrideVersion, MultiRC, NewChart); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to bump: %w", err).Error())
+	}
+}
+
+func updateOCIRegistry(c *cli.Context) {
+	ctx := context.Background()
+
+	emptyUser := OciUser == ""
+	emptyPass := OciPassword == ""
+	emptyDNS := OciDNS == ""
+
+	if emptyUser || emptyPass || emptyDNS {
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("OCI User Empty", emptyUser))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("OCI Password Empty", emptyPass))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("OCI DNS Empty", emptyDNS))
+		logger.Fatal(ctx, errors.New("no credentials provided for pushing helm chart to OCI registry").Error())
+	}
+
+	getRepoRoot()
+	rootFs := filesystem.GetFilesystem(RepoRoot)
+	if err := auto.UpdateOCI(ctx, rootFs, OciDNS, OciUser, OciPassword, DebugMode); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 }

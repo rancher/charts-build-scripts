@@ -23,7 +23,7 @@ require (
 	github.com/lmittmann/tint v1.0.7
 	github.com/sigstore/cosign/v2 v2.5.0
 	github.com/stretchr/testify v1.10.0
-	github.com/urfave/cli v1.22.16
+	github.com/urfave/cli/v3 v3.4.1
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d
 	golang.org/x/oauth2 v0.30.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -31,7 +31,6 @@ require (
 	helm.sh/helm/v3 v3.16.3
 	sigs.k8s.io/release-utils v0.11.1
 	sigs.k8s.io/yaml v1.4.0
-
 )
 
 require (
@@ -62,7 +61,6 @@ require (
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/containerd/typeurl/v2 v2.2.3 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/creack/pty v1.1.21 // indirect
 	github.com/cyberphone/json-canonicalization v0.0.0-20231011164504-785e29786b46 // indirect
 	github.com/cyphar/filepath-securejoin v0.3.6 // indirect

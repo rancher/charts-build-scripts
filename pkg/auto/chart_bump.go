@@ -323,7 +323,7 @@ func checkUpstreamOptions(options *options.UpstreamOptions) error {
 
 // BumpChart will execute a similar approach as the defined development workflow for chartowners.
 // The main difference is that between the steps: (make prepare and make patch) we will calculate the next version to release.
-func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs, newChart bool) error {
+func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs, newChart, IsPrimeChart bool) error {
 	logger.Log(ctx, slog.LevelInfo, "start auto-chart-bump")
 
 	if err := b.prepare(ctx); err != nil {
@@ -335,8 +335,10 @@ func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs, 
 		return err
 	}
 
-	if err := b.icon(ctx); err != nil {
-		return err
+	if !IsPrimeChart {
+		if err := b.icon(ctx); err != nil {
+			return err
+		}
 	}
 
 	if err := b.patch(ctx); err != nil {

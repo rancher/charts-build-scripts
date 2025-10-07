@@ -82,6 +82,8 @@ const (
 	defaultPrimeURLEnvironmentVariable      = "PRIME_URL"
 	// New Chart Options for Autobump
 	defaultNewChartVariable = "NEW_CHART"
+	// defaultIsPrimeChartVariable for handling prime charts
+	defaultIsPrimeChartVariable = "IS_PRIME"
 )
 
 var (
@@ -149,6 +151,8 @@ var (
 	PrimeURL string
 	// NewChart boolean option for creating a net-new chart with auto-bump
 	NewChart bool
+	// IsPrimeChart boolean option
+	IsPrimeChart bool
 )
 
 func init() {
@@ -440,6 +444,15 @@ func main() {
 		Destination: &NewChart,
 		EnvVar:      defaultNewChartVariable,
 	}
+	isPrimeChartFlag := cli.BoolFlag{
+		Name: "is-prime",
+		Usage: `Usage:
+			--is-prime=<false or true>
+		`,
+		Required:    false,
+		Destination: &IsPrimeChart,
+		EnvVar:      defaultIsPrimeChartVariable,
+	}
 
 	// Commands
 	app.Commands = []cli.Command{
@@ -604,7 +617,7 @@ func main() {
 			Usage:  `Generate a new chart bump PR.`,
 			Action: chartBump,
 			Before: setupCache,
-			Flags:  []cli.Flag{packageFlag, branchFlag, overrideVersionFlag, multiRCFlag, newChartFlag},
+			Flags:  []cli.Flag{packageFlag, branchFlag, overrideVersionFlag, multiRCFlag, newChartFlag, isPrimeChartFlag},
 		},
 
 		{
@@ -1204,6 +1217,7 @@ func chartBump(c *cli.Context) {
 	logger.Log(ctx, slog.LevelInfo, "", slog.String("overrideVersion", OverrideVersion))
 	logger.Log(ctx, slog.LevelInfo, "", slog.Bool("multi-RC", MultiRC))
 	logger.Log(ctx, slog.LevelInfo, "", slog.Bool("new-chart", NewChart))
+	logger.Log(ctx, slog.LevelInfo, "", slog.Bool("is-prime", IsPrimeChart))
 
 	if CurrentPackage == "" || Branch == "" || OverrideVersion == "" {
 		logger.Fatal(ctx, fmt.Sprintf("must provide values for CurrentPackage[%s], Branch[%s], and OverrideVersion[%s]",
@@ -1222,7 +1236,7 @@ func chartBump(c *cli.Context) {
 		logger.Fatal(ctx, fmt.Errorf("failed to setup: %w", err).Error())
 	}
 
-	if err := bump.BumpChart(ctx, OverrideVersion, MultiRC, NewChart); err != nil {
+	if err := bump.BumpChart(ctx, OverrideVersion, MultiRC, NewChart, IsPrimeChart); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to bump: %w", err).Error())
 	}
 }

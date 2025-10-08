@@ -23,7 +23,7 @@ require (
 	github.com/lmittmann/tint v1.0.7
 	github.com/sigstore/cosign/v2 v2.5.0
 	github.com/stretchr/testify v1.10.0
-	github.com/urfave/cli v1.22.16
+	github.com/urfave/cli v1.22.17
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d
 	golang.org/x/oauth2 v0.30.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -31,14 +31,13 @@ require (
 	helm.sh/helm/v3 v3.16.3
 	sigs.k8s.io/release-utils v0.11.1
 	sigs.k8s.io/yaml v1.4.0
-
 )
 
 require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/BurntSushi/toml v1.4.0 // indirect
+	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.3.1 // indirect

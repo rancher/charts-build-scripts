@@ -22,7 +22,7 @@ require (
 	github.com/google/go-github/v41 v41.0.0
 	github.com/lmittmann/tint v1.0.7
 	github.com/sigstore/cosign/v2 v2.5.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli v1.22.16
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d
 	golang.org/x/oauth2 v0.30.0
@@ -31,7 +31,6 @@ require (
 	helm.sh/helm/v3 v3.16.3
 	sigs.k8s.io/release-utils v0.11.1
 	sigs.k8s.io/yaml v1.4.0
-
 )
 
 require (

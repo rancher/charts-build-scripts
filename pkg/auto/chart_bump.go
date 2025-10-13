@@ -52,6 +52,7 @@ var ChartTargetsMap = map[string][]string{
 	"system-upgrade-controller":  {"system-upgrade-controller"},
 	"ui-plugin-operator":         {"ui-plugin-operator", "ui-plugin-operator-crd"},
 	"rancher-turtles":            {"rancher-turtles"},
+	"rancher-turtles-providers":  {"rancher-turtles-providers"},
 }
 
 // Bump represents the chart bump process for a single chart

@@ -21,9 +21,9 @@ import (
 	transport "github.com/google/go-containerregistry/pkg/v1/remote/transport"
 
 	// cosign
-	oci "github.com/sigstore/cosign/v2/pkg/oci"
-	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
-	walk "github.com/sigstore/cosign/v2/pkg/oci/walk"
+	oci "github.com/sigstore/cosign/v3/pkg/oci"
+	ociremote "github.com/sigstore/cosign/v3/pkg/oci/remote"
+	walk "github.com/sigstore/cosign/v3/pkg/oci/walk"
 )
 
 // synchronizer holds all the information to perform cosign copies across different registries.

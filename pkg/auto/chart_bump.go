@@ -53,6 +53,7 @@ var ChartTargetsMap = map[string][]string{
 	"ui-plugin-operator":         {"ui-plugin-operator", "ui-plugin-operator-crd"},
 	"rancher-turtles":            {"rancher-turtles"},
 	"rancher-turtles-providers":  {"rancher-turtles-providers"},
+	"rancher-ali-operator":       {"rancher-ali-operator", "rancher-ali-operator-crd"},
 }
 
 // Bump represents the chart bump process for a single chart

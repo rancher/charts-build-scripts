@@ -810,13 +810,20 @@ func validateRepository(c *cli.Context) {
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
 
+	logger.Log(ctx, slog.LevelInfo, "", slog.Group("inputs",
+		"RepoRoot", RepoRoot,
+		"LocalMode", LocalMode,
+		"RemoteMode", RemoteMode,
+		"Skip", Skip,
+		"CurrentPackage", CurrentPackage))
+
 	if LocalMode && RemoteMode {
 		logger.Fatal(ctx, "cannot specify both local and remote validation")
 	}
 
 	chartsScriptOptions := parseScriptOptions(ctx)
 
-	if err := validate.ChartsRepository(ctx, c, RepoRoot, rootFs, chartsScriptOptions, Skip, RemoteMode, LocalMode); err != nil {
+	if err := validate.ChartsRepository(ctx, c, RepoRoot, rootFs, chartsScriptOptions, Skip, RemoteMode, LocalMode, CurrentPackage); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }

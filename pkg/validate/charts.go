@@ -17,7 +17,7 @@ import (
 )
 
 // ChartsRepository TODO
-func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, rootFs billy.Filesystem, csOptions *options.ChartsScriptOptions, skip, remoteMode, localMode bool) error {
+func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, rootFs billy.Filesystem, csOptions *options.ChartsScriptOptions, skip, remoteMode, localMode bool, chart string) error {
 
 	if err := checkGitClean(ctx, repoRoot, false); err != nil {
 		return err
@@ -35,7 +35,7 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 		logger.Log(ctx, slog.LevelInfo, "remove validation only")
 	} else {
 		logger.Log(ctx, slog.LevelInfo, "generating charts")
-		if err := generateCharts(ctx, c, repoRoot, csOptions); err != nil {
+		if err := generateCharts(ctx, c, repoRoot, chart, csOptions); err != nil {
 			return err
 		}
 
@@ -82,12 +82,11 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 	}
 
 	logger.Log(ctx, slog.LevelInfo, "zipping charts to ensure that contents of assets, charts, and index.yaml are in sync")
-	// zipCharts(c)
-	// TODO ReImplement CurrentChart
-	if err := zip.ArchiveCharts(ctx, repoRoot, ""); err != nil {
+	// zipCharts
+	if err := zip.ArchiveCharts(ctx, repoRoot, chart); err != nil {
 		return err
 	}
-	// createOrUpdateIndex(c)
+	// createOrUpdateIndex
 	if err := helm.CreateOrUpdateHelmIndex(ctx, rootFs); err != nil {
 		return err
 	}
@@ -118,17 +117,16 @@ func checkGitClean(ctx context.Context, repoRoot string, checkExceptions bool) e
 	return StatusExceptions(ctx, status)
 }
 
-func getPackages(ctx context.Context, repoRoot string) ([]*charts.Package, error) {
-	// TODO ReImplement CurrentPackage
-	packages, err := charts.GetPackages(ctx, repoRoot, "")
+func getPackages(ctx context.Context, repoRoot, chart string) ([]*charts.Package, error) {
+	packages, err := charts.GetPackages(ctx, repoRoot, chart)
 	if err != nil {
 		return nil, err
 	}
 	return packages, nil
 }
 
-func generateCharts(ctx context.Context, c *cli.Context, repoRoot string, csOptions *options.ChartsScriptOptions) error {
-	packages, err := getPackages(ctx, repoRoot)
+func generateCharts(ctx context.Context, c *cli.Context, repoRoot, chart string, csOptions *options.ChartsScriptOptions) error {
+	packages, err := getPackages(ctx, repoRoot, chart)
 	if err != nil {
 		return err
 	}

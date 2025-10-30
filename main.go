@@ -12,7 +12,6 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/util"
 
-	"github.com/go-git/go-git/v5"
 	"github.com/rancher/charts-build-scripts/pkg/auto"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
@@ -22,7 +21,6 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
 	"github.com/rancher/charts-build-scripts/pkg/registries"
-	"github.com/rancher/charts-build-scripts/pkg/repository"
 	"github.com/rancher/charts-build-scripts/pkg/standardize"
 	"github.com/rancher/charts-build-scripts/pkg/update"
 	"github.com/rancher/charts-build-scripts/pkg/validate"
@@ -526,7 +524,7 @@ func main() {
 		{
 			Name:   "validate",
 			Usage:  "Run validation to ensure that contents of assets and charts won't overwrite released charts",
-			Action: validateRepo,
+			Action: validateRepository,
 			Flags:  []cli.Flag{packageFlag, configFlag, localModeFlag, remoteModeFlag, skipFlag},
 		},
 		{
@@ -807,7 +805,7 @@ func cleanRepo(c *cli.Context) {
 	}
 }
 
-func validateRepo(c *cli.Context) {
+func validateRepository(c *cli.Context) {
 	ctx := context.Background()
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
@@ -818,81 +816,9 @@ func validateRepo(c *cli.Context) {
 
 	chartsScriptOptions := parseScriptOptions(ctx)
 
-	logger.Log(ctx, slog.LevelInfo, "checking if Git is clean")
-	_, _, status := getGitInfo()
-	if !status.IsClean() {
-		logger.Fatal(ctx, "repository must be clean to run validation")
+	if err := validate.ChartsRepository(ctx, c, RepoRoot, rootFs, chartsScriptOptions, Skip, RemoteMode, LocalMode); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
-
-	// Only skip icon validations for forward-ports
-	if !Skip {
-		if err := auto.ValidateIcons(ctx, rootFs); err != nil {
-			logger.Fatal(ctx, err.Error())
-		}
-	}
-
-	if RemoteMode {
-		logger.Log(ctx, slog.LevelInfo, "remove validation only")
-	} else {
-		logger.Log(ctx, slog.LevelInfo, "generating charts")
-		generateCharts(c)
-
-		logger.Log(ctx, slog.LevelInfo, "checking if Git is clean after generating charts")
-		_, _, status = getGitInfo()
-		if err := validate.StatusExceptions(ctx, status); err != nil {
-			logger.Fatal(ctx, err.Error())
-		}
-
-		logger.Log(ctx, slog.LevelInfo, "successfully validated that current charts and assets are up-to-date")
-	}
-
-	if chartsScriptOptions.ValidateOptions != nil {
-		if LocalMode {
-			logger.Log(ctx, slog.LevelInfo, "local validation only")
-		} else {
-			getRepoRoot()
-			repoFs := filesystem.GetFilesystem(RepoRoot)
-			releaseOptions, err := options.LoadReleaseOptionsFromFile(ctx, repoFs, "release.yaml")
-			if err != nil {
-				logger.Fatal(ctx, fmt.Errorf("unable to unmarshall release.yaml: %w", err).Error())
-			}
-			u := chartsScriptOptions.ValidateOptions.UpstreamOptions
-			branch := chartsScriptOptions.ValidateOptions.Branch
-
-			logger.Log(ctx, slog.LevelInfo, "upstream validation against repository", slog.String("url", u.URL), slog.String("branch", branch))
-			compareGeneratedAssetsResponse, err := validate.CompareGeneratedAssets(ctx, RepoRoot, repoFs, u, branch, releaseOptions)
-			if err != nil {
-				logger.Fatal(ctx, err.Error())
-			}
-			if !compareGeneratedAssetsResponse.PassedValidation() {
-				// Output charts that have been modified
-				compareGeneratedAssetsResponse.LogDiscrepancies(ctx)
-
-				logger.Log(ctx, slog.LevelInfo, "dumping release.yaml to track changes that have been introduced")
-				if err := compareGeneratedAssetsResponse.DumpReleaseYaml(ctx, repoFs); err != nil {
-					logger.Log(ctx, slog.LevelError, "unable to dump newly generated release.yaml", logger.Err(err))
-				}
-
-				logger.Log(ctx, slog.LevelInfo, "updating index.yaml")
-				if err := helm.CreateOrUpdateHelmIndex(ctx, repoFs); err != nil {
-					logger.Fatal(ctx, err.Error())
-				}
-
-				logger.Fatal(ctx, fmt.Sprintf("validation against upstream repository %s at branch %s failed.", u.URL, branch))
-			}
-		}
-	}
-
-	logger.Log(ctx, slog.LevelInfo, "zipping charts to ensure that contents of assets, charts, and index.yaml are in sync")
-	zipCharts(c)
-
-	logger.Log(ctx, slog.LevelInfo, "final check if Git is clean")
-	_, _, status = getGitInfo()
-	if !status.IsClean() {
-		logger.Fatal(ctx, fmt.Sprintf("repository must be clean to pass validation; status: %s", status.String()))
-	}
-
-	logger.Log(ctx, slog.LevelInfo, "make validate success")
 }
 
 func standardizeRepo(c *cli.Context) {
@@ -994,29 +920,6 @@ func getPackages() []*charts.Package {
 		logger.Fatal(ctx, err.Error())
 	}
 	return packages
-}
-
-func getGitInfo() (*git.Repository, *git.Worktree, git.Status) {
-	ctx := context.Background()
-
-	getRepoRoot()
-	repo, err := repository.GetRepo(RepoRoot)
-	if err != nil {
-		logger.Fatal(ctx, err.Error())
-	}
-
-	// Check if git is clean
-	wt, err := repo.Worktree()
-	if err != nil {
-		logger.Fatal(ctx, err.Error())
-	}
-
-	status, err := wt.Status()
-	if err != nil {
-		logger.Fatal(ctx, err.Error())
-	}
-
-	return repo, wt, status
 }
 
 func checkImages(c *cli.Context) {

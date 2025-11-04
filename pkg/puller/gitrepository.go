@@ -2,19 +2,23 @@ package puller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/go-git/go-billy/v5"
-	"github.com/go-git/go-git/v5"
+	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	git "github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/repository"
 )
+
+var fullCloneMutex sync.Mutex
 
 const (
 	httpsURLFmt = "https://github.com/%s/%s.git"
@@ -83,7 +87,11 @@ func (r GithubRepository) GetSSHURL() string {
 
 // Pull grabs the repository
 func (r GithubRepository) Pull(ctx context.Context, rootFs, fs billy.Filesystem, path string) error {
-	if r.IsCacheable() {
+	cloneURL := r.GetHTTPSURL()
+	isCacheable := r.IsCacheable()
+	logger.Log(ctx, slog.LevelInfo, "pulling from upstream", slog.String("url", cloneURL), slog.Bool("isCacheable", isCacheable))
+
+	if isCacheable {
 		pulledFromCache, err := RootCache.Get(ctx, r.CacheKey(), fs, path)
 		if err != nil {
 			return err
@@ -94,36 +102,38 @@ func (r GithubRepository) Pull(ctx context.Context, rootFs, fs billy.Filesystem,
 		}
 	}
 
-	logger.Log(ctx, slog.LevelInfo, "pulling from upstream")
-	if r.Commit == nil && r.branch == nil {
-		logger.Log(ctx, slog.LevelError, "if you are pulling from a Git repository, a commit or a branch is required in the package.yaml")
-		return fmt.Errorf("no commit or branch specified")
-	}
+	switch {
+	case r.Commit == nil && r.branch == nil:
+		logger.Log(ctx, slog.LevelError, "Git Repo pull; a commit or a branch is required in the package.yaml")
+		return errors.New("no commit or branch specified")
+	case r.branch != nil:
+		logger.Log(ctx, slog.LevelDebug, "", slog.String("branch", *r.branch), slog.String("url", cloneURL))
+		_, err := gogit.PlainClone(filesystem.GetAbsPath(fs, path), false, &gogit.CloneOptions{
+			URL:           cloneURL,
+			ReferenceName: git.GetLocalBranchRefName(*r.branch),
+			SingleBranch:  true,
+			Depth:         1,
+		})
+		if err != nil {
+			return err
+		}
+	case r.Commit != nil && r.Subdirectory == nil:
+		logger.Log(ctx, slog.LevelDebug, "SLOW", slog.String("commit", *r.Commit), slog.String("url", cloneURL))
 
-	cloneOptions := git.CloneOptions{
-		URL: r.GetHTTPSURL(),
-	}
-	logger.Log(ctx, slog.LevelDebug, "", slog.String("url", cloneOptions.URL))
-
-	if r.branch != nil {
-		logger.Log(ctx, slog.LevelDebug, "", slog.String("branch", *r.branch))
-		cloneOptions.ReferenceName = repository.GetLocalBranchRefName(*r.branch)
-		cloneOptions.SingleBranch = true
-	}
-
-	repo, err := git.PlainClone(filesystem.GetAbsPath(fs, path), false, &cloneOptions)
-	if err != nil {
-		return err
-	}
-
-	if r.Commit != nil {
-		logger.Log(ctx, slog.LevelDebug, "", slog.String("commit", *r.Commit))
+		fullCloneMutex.Lock()
+		repo, err := gogit.PlainClone(filesystem.GetAbsPath(fs, path), false, &gogit.CloneOptions{
+			URL: cloneURL,
+		})
+		if err != nil {
+			return err
+		}
+		fullCloneMutex.Unlock()
 
 		wt, err := repo.Worktree()
 		if err != nil {
 			return err
 		}
-		err = wt.Checkout(&git.CheckoutOptions{
+		err = wt.Checkout(&gogit.CheckoutOptions{
 			Hash: plumbing.NewHash(*r.Commit),
 		})
 		if err != nil {
@@ -131,10 +141,14 @@ func (r GithubRepository) Pull(ctx context.Context, rootFs, fs billy.Filesystem,
 		}
 		head, err := repo.Head()
 		if err != nil {
-			return fmt.Errorf("unable to confirm if checkout was successful: %s", err)
+			return errors.New("unable to confirm if checkout was successful: " + err.Error())
 		}
 		if head.Hash().String() != *r.Commit {
-			return fmt.Errorf("unable to checkout commit %s, may not be a valid commit hash from upstream", *r.Commit)
+			return errors.New("unable to checkout commit %s, may not be a valid commit hash from upstream: " + *r.Commit)
+		}
+	case r.Commit != nil && r.Subdirectory != nil:
+		if err := git.SparseCloneSubdirectory(ctx, r.GetHTTPSURL(), *r.Commit, *r.Subdirectory, fs, path); err != nil {
+			return err
 		}
 	}
 
@@ -151,7 +165,7 @@ func (r GithubRepository) Pull(ctx context.Context, rootFs, fs billy.Filesystem,
 		}
 	}
 
-	if r.IsCacheable() {
+	if isCacheable {
 		addedToCache, err := RootCache.Add(ctx, r.CacheKey(), fs, path)
 		if err != nil {
 			return err

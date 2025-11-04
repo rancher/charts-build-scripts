@@ -821,9 +821,7 @@ func validateRepository(c *cli.Context) {
 		logger.Fatal(ctx, "cannot specify both local and remote validation")
 	}
 
-	chartsScriptOptions := parseScriptOptions(ctx)
-
-	if err := validate.ChartsRepository(ctx, c, RepoRoot, rootFs, chartsScriptOptions, Skip, RemoteMode, LocalMode, CurrentPackage); err != nil {
+	if err := validate.ChartsRepository(ctx, c, RepoRoot, rootFs, parseScriptOptions(ctx), Skip, RemoteMode, LocalMode, CurrentPackage); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }

@@ -5,7 +5,13 @@ import (
 	"fmt"
 
 	gogit "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 )
+
+// GetLocalBranchRefName returns the reference name of a given local branch
+func GetLocalBranchRefName(branch string) plumbing.ReferenceName {
+	return plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", branch))
+}
 
 // GetGitInfo returns the git repository, worktree, and status for a given repository root path.
 // This function is used for validation operations that need to check git status and repository state.

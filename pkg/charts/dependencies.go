@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
@@ -22,6 +23,11 @@ import (
 	helmRepo "helm.sh/helm/v3/pkg/repo"
 	"sigs.k8s.io/yaml"
 )
+
+// helmRepoFetchMutex protects concurrent HTTP requests to Helm repositories
+// This ensures that only one goroutine can query Helm repo indexes at a time,
+// preventing rate limiting and HTTP/2 GOAWAY errors from concurrent requests
+var helmRepoFetchMutex sync.Mutex
 
 // PrepareDependencies prepares all of the dependencies of a given chart and regenerates the requirements.yaml or Chart.yaml
 func PrepareDependencies(ctx context.Context, rootFs, pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDir string, ignoreDependencies []string) error {
@@ -204,6 +210,8 @@ func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChart
 
 		logger.Log(ctx, slog.LevelDebug, "looking for dependency", slog.String("dependencyName", dependencyName), slog.String("repository", dependency.Repository))
 
+		// Acquire mutex to serialize Helm repository queries and prevent rate limiting
+		helmRepoFetchMutex.Lock()
 		dependencyURL, err := helmRepo.FindChartInRepoURL(
 			dependency.Repository,
 			dependencyName,
@@ -211,6 +219,8 @@ func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChart
 			"", "", "",
 			helmGetter.All(&helmCli.EnvSettings{}),
 		)
+		helmRepoFetchMutex.Unlock()
+
 		if err != nil {
 			return fmt.Errorf("encountered error while trying to find the repository for dependency %s: %s", dependency.Name, err)
 		}

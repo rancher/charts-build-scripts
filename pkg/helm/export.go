@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
@@ -28,6 +29,11 @@ var (
 	patchNumMultiplier = uint64(math.Pow10(2))
 	maxPatchNum        = patchNumMultiplier - 1
 )
+
+// archiveGenerationMutex protects concurrent archive generation operations
+// This ensures that only one goroutine can generate Helm chart archives at a time,
+// preventing race conditions on temporary directory creation and file comparison
+var archiveGenerationMutex sync.Mutex
 
 // ExportHelmChart creates a Helm chart archive and an unarchived Helm chart at RepositoryAssetDirpath and RepositoryChartDirPath
 // helmChartPath is a relative path (rooted at the package level) that contains the chart.
@@ -60,7 +66,11 @@ func ExportHelmChart(ctx context.Context, rootFs, fs billy.Filesystem, helmChart
 	defer filesystem.PruneEmptyDirsInPath(ctx, rootFs, chartAssetsDirpath)
 	defer filesystem.PruneEmptyDirsInPath(ctx, rootFs, chartChartsDirpath)
 
+	// Acquire mutex to serialize archive generation and prevent race conditions
+	archiveGenerationMutex.Lock()
 	tgzPath, err := GenerateArchive(ctx, rootFs, fs, helmChartPath, chartAssetsDirpath, &chartVersion)
+	archiveGenerationMutex.Unlock()
+
 	if err != nil {
 		return err
 	}

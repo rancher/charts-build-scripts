@@ -3,12 +3,12 @@ package helm
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/Masterminds/semver"
 	"github.com/go-git/go-billy/v5"
@@ -18,8 +18,17 @@ import (
 	helmRepo "helm.sh/helm/v3/pkg/repo"
 )
 
+// indexMutex protects concurrent access to index.yaml file operations
+// This ensures that only one goroutine can read/modify/write the index at a time
+var indexMutex sync.Mutex
+
 // CreateOrUpdateHelmIndex either creates or updates the index.yaml for the repository this package is within
 func CreateOrUpdateHelmIndex(ctx context.Context, rootFs billy.Filesystem) error {
+	// Acquire the lock to ensure exclusive access to index.yaml
+	indexMutex.Lock()
+	// Defer the unlock to ensure it happens even if we return early or encounter an error
+	defer indexMutex.Unlock()
+
 	absRepositoryAssetsDir := filesystem.GetAbsPath(rootFs, path.RepositoryAssetsDir)
 	absRepositoryHelmIndexFile := filesystem.GetAbsPath(rootFs, path.RepositoryHelmIndexFile)
 
@@ -28,11 +37,13 @@ func CreateOrUpdateHelmIndex(ctx context.Context, rootFs billy.Filesystem) error
 	// Load index file from disk if it exists
 	exists, err := filesystem.PathExists(ctx, rootFs, path.RepositoryHelmIndexFile)
 	if err != nil {
-		return fmt.Errorf("encountered error while checking if Helm index file already exists in repository: %s", err)
-	} else if exists {
+		return errors.New("encountered error while checking if Helm index file already exists in repository: " + err.Error())
+	}
+
+	if exists {
 		helmIndexFile, err = helmRepo.LoadIndexFile(absRepositoryHelmIndexFile)
 		if err != nil {
-			return fmt.Errorf("encountered error while trying to load existing index file: %s", err)
+			return errors.New("encountered error while trying to load existing index file: " + err.Error())
 		}
 	} else {
 		helmIndexFile = helmRepo.NewIndexFile()
@@ -41,7 +52,7 @@ func CreateOrUpdateHelmIndex(ctx context.Context, rootFs billy.Filesystem) error
 	// Generate the current index file from the assets/ directory
 	newHelmIndexFile, err := helmRepo.IndexDirectory(absRepositoryAssetsDir, path.RepositoryAssetsDir)
 	if err != nil {
-		return fmt.Errorf("encountered error while trying to generate new Helm index: %s", err)
+		return errors.New("encountered error while trying to generate new Helm index: " + err.Error())
 	}
 
 	// Sort entries to ensure consistent ordering
@@ -52,14 +63,13 @@ func CreateOrUpdateHelmIndex(ctx context.Context, rootFs billy.Filesystem) error
 	helmIndexFile, upToDate := UpdateIndex(ctx, helmIndexFile, newHelmIndexFile)
 
 	if upToDate {
-		logger.Log(ctx, slog.LevelInfo, "index.yaml is up-to-date")
 		return nil
 	}
 
 	// Write new index to disk
 	err = helmIndexFile.WriteFile(absRepositoryHelmIndexFile, os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("encountered error while trying to write updated Helm index into index.yaml: %s", err)
+		return errors.New("encountered error while trying to write updated Helm index into index.yaml: " + err.Error())
 	}
 
 	logger.Log(ctx, slog.LevelInfo, "generated index.yaml")

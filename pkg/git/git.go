@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
@@ -373,4 +375,68 @@ func (g *Git) Status(ctx context.Context) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// SparseCloneSubdirectory performs a sparse Git clone of only a specific subdirectory
+// using Git CLI commands. This is significantly more efficient than cloning the entire
+// repository when only a small subdirectory is needed.
+//
+// The function clones directly to the specified path using billy.Filesystem abstraction,
+// with sparse-checkout configured to only download the specified subdirectory.
+// The caller is responsible for removing the .git folder and restructuring with
+// MakeSubdirectoryRoot if needed.
+//
+// Parameters:
+//   - ctx: Context for cancellation
+//   - url: Git repository URL (e.g., "https://github.com/rancher/ob-team-charts.git")
+//   - commit: Specific commit SHA to checkout
+//   - subdirectory: Path to subdirectory within the repo (e.g., "charts/rancher-monitoring/...")
+//   - fs: Billy filesystem for path operations
+//   - path: Destination path where the repository should be cloned
+//
+// Returns an error if the operation fails.
+func SparseCloneSubdirectory(ctx context.Context, url, commit, subdirectory string, fs billy.Filesystem, path string) error {
+	logger.Log(ctx, slog.LevelDebug, "sparse cloning",
+		slog.String("url", url),
+		slog.String("commit", commit),
+		slog.String("subdirectory", subdirectory))
+
+	// Get absolute path for Git CLI operations
+	absPath := filesystem.GetAbsPath(fs, path)
+
+	// Step 1: Clone with sparse checkout enabled (metadata only)
+	cloneCmd := exec.CommandContext(ctx, "git", "clone",
+		"--filter=blob:none",
+		"--sparse",
+		"--no-checkout",
+		url,
+		absPath,
+	)
+
+	if output, err := cloneCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("sparse clone failed: %w, output: %s", err, string(output))
+	}
+
+	// Step 2: Set sparse-checkout to only include the subdirectory
+	sparseCmd := exec.CommandContext(ctx, "git",
+		"-C", absPath,
+		"sparse-checkout", "set",
+		subdirectory,
+	)
+
+	if output, err := sparseCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("sparse-checkout set failed: %w, output: %s", err, string(output))
+	}
+
+	// Step 3: Checkout the specific commit
+	checkoutCmd := exec.CommandContext(ctx, "git",
+		"-C", absPath,
+		"checkout", commit,
+	)
+
+	if output, err := checkoutCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("checkout commit failed: %w, output: %s", err, string(output))
+	}
+
+	return nil
 }

@@ -19,7 +19,7 @@ require (
 	github.com/go-git/go-git/v5 v5.13.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.20.5
-	github.com/google/go-github/v41 v41.0.0
+	github.com/google/go-github/v77 v77.0.0
 	github.com/lmittmann/tint v1.0.7
 	github.com/sigstore/cosign/v2 v2.5.0
 	github.com/stretchr/testify v1.10.0
@@ -31,7 +31,6 @@ require (
 	helm.sh/helm/v3 v3.16.3
 	sigs.k8s.io/release-utils v0.11.1
 	sigs.k8s.io/yaml v1.4.0
-
 )
 
 require (

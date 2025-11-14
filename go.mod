@@ -28,11 +28,15 @@ require (
 	golang.org/x/oauth2 v0.30.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
-	helm.sh/helm/v3 v3.16.3
+	helm.sh/helm/v3 v3.16.3 // DO NOT upgrade - v4 breaks OCI tags with '+' character
 	sigs.k8s.io/release-utils v0.11.1
 	sigs.k8s.io/yaml v1.4.0
 
 )
+
+// Block Helm v4 - breaks OCI tag validation for versions with '+' character
+// Our chart versioning: <version>+up<upstream> (e.g., 108.0.0+up0.25.0-rc.0)
+exclude helm.sh/helm/v4 v4.0.0
 
 require (
 	dario.cat/mergo v1.0.1 // indirect

@@ -5,5 +5,12 @@
   "baseBranches": [
     "master"
   ],
-  "prHourlyLimit": 2
+  "prHourlyLimit": 2,
+  "packageRules": [
+    {
+      "matchPackageNames": ["helm.sh/helm/v3"],
+      "allowedVersions": "<=3.16.3",
+      "description": "Pin Helm to v3.16.3 - v4 breaks OCI tag validation for versions with '+' character (e.g., 108.0.0+up0.25.0-rc.0)"
+    }
+  ]
 }

@@ -55,9 +55,10 @@ const (
 	// defaultPRNumberEnvironmentVariable is the default environment variable that indicates the PR number
 	defaultPRNumberEnvironmentVariable = "PR_NUMBER"
 	// default environment variables used by OCI Registry
-	defaultOciDNS      = "OCI_DNS"
-	defaultOciUser     = "OCI_USER"
-	defaultOciPassword = "OCI_PASS"
+	defaultOciDNS        = "OCI_DNS"
+	defaultCustomOCIPAth = "CUSTOM_OCI_PATH"
+	defaultOciUser       = "OCI_USER"
+	defaultOciPassword   = "OCI_PASS"
 	// defaultSkipEnvironmentVariable is the default environment variable that indicates whether to skip execution
 	defaultSkipEnvironmentVariable = "SKIP"
 	// softErrorsEnvironmentVariable is the default environment variable that indicates if soft error mode is enabled
@@ -69,7 +70,7 @@ const (
 	// defaultMultiRCEnvironmentVariable is the default environment variable that indicates if the auto-bump should not remove previous RC versions
 	defaultMultiRCEnvironmentVariable = "MULTI_RC"
 	// Docker Registry authentication
-	defaultDockerUserEnvironmentVariable     = "DOCKER_USER"
+	defaultDockerUserEnvironmentVariable     = "DOCKER_USERNAME"
 	defaultDockerPasswordEnvironmentVariable = "DOCKER_PASSWORD"
 	// Staging Registry authentication
 	defaultStagingUserEnvironmentVariable     = "STAGING_USER"
@@ -119,6 +120,8 @@ var (
 	GithubToken string
 	// OciDNS represents the DNS of the OCI Registry
 	OciDNS string
+	// CustomOCIPAth represents a custom override for the OCI Registry
+	CustomOCIPAth string
 	// OciUser represents the user of the OCI Registry
 	OciUser string
 	// OciPassword represents the password of the OCI Registry
@@ -287,6 +290,15 @@ func main() {
 		Required:    true,
 		Destination: &OciDNS,
 		EnvVar:      defaultOciDNS,
+	}
+	customOciPath := cli.StringFlag{
+		Name: "custom-oci-path",
+		Usage: `Usage:
+			Provided OCI registry custom URL PATH.
+		`,
+		Required:    false,
+		Destination: &CustomOCIPAth,
+		EnvVar:      defaultCustomOCIPAth,
 	}
 	ociUser := cli.StringFlag{
 		Name: "oci-user",
@@ -624,7 +636,7 @@ func main() {
 			`,
 			Action: updateOCIRegistry,
 			Flags: []cli.Flag{
-				debugFlag, ociDNS, ociUser, ociPass,
+				debugFlag, ociDNS, ociUser, ociPass, customOciPath,
 			},
 		},
 	}
@@ -1162,10 +1174,13 @@ func updateOCIRegistry(c *cli.Context) {
 		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("OCI DNS Empty", emptyDNS))
 		logger.Fatal(ctx, errors.New("no credentials provided for pushing helm chart to OCI registry").Error())
 	}
+	if CustomOCIPAth != "" {
+		logger.Log(ctx, slog.LevelDebug, "custom override path", slog.String("path", CustomOCIPAth))
+	}
 
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
-	if err := auto.UpdateOCI(ctx, rootFs, OciDNS, OciUser, OciPassword, DebugMode); err != nil {
+	if err := auto.UpdateOCI(ctx, rootFs, OciDNS, CustomOCIPAth, OciUser, OciPassword, DebugMode); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }

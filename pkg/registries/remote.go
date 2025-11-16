@@ -107,14 +107,11 @@ var listRegistryImageTags = func(ctx context.Context, imageTagMap map[string][]s
 // fetchTagsFromRegistryRepo will check a remote registry repository image for its tags.
 // will be mocked using monkey patching.
 var fetchTagsFromRegistryRepo = func(ctx context.Context, registry, asset string) ([]string, error) {
-
-	repo, err := name.NewRepository(registry + asset)
-	if err != nil {
-		logger.Log(ctx, slog.LevelError, "remote repository failure", logger.Err(err))
-		return nil, err
-	}
-
 	var options []remote.Option
+	var nameOpts []name.Option
+	var repo name.Repository
+	var err error
+
 	options = append(options, remote.WithContext(ctx))
 	// 1st: 0s | 2nd: 60s | 3rd: 180s
 	options = append(options, remote.WithRetryBackoff(remote.Backoff{
@@ -125,6 +122,31 @@ var fetchTagsFromRegistryRepo = func(ctx context.Context, registry, asset string
 	options = append(options, remote.WithRetryStatusCodes([]int{
 		http.StatusTooManyRequests, // 429
 	}...))
+
+	// Handle localhost registries (dev environment) - use insecure HTTP
+	if strings.HasPrefix(registry, "localhost:") {
+		nameOpts = append(nameOpts, name.Insecure)
+		logger.Log(ctx, slog.LevelDebug, "using insecure/plain HTTP for localhost registry", slog.String("registry", registry))
+	}
+
+	if len(nameOpts) > 0 {
+		logger.Log(ctx, slog.LevelDebug, "local host registry configuration")
+		repo, err = name.NewRepository(registry+asset, nameOpts...)
+		if err != nil {
+			logger.Log(ctx, slog.LevelError, "remote repository failure", logger.Err(err))
+			return nil, err
+		}
+		if auth := dockerCredentials(ctx); auth != nil {
+			logger.Log(ctx, slog.LevelDebug, "using DOCKER_USERNAME/PASSWORD env vars for localhost auth")
+			options = append(options, remote.WithAuth(auth))
+		}
+	} else {
+		repo, err = name.NewRepository(registry + asset)
+		if err != nil {
+			logger.Log(ctx, slog.LevelError, "remote repository failure", logger.Err(err))
+			return nil, err
+		}
+	}
 
 	if registry == DockerURL {
 		if auth := dockerCredentials(ctx); auth != nil {

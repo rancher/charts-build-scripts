@@ -1182,13 +1182,13 @@ func syncRegistries(c *cli.Context) {
 
 	if CustomOCIPAth != "" {
 		logger.Log(ctx, slog.LevelDebug, "custom override path", slog.String("path", CustomOCIPAth))
-	}
 
-	if err := registries.SyncCustom(ctx, PrimeUser, PrimePassword, PrimeURL, StagingUser, StagingPassword, CustomOCIPAth, DebugMode); err != nil {
-		logger.Fatal(ctx, err.Error())
+		if err := registries.SyncCustom(ctx, PrimeUser, PrimePassword, PrimeURL, StagingUser, StagingPassword, CustomOCIPAth, DebugMode); err != nil {
+			logger.Fatal(ctx, err.Error())
+		}
+	} else {
+		if err := registries.Sync(ctx, PrimeUser, PrimePassword, PrimeURL, DockerUser, DockerPassword, StagingUser, StagingPassword); err != nil {
+			logger.Fatal(ctx, err.Error())
+		}
 	}
-
-	// if err := registries.Sync(ctx, PrimeUser, PrimePassword, PrimeURL, DockerUser, DockerPassword, StagingUser, StagingPassword); err != nil {
-	// 	logger.Fatal(ctx, err.Error())
-	// }
 }

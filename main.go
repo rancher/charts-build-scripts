@@ -494,18 +494,6 @@ func main() {
 			Flags:  []cli.Flag{packageFlag, configFlag, cacheFlag},
 		},
 		{
-			Name:   "scan-registries",
-			Usage:  "Fetch, list and compare SUSE's registries and create yaml files with what is supposed to be synced from Docker Hub",
-			Action: scanRegistries,
-			Flags:  []cli.Flag{primeURLFlag},
-		},
-		{
-			Name:   "sync-registries",
-			Usage:  "Fetch, list and compare SUSE's registries and create yaml files with what is supposed to be synced from Docker Hub",
-			Action: syncRegistries,
-			Flags:  []cli.Flag{dockerUserFlag, dockerPasswordFlag, stagingUserFlag, stagingPasswordFlag, primeUserFlag, primePasswordFlag, primeURLFlag},
-		},
-		{
 			Name:   "index",
 			Usage:  "Create or update the existing Helm index.yaml at the repository root",
 			Action: createOrUpdateIndex,
@@ -639,6 +627,18 @@ func main() {
 				debugFlag, ociDNS, ociUser, ociPass, customOciPath,
 			},
 		},
+		{
+			Name:   "scan-registries",
+			Usage:  "Fetch, list and compare SUSE's registries and create yaml files with what is supposed to be synced from Docker Hub",
+			Action: scanRegistries,
+			Flags:  []cli.Flag{primeURLFlag},
+		},
+		{
+			Name:   "sync-registries",
+			Usage:  "Fetch, list and compare SUSE's registries and create yaml files with what is supposed to be synced from Docker Hub",
+			Action: syncRegistries,
+			Flags:  []cli.Flag{dockerUserFlag, dockerPasswordFlag, stagingUserFlag, stagingPasswordFlag, primeUserFlag, primePasswordFlag, primeURLFlag, debugFlag, customOciPath},
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -730,45 +730,6 @@ func downloadIcon(c *cli.Context) {
 		if err != nil {
 			logger.Fatal(ctx, err.Error())
 		}
-	}
-}
-
-func scanRegistries(c *cli.Context) {
-	ctx := context.Background()
-
-	if PrimeURL == "" {
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("URL Empty", true))
-		logger.Fatal(ctx, errors.New("no Prime URL provided").Error())
-	}
-
-	if err := registries.Scan(ctx, PrimeURL+"/"); err != nil {
-		logger.Fatal(ctx, err.Error())
-	}
-}
-
-func syncRegistries(c *cli.Context) {
-	ctx := context.Background()
-
-	emptyUser := PrimeUser == ""
-	emptyPass := PrimePassword == ""
-	emptyURL := PrimeURL == ""
-	emptyDockerUser := DockerUser == ""
-	emptyDockerPass := DockerPassword == ""
-	emptyStagingUser := StagingUser == ""
-	emptyStagingPass := StagingPassword == ""
-	if emptyUser || emptyPass || emptyURL || emptyDockerUser || emptyDockerPass || emptyStagingUser || emptyStagingPass {
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("User Empty", emptyUser))
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Password Empty", emptyPass))
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("URL Empty", emptyURL))
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Docker User Empty", emptyDockerUser))
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Docker Pass Empty", emptyDockerPass))
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Staging User Empty", emptyStagingUser))
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Staging Pass Empty", emptyStagingPass))
-		logger.Fatal(ctx, errors.New("no credentials provided for sync").Error())
-	}
-
-	if err := registries.Sync(ctx, PrimeUser, PrimePassword, PrimeURL, DockerUser, DockerPassword, StagingUser, StagingPassword); err != nil {
-		logger.Fatal(ctx, err.Error())
 	}
 }
 
@@ -1183,4 +1144,51 @@ func updateOCIRegistry(c *cli.Context) {
 	if err := auto.UpdateOCI(ctx, rootFs, OciDNS, CustomOCIPAth, OciUser, OciPassword, DebugMode); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
+}
+
+func scanRegistries(c *cli.Context) {
+	ctx := context.Background()
+
+	if PrimeURL == "" {
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("URL Empty", true))
+		logger.Fatal(ctx, errors.New("no Prime URL provided").Error())
+	}
+
+	if err := registries.Scan(ctx, PrimeURL+"/"); err != nil {
+		logger.Fatal(ctx, err.Error())
+	}
+}
+
+func syncRegistries(c *cli.Context) {
+	ctx := context.Background()
+
+	emptyUser := PrimeUser == ""
+	emptyPass := PrimePassword == ""
+	emptyURL := PrimeURL == ""
+	emptyDockerUser := DockerUser == ""
+	emptyDockerPass := DockerPassword == ""
+	emptyStagingUser := StagingUser == ""
+	emptyStagingPass := StagingPassword == ""
+	if emptyUser || emptyPass || emptyURL || emptyDockerUser || emptyDockerPass || emptyStagingUser || emptyStagingPass {
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("User Empty", emptyUser))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Password Empty", emptyPass))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("URL Empty", emptyURL))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Docker User Empty", emptyDockerUser))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Docker Pass Empty", emptyDockerPass))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Staging User Empty", emptyStagingUser))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Staging Pass Empty", emptyStagingPass))
+		logger.Fatal(ctx, errors.New("no credentials provided for sync").Error())
+	}
+
+	if CustomOCIPAth != "" {
+		logger.Log(ctx, slog.LevelDebug, "custom override path", slog.String("path", CustomOCIPAth))
+	}
+
+	if err := registries.SyncCustom(ctx, PrimeUser, PrimePassword, PrimeURL, StagingUser, StagingPassword, CustomOCIPAth, DebugMode); err != nil {
+		logger.Fatal(ctx, err.Error())
+	}
+
+	// if err := registries.Sync(ctx, PrimeUser, PrimePassword, PrimeURL, DockerUser, DockerPassword, StagingUser, StagingPassword); err != nil {
+	// 	logger.Fatal(ctx, err.Error())
+	// }
 }

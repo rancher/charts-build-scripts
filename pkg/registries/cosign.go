@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime"
+	"strings"
 
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
@@ -32,6 +33,7 @@ type synchronizer struct {
 	sourceRegistry *sourceRegistry
 	primeRegistry  *primeRegistry
 	nameOpts       []name.Option
+	customPath     string
 }
 
 // repoImage holds the source and destination image/tag informations
@@ -61,6 +63,103 @@ var (
 )
 
 type tagMap func(name.Reference, ...ociremote.Option) (name.Tag, error)
+
+// SyncCustom will be used for manual releases in Prime Charts until we define a proper process.
+func SyncCustom(ctx context.Context, primeUser, primePass, primeURL, stagingUser, stagingPass, customPath string, debug bool) error {
+	s, err := prepareCustomSync(ctx, primeUser, primePass, stagingUser, stagingPass, customPath, debug)
+	if err != nil {
+		return err
+	}
+
+	customImageTags, err := loadSyncYamlFile(ctx, "config/customToPrime.yaml")
+	if err != nil {
+		return err
+	}
+
+	for repo, tags := range customImageTags {
+		for _, tag := range tags {
+			s.repoImage = &repoImage{} // init/reset img/tag to be synced
+			if err := s.copy(ctx, StagingURL, repo, tag, primeURL); err != nil {
+				return err
+			}
+			if err := s.push(ctx); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func prepareCustomSync(ctx context.Context, primeUser, primePass, stagingUser, staginPass, customPath string, debug bool) (*synchronizer, error) {
+	// Use strict validation for pulling and pushing
+	// These options control how image references (e.g., "myregistry/myimage:tag")
+	// are parsed and validated by go-containerregistry's 'name' package.
+	var nameOpts []name.Option
+	nameOpts = append(nameOpts, name.Insecure)
+	// name.Insecure: Allows parsing of image references that might imply an insecure
+	// connection, such as "localhost:5000" or docker.io without loging.
+	// This affects the parsing phase, not the actual network transport.
+
+	// handle insecure (HTTP or self-signed HTTPS) registry connections.
+	// (needed for docker.io without login)
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	var stagingClientOpts []remote.Option
+	if !debug {
+		stagingClientOpts = append(stagingClientOpts, remote.WithContext(ctx))
+		stagingClientOpts = append(stagingClientOpts, remote.WithUserAgent(UaString))
+		stagingClientOpts = append(stagingClientOpts, remote.WithAuth(&authn.Basic{Username: stagingUser, Password: staginPass}))
+		stagingClientOpts = append(stagingClientOpts, remote.WithTransport(tr))
+	}
+	if debug {
+		logger.Log(ctx, slog.LevelDebug, "debug mode staging puller")
+		stagingClientOpts = append(stagingClientOpts, remote.WithContext(ctx))
+		stagingClientOpts = append(stagingClientOpts, remote.WithUserAgent(UaString))
+	}
+
+	stagingPuller, err := remote.NewPuller(stagingClientOpts...)
+	if err == nil {
+		stagingClientOpts = append(stagingClientOpts, remote.Reuse(stagingPuller))
+	}
+
+	// These options are specifically for cosign's 'pkg/oci/remote' functions
+	// (e.g., ociremote.SignedEntity, ociremote.SignatureTag). They bridge the
+	// 'go-containerregistry' remote options to cosign's operations.
+	stagingPullerOpts := []ociremote.Option{
+		ociremote.WithNameOptions(nameOpts...),
+	}
+	// Embed the 'go-containerregistry' remote options
+	// (context, user agent, keychain auth, insecure transport) into cosign's client setup.
+	stagingPullerOpts = append(stagingPullerOpts, ociremote.WithRemoteOptions(stagingClientOpts...))
+
+	// prime (destination) registry. They use explicit basic authentication?
+	remoteOpts := []remote.Option{
+		remote.WithContext(ctx),
+		remote.WithAuth(&authn.Basic{Username: primeUser, Password: primePass}),
+	}
+
+	// Create a new remote pusher with the prime registry's specific authentication.
+	pusher, err := remote.NewPusher(remoteOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return &synchronizer{
+		nameOpts: nameOpts,
+		sourceRegistry: &sourceRegistry{
+			stagingOpts: stagingPullerOpts,
+		},
+		primeRegistry: &primeRegistry{
+			pusher:     pusher,
+			remoteOpts: remoteOpts,
+		},
+		customPath: customPath,
+	}, nil
+}
 
 // Sync will load the sync yaml files and iterate through each image/tags copying and pushing without overwriting anything.
 // There can be 2 sources:
@@ -239,7 +338,16 @@ func (s *synchronizer) copy(ctx context.Context, registry, repo, tag, primeURL s
 
 	// Build targets
 	srcTarget := registry + repo + ":" + tag
-	dstTarget := primeURL + "/" + repo + ":" + tag
+
+	// Build destination with customPath if provided
+	var dstTarget string
+	if s.customPath != "" {
+		// Strip "rancher/" prefix from repo and use customPath
+		imgName := strings.TrimPrefix(repo, "rancher/")
+		dstTarget = primeURL + "/" + s.customPath + "/" + imgName + ":" + tag
+	} else {
+		dstTarget = primeURL + "/" + repo + ":" + tag
+	}
 
 	srcRef, err := name.ParseReference(srcTarget, s.nameOpts...)
 	if err != nil {
@@ -385,12 +493,21 @@ func (s *synchronizer) pullFromStaging(ctx context.Context, imgRepo string) erro
 		// It copies the entity by its digest-based tag.
 		dst := dstRepoRef.Tag(srcDigest.Identifier())
 		dst = dst.Tag(fmt.Sprint(h.Algorithm, "-", h.Hex))
+		logger.Log(ctx, slog.LevelDebug, "checking digest-based entity",
+			slog.String("srcDigest", srcDigest.String()),
+			slog.String("dstTag", dst.String()))
 		got, err := s.fetchSourceCheckDestination(ctx, srcDigest, dst)
 		if err != nil {
 			return err
 		}
 		if got != nil {
+			logger.Log(ctx, slog.LevelInfo, "found digest entity in staging, will copy",
+				slog.String("srcDigest", srcDigest.String()),
+				slog.String("dstTag", dst.String()),
+				slog.String("mediaType", string(got.MediaType)))
 			srcDstMap[got] = dst
+		} else {
+			logger.Log(ctx, slog.LevelDebug, "digest entity not found in staging or already exists in destination")
 		}
 
 		return nil

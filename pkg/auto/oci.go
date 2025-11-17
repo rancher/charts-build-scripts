@@ -19,11 +19,12 @@ import (
 )
 
 type loadAssetFunc func(chart, asset string) ([]byte, error)
-type checkAssetFunc func(ctx context.Context, regClient *registry.Client, ociDNS, chart, version string) (bool, error)
+type checkAssetFunc func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error)
 type pushFunc func(helmClient *registry.Client, data []byte, url string) error
 
 type oci struct {
 	DNS        string
+	CustomPath string
 	user       string
 	password   string
 	helmClient *registry.Client
@@ -33,13 +34,13 @@ type oci struct {
 }
 
 // UpdateOCI pushes Helm charts to an OCI registry
-func UpdateOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, ociUser, ociPass string, debug bool) error {
+func UpdateOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, customPath, ociUser, ociPass string, debug bool) error {
 	release, err := options.LoadReleaseOptionsFromFile(ctx, rootFs, path.RepositoryReleaseYaml)
 	if err != nil {
 		return err
 	}
 
-	oci, err := setupOCI(ctx, ociDNS, ociUser, ociPass, debug)
+	oci, err := setupOCI(ctx, ociDNS, customPath, ociUser, ociPass, debug)
 	if err != nil {
 		return err
 	}
@@ -53,16 +54,17 @@ func UpdateOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, ociUser, oc
 	return nil
 }
 
-func setupOCI(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool) (*oci, error) {
+func setupOCI(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, debug bool) (*oci, error) {
 	// Strip http:// or https:// scheme if present
 	ociDNS = strings.TrimPrefix(ociDNS, "https://")
 	ociDNS = strings.TrimPrefix(ociDNS, "http://")
 
 	var err error
 	o := &oci{
-		DNS:      ociDNS,
-		user:     ociUser,
-		password: ociPass,
+		DNS:        ociDNS,
+		CustomPath: customPath,
+		user:       ociUser,
+		password:   ociPass,
 	}
 
 	o.helmClient, err = setupHelm(ctx, o.DNS, o.user, o.password, debug)
@@ -180,7 +182,7 @@ func (o *oci) update(ctx context.Context, release *options.ReleaseOptions) ([]st
 
 			// Check if the asset version already exists in the OCI registry
 			// Never overwrite a previously released chart!
-			exists, err := o.checkAsset(ctx, o.helmClient, o.DNS, chart, version)
+			exists, err := o.checkAsset(ctx, o.helmClient, o.DNS, o.CustomPath, chart, version)
 			if err != nil {
 				return pushedAssets, err
 			}
@@ -213,7 +215,7 @@ func (o *oci) update(ctx context.Context, release *options.ReleaseOptions) ([]st
 	for _, info := range assetsToProcess {
 		logger.Log(ctx, slog.LevelDebug, "pushing", slog.String("asset", info.asset))
 
-		if err := o.push(o.helmClient, info.data, buildPushURL(o.DNS, info.chart, info.version)); err != nil {
+		if err := o.push(o.helmClient, info.data, buildPushURL(o.DNS, o.CustomPath, info.chart, info.version)); err != nil {
 			logger.Log(ctx, slog.LevelError, "failed to push asset", slog.String("asset", info.asset))
 			pushErrors = append(pushErrors, errors.New("asset: "+info.asset+" error: "+err.Error()))
 			continue
@@ -247,15 +249,26 @@ func loadAsset(chart, asset string) ([]byte, error) {
 }
 
 // oci://<oci-dns>/<chart(repository)>:<version>
-func buildPushURL(ociDNS, chart, version string) string {
+func buildPushURL(ociDNS, customPath, chart, version string) string {
+	if customPath != "" {
+		return ociDNS + "/" + customPath + "/" + chart + ":" + version
+	}
 	return ociDNS + "/rancher/charts/" + chart + ":" + version
 }
 
+func buildTagsURL(ociDNS, customPath, chart, version string) string {
+	if customPath != "" {
+		return ociDNS + "/" + customPath + "/" + chart
+	}
+	return ociDNS + "/rancher/charts/" + chart
+}
+
 // checkAsset checks if a specific asset version exists in the OCI registry
-func checkAsset(ctx context.Context, helmClient *registry.Client, ociDNS, chart, version string) (bool, error) {
+func checkAsset(ctx context.Context, helmClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
 	// Once issue is resolved: https://github.com/helm/helm/issues/13368
 	// Replace by: helmClient.Tags(ociDNS + "/" + chart + ":" + version)
-	tagsURL := ociDNS + "/rancher/charts/" + chart
+	// tagsURL := ociDNS + "/rancher/charts/" + chart
+	tagsURL := buildTagsURL(ociDNS, customPath, chart, version)
 	existingVersions, err := helmClient.Tags(tagsURL)
 	if err != nil {
 		if strings.Contains(err.Error(), "unexpected status code 404: name unknown: repository name not known to registry") {

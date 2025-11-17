@@ -37,7 +37,7 @@ func Test_push(t *testing.T) {
 					loadAsset: func(chart, asset string) ([]byte, error) {
 						return []byte{}, nil
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, chart, version string) (bool, error) {
+					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
 						return false, nil
 					},
 					push: func(helmClient *registry.Client, data []byte, url string) error {
@@ -64,7 +64,7 @@ func Test_push(t *testing.T) {
 					loadAsset: func(chart, asset string) ([]byte, error) {
 						return []byte{}, nil
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, chart, version string) (bool, error) {
+					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
 						return false, nil
 					},
 					push: func(helmClient *registry.Client, data []byte, url string) error {
@@ -97,7 +97,7 @@ func Test_push(t *testing.T) {
 					loadAsset: func(chart, asset string) ([]byte, error) {
 						return []byte{}, errors.New("some-error")
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, chart, version string) (bool, error) {
+					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
 						return false, nil
 					},
 					push: func(helmClient *registry.Client, data []byte, url string) error {
@@ -124,7 +124,7 @@ func Test_push(t *testing.T) {
 					loadAsset: func(chart, asset string) ([]byte, error) {
 						return []byte{}, nil
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, chart, version string) (bool, error) {
+					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
 						return false, errors.New("some-error")
 					},
 					push: func(helmClient *registry.Client, data []byte, url string) error {
@@ -151,7 +151,7 @@ func Test_push(t *testing.T) {
 					loadAsset: func(chart, asset string) ([]byte, error) {
 						return []byte{}, nil
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, chart, version string) (bool, error) {
+					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
 						return true, nil
 					},
 					push: func(helmClient *registry.Client, data []byte, url string) error {
@@ -178,7 +178,7 @@ func Test_push(t *testing.T) {
 					loadAsset: func(chart, asset string) ([]byte, error) {
 						return []byte{}, nil
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, chart, version string) (bool, error) {
+					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
 						return false, nil
 					},
 					push: func(helmClient *registry.Client, data []byte, url string) error {

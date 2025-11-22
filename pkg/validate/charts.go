@@ -15,7 +15,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/zip"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v3"
 )
 
 // ChartsRepository TODO

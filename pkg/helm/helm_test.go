@@ -67,6 +67,31 @@ func TestSortVersions(t *testing.T) {
 				"108.0.0+up0.9.0-rc.1",
 			},
 		},
+		{
+			name: "alpha/beta/rc/stable - full prerelease hierarchy",
+			input: helmRepo.ChartVersions{
+				{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-alpha.2"}},
+				{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-rc.1"}},
+				{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-alpha.5"}},
+				{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0"}},
+				{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-beta.1"}},
+				{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-alpha.1"}},
+				{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-rc.2"}},
+				{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-alpha.3"}},
+				{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-alpha.4"}},
+			},
+			expected: []string{
+				"108.0.0+up0.14.0",        // stable first
+				"108.0.0+up0.14.0-rc.2",   // rc descending
+				"108.0.0+up0.14.0-rc.1",
+				"108.0.0+up0.14.0-beta.1", // beta
+				"108.0.0+up0.14.0-alpha.5", // alpha descending
+				"108.0.0+up0.14.0-alpha.4",
+				"108.0.0+up0.14.0-alpha.3",
+				"108.0.0+up0.14.0-alpha.2",
+				"108.0.0+up0.14.0-alpha.1",
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -154,10 +154,11 @@ func SortVersions(index *helmRepo.IndexFile) {
 
 // compareVersions compares two version strings for sorting
 // Returns true if versionA should come before versionB (descending order)
+// Handles alpha, beta, rc, and stable versions
 func compareVersions(versionA, versionB string) bool {
 	// Parse both versions
-	baseA, rcA, isRCA := parseVersionWithRC(versionA)
-	baseB, rcB, isRCB := parseVersionWithRC(versionB)
+	baseA, typeA, numA, isPrereleaseA := parseVersionWithPrerelease(versionA)
+	baseB, typeB, numB, isPrereleaseB := parseVersionWithPrerelease(versionB)
 
 	// Parse base versions using semver
 	semverA, errA := semver.NewVersion(baseA)
@@ -175,52 +176,66 @@ func compareVersions(versionA, versionB string) bool {
 		return semverA.GreaterThan(semverB)
 	}
 
-	// Same base version - handle RC logic
-	// Stable (non-RC) should come first
-	if !isRCA && isRCB {
-		return true // A is stable, B is RC - A comes first
-	}
-	if isRCA && !isRCB {
-		return false // A is RC, B is stable - B comes first
+	// Same base version - handle prerelease logic
+	// Compare prerelease types first (stable=4 > rc=3 > beta=2 > alpha=1)
+	if typeA != typeB {
+		return typeA > typeB // Higher type priority comes first
 	}
 
-	// Both are RCs - higher RC number comes first (descending)
-	if isRCA && isRCB {
-		return rcA > rcB
+	// Same prerelease type - compare numbers if both are prereleases
+	if isPrereleaseA && isPrereleaseB {
+		return numA > numB // Higher prerelease number comes first (descending)
 	}
 
 	// Both are stable with same base version - they're equal
 	return false
 }
 
-// parseVersionWithRC extracts the base version and RC number from a version string
-// Example: "108.0.0+up0.9.0-rc.1" returns ("108.0.0+up0.9.0", 1, true)
-func parseVersionWithRC(version string) (baseVersion string, rcNumber int, isRC bool) {
+// parseVersionWithPrerelease extracts the base version, prerelease type, and prerelease number from a version string
+// Example: "108.0.0+up0.14.0-rc.1" returns ("108.0.0+up0.14.0", 3, 1, true)
+// Example: "108.0.0+up0.14.0-beta.2" returns ("108.0.0+up0.14.0", 2, 2, true)
+// Example: "108.0.0+up0.14.0-alpha.5" returns ("108.0.0+up0.14.0", 1, 5, true)
+// Example: "108.0.0+up0.14.0" returns ("108.0.0+up0.14.0", 4, 0, false) - stable version
+// Prerelease type priority: stable=4 > rc=3 > beta=2 > alpha=1
+func parseVersionWithPrerelease(version string) (baseVersion string, prereleaseType int, prereleaseNumber int, isPrerelease bool) {
 	// Split by '+' to separate version from build metadata
 	parts := strings.Split(version, "+")
 	if len(parts) != 2 {
-		return version, 0, false
+		// No build metadata, treat as stable
+		return version, 4, 0, false
 	}
 
 	baseVersionNum := parts[0]
 	buildMetadata := parts[1]
 
-	// Check if build metadata contains RC
-	if !strings.Contains(buildMetadata, "-rc.") {
-		return version, 0, false
+	// Check for prerelease types in priority order: alpha, beta, rc
+	prereleaseTypes := []struct {
+		suffix   string
+		priority int
+	}{
+		{"-alpha.", 1},
+		{"-beta.", 2},
+		{"-rc.", 3},
 	}
 
-	// Extract RC number
-	rcParts := strings.Split(buildMetadata, "-rc.")
-	if len(rcParts) != 2 {
-		return version, 0, false
+	for _, pt := range prereleaseTypes {
+		if strings.Contains(buildMetadata, pt.suffix) {
+			// Extract prerelease number
+			preParts := strings.Split(buildMetadata, pt.suffix)
+			if len(preParts) != 2 {
+				continue
+			}
+
+			preNum, err := strconv.Atoi(preParts[1])
+			if err != nil {
+				continue
+			}
+
+			// Return base version with the non-prerelease part of build metadata
+			return baseVersionNum + "+" + preParts[0], pt.priority, preNum, true
+		}
 	}
 
-	rcNum, err := strconv.Atoi(rcParts[1])
-	if err != nil {
-		return version, 0, false
-	}
-
-	// Return base version with the non-RC part of build metadata
-	return baseVersionNum + "+" + rcParts[0], rcNum, true
+	// No prerelease found, treat as stable
+	return version, 4, 0, false
 }

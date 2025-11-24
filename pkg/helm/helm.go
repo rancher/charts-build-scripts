@@ -55,6 +55,10 @@ func CreateOrUpdateHelmIndex(ctx context.Context, rootFs billy.Filesystem) error
 		return errors.New("encountered error while trying to generate new Helm index: " + err.Error())
 	}
 
+	if err := CheckVersionStandards(ctx, newHelmIndexFile); err != nil {
+		return err
+	}
+
 	// Sort entries to ensure consistent ordering
 	SortVersions(helmIndexFile)
 	SortVersions(newHelmIndexFile)
@@ -73,6 +77,54 @@ func CreateOrUpdateHelmIndex(ctx context.Context, rootFs billy.Filesystem) error
 	}
 
 	logger.Log(ctx, slog.LevelInfo, "generated index.yaml")
+	return nil
+}
+
+// CheckVersionStandards validates that all chart versions follow the allowed prerelease standards
+// Only -alpha., -beta., and -rc. prerelease identifiers are allowed
+// Returns an error if any version contains an invalid prerelease identifier
+func CheckVersionStandards(ctx context.Context, new *helmRepo.IndexFile) error {
+	allowedPrereleases := []string{"-alpha.", "-beta.", "-rc", "-rancher."}
+	logger.Log(ctx, slog.LevelInfo, "checking version standars", slog.Any("allowed", allowedPrereleases))
+
+	for chartName, chartVersions := range new.Entries {
+		for _, chartVersion := range chartVersions {
+			version := chartVersion.Version
+
+			// Split by '+' to get build metadata
+			parts := strings.Split(version, "+")
+			if len(parts) != 2 {
+				// No build metadata, version is valid
+				continue
+			}
+
+			buildMetadata := parts[1]
+
+			// Check if there's a prerelease identifier (contains a hyphen)
+			if !strings.Contains(buildMetadata, "-") {
+				// No prerelease, version is valid
+				continue
+			}
+
+			// Extract the prerelease part (everything after the first '-' in build metadata)
+			dashIndex := strings.Index(buildMetadata, "-")
+			prereleaseSection := buildMetadata[dashIndex:]
+
+			// Check if it matches one of the allowed patterns
+			isValid := false
+			for _, allowed := range allowedPrereleases {
+				if strings.HasPrefix(prereleaseSection, allowed) {
+					isValid = true
+					break
+				}
+			}
+
+			if !isValid {
+				return errors.New("chart '" + chartName + "' version '" + version + "' contains invalid prerelease identifier. Only -alpha., -beta., -rancher., and -rc. are allowed")
+			}
+		}
+	}
+
 	return nil
 }
 

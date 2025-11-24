@@ -1,10 +1,11 @@
 package helm
 
 import (
+	"context"
 	"testing"
 
-	helmRepo "helm.sh/helm/v3/pkg/repo"
 	"helm.sh/helm/v3/pkg/chart"
+	helmRepo "helm.sh/helm/v3/pkg/repo"
 )
 
 func TestSortVersions(t *testing.T) {
@@ -81,10 +82,10 @@ func TestSortVersions(t *testing.T) {
 				{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-alpha.4"}},
 			},
 			expected: []string{
-				"108.0.0+up0.14.0",        // stable first
-				"108.0.0+up0.14.0-rc.2",   // rc descending
+				"108.0.0+up0.14.0",      // stable first
+				"108.0.0+up0.14.0-rc.2", // rc descending
 				"108.0.0+up0.14.0-rc.1",
-				"108.0.0+up0.14.0-beta.1", // beta
+				"108.0.0+up0.14.0-beta.1",  // beta
 				"108.0.0+up0.14.0-alpha.5", // alpha descending
 				"108.0.0+up0.14.0-alpha.4",
 				"108.0.0+up0.14.0-alpha.3",
@@ -119,4 +120,141 @@ func TestSortVersions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_CheckVersionStandards(t *testing.T) {
+	ctx := context.Background()
+	tests := []struct {
+		name        string
+		input       *helmRepo.IndexFile
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "valid - all allowed prerelease types",
+			input: &helmRepo.IndexFile{
+				Entries: map[string]helmRepo.ChartVersions{
+					"test-chart": {
+						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0"}},
+						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-alpha.1"}},
+						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-beta.2"}},
+						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-rc.3"}},
+						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-rancher.5"}},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "valid - stable versions only",
+			input: &helmRepo.IndexFile{
+				Entries: map[string]helmRepo.ChartVersions{
+					"test-chart": {
+						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0"}},
+						{Metadata: &chart.Metadata{Version: "108.0.1+up0.14.1"}},
+						{Metadata: &chart.Metadata{Version: "108.0.2+up0.14.2"}},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "valid - versions without build metadata",
+			input: &helmRepo.IndexFile{
+				Entries: map[string]helmRepo.ChartVersions{
+					"test-chart": {
+						{Metadata: &chart.Metadata{Version: "1.0.0"}},
+						{Metadata: &chart.Metadata{Version: "1.0.1"}},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid - dev prerelease",
+			input: &helmRepo.IndexFile{
+				Entries: map[string]helmRepo.ChartVersions{
+					"test-chart": {
+						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-dev.1"}},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "contains invalid prerelease identifier",
+		},
+		{
+			name: "invalid - snapshot prerelease",
+			input: &helmRepo.IndexFile{
+				Entries: map[string]helmRepo.ChartVersions{
+					"test-chart": {
+						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-snapshot.1"}},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "contains invalid prerelease identifier",
+		},
+		{
+			name: "invalid - preview prerelease",
+			input: &helmRepo.IndexFile{
+				Entries: map[string]helmRepo.ChartVersions{
+					"test-chart": {
+						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-preview.1"}},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "contains invalid prerelease identifier",
+		},
+		{
+			name: "invalid - mixed valid and invalid",
+			input: &helmRepo.IndexFile{
+				Entries: map[string]helmRepo.ChartVersions{
+					"test-chart": {
+						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-alpha.1"}},
+						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-custom.1"}},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "contains invalid prerelease identifier",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Run the validation function
+			err := CheckVersionStandards(ctx, tt.input)
+
+			// Check if error expectation matches
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error but got none")
+					return
+				}
+				if tt.errorMsg != "" && !contains(err.Error(), tt.errorMsg) {
+					t.Errorf("expected error message to contain '%s', got: %s", tt.errorMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("expected no error but got: %s", err.Error())
+				}
+			}
+		})
+	}
+}
+
+// Helper function to check if a string contains a substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		(len(s) > 0 && len(substr) > 0 && indexOf(s, substr) >= 0))
+}
+
+func indexOf(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
 }

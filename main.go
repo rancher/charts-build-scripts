@@ -70,15 +70,7 @@ const (
 	// defaultMultiRCEnvironmentVariable is the default environment variable that indicates if the auto-bump should not remove previous RC versions
 	defaultMultiRCEnvironmentVariable = "MULTI_RC"
 	// Docker Registry authentication
-	defaultDockerUserEnvironmentVariable     = "DOCKER_USERNAME"
-	defaultDockerPasswordEnvironmentVariable = "DOCKER_PASSWORD"
-	// Staging Registry authentication
-	defaultStagingUserEnvironmentVariable     = "STAGING_USER"
-	defaultStagingPasswordEnvironmentVariable = "STAGING_PASSWORD"
-	// Prime Registry authentication
-	defaultPrimeUserEnvironmentVariable     = "PRIME_USER"
-	defaultPrimePasswordEnvironmentVariable = "PRIME_PASSWORD"
-	defaultPrimeURLEnvironmentVariable      = "PRIME_URL"
+	defaultPrimeURLEnvironmentVariable = "PRIME_URL"
 	// New Chart Options for Autobump
 	defaultNewChartVariable = "NEW_CHART"
 	// defaultIsPrimeChartVariable for handling prime charts
@@ -136,18 +128,6 @@ var (
 	OverrideVersion string
 	// MultiRC indicates if the auto-bump should not remove previous RC versions
 	MultiRC bool
-	// DockerUser is the username provided by EIO
-	DockerUser string
-	// DockerPassword is the password provided by EIO
-	DockerPassword string
-	// StagingUser is the username provided by EIO
-	StagingUser string
-	// StagingPassword is the password provided by EIO
-	StagingPassword string
-	// PrimeUser is the username provided by EIO
-	PrimeUser string
-	// PrimePassword is the password provided by EIO
-	PrimePassword string
 	// PrimeURL of SUSE Prime registry
 	PrimeURL string
 	// NewChart boolean option for creating a net-new chart with auto-bump
@@ -359,48 +339,6 @@ func main() {
 		Required:    true,
 		EnvVar:      defaultGHTokenEnvironmentVariable,
 		Destination: &GithubToken,
-	}
-	dockerUserFlag := cli.StringFlag{
-		Name:        "docker-user",
-		Usage:       "--docker-user=******** || DOCKER_USER=*******",
-		Required:    true,
-		EnvVar:      defaultDockerUserEnvironmentVariable,
-		Destination: &DockerUser,
-	}
-	dockerPasswordFlag := cli.StringFlag{
-		Name:        "docker-password",
-		Usage:       "--docker-password=******** || DOCKER_PASSWORD=*******",
-		Required:    true,
-		EnvVar:      defaultDockerPasswordEnvironmentVariable,
-		Destination: &DockerPassword,
-	}
-	stagingUserFlag := cli.StringFlag{
-		Name:        "staging-user",
-		Usage:       "--staging-user=******** || STAGING_USER=*******",
-		Required:    true,
-		EnvVar:      defaultStagingUserEnvironmentVariable,
-		Destination: &StagingUser,
-	}
-	stagingPasswordFlag := cli.StringFlag{
-		Name:        "staging-password",
-		Usage:       "--staging-password=******** || STAGING_PASSWORD=*******",
-		Required:    true,
-		EnvVar:      defaultStagingPasswordEnvironmentVariable,
-		Destination: &StagingPassword,
-	}
-	primeUserFlag := cli.StringFlag{
-		Name:        "prime-user",
-		Usage:       "--prime-user=******** || PRIME_USER=*******",
-		Required:    true,
-		EnvVar:      defaultPrimeUserEnvironmentVariable,
-		Destination: &PrimeUser,
-	}
-	primePasswordFlag := cli.StringFlag{
-		Name:        "prime-password",
-		Usage:       "--prime-password=******** || PRIME_PASSWORD=*******",
-		Required:    true,
-		EnvVar:      defaultPrimePasswordEnvironmentVariable,
-		Destination: &PrimePassword,
 	}
 	primeURLFlag := cli.StringFlag{
 		Name:        "prime-url",
@@ -637,7 +575,7 @@ func main() {
 			Name:   "sync-registries",
 			Usage:  "Fetch, list and compare SUSE's registries and create yaml files with what is supposed to be synced from Docker Hub",
 			Action: syncRegistries,
-			Flags:  []cli.Flag{dockerUserFlag, dockerPasswordFlag, stagingUserFlag, stagingPasswordFlag, primeUserFlag, primePasswordFlag, primeURLFlag, debugFlag, customOciPath},
+			Flags:  []cli.Flag{primeURLFlag, customOciPath},
 		},
 	}
 
@@ -1162,33 +1100,8 @@ func scanRegistries(c *cli.Context) {
 func syncRegistries(c *cli.Context) {
 	ctx := context.Background()
 
-	emptyUser := PrimeUser == ""
-	emptyPass := PrimePassword == ""
-	emptyURL := PrimeURL == ""
-	emptyDockerUser := DockerUser == ""
-	emptyDockerPass := DockerPassword == ""
-	emptyStagingUser := StagingUser == ""
-	emptyStagingPass := StagingPassword == ""
-	if emptyUser || emptyPass || emptyURL || emptyDockerUser || emptyDockerPass || emptyStagingUser || emptyStagingPass {
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("User Empty", emptyUser))
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Password Empty", emptyPass))
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("URL Empty", emptyURL))
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Docker User Empty", emptyDockerUser))
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Docker Pass Empty", emptyDockerPass))
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Staging User Empty", emptyStagingUser))
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("Staging Pass Empty", emptyStagingPass))
-		logger.Fatal(ctx, errors.New("no credentials provided for sync").Error())
+	if err := registries.Sync(ctx, PrimeURL, CustomOCIPAth); err != nil {
+		logger.Fatal(ctx, err.Error())
 	}
 
-	if CustomOCIPAth != "" {
-		logger.Log(ctx, slog.LevelDebug, "custom override path", slog.String("path", CustomOCIPAth))
-
-		if err := registries.SyncCustom(ctx, PrimeUser, PrimePassword, PrimeURL, StagingUser, StagingPassword, CustomOCIPAth, DebugMode); err != nil {
-			logger.Fatal(ctx, err.Error())
-		}
-	} else {
-		if err := registries.Sync(ctx, PrimeUser, PrimePassword, PrimeURL, DockerUser, DockerPassword, StagingUser, StagingPassword); err != nil {
-			logger.Fatal(ctx, err.Error())
-		}
-	}
 }

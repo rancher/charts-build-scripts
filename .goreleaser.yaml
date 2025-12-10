@@ -11,11 +11,9 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
-      - windows
       - darwin
     goarch:
       - amd64
-      - arm
       - arm64
     ldflags:
       - -X main.Version={{.Version}} -X main.GitCommit={{.ShortCommit}}

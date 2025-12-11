@@ -113,7 +113,9 @@ func batchSync(ctx context.Context, sourceURL, primeURL, customPath string, imgT
 			srcRef := sourceURL + repoImg + ":" + tag
 
 			if err := imagecopy.ImageAndSignature(srcRef, dstRef); err != nil {
-				return err
+				if !errors.Is(err, imagecopy.ErrNoSignaturesFound) {
+					return err
+				}
 			}
 		}
 	}

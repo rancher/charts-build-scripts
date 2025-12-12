@@ -10,7 +10,7 @@ go 1.25.0
 replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
 
 // never change this version otherwise old released chart versions validations will break due to the change in the version of the library
-replace github.com/Masterminds/semver/v3 => github.com/Masterminds/semver/v3 v3.3.0
+replace github.com/Masterminds/semver/v3 => github.com/Masterminds/semver/v3 v3.4.0
 
 // Block Helm v4 - breaks OCI tag validation for versions with '+' character
 // Our chart versioning: <version>+up<upstream> (e.g., 108.0.0+up0.25.0-rc.0)
@@ -37,7 +37,6 @@ require (
 	sigs.k8s.io/release-utils v0.12.2 // indirect
 	sigs.k8s.io/yaml v1.6.0
 )
-
 
 require (
 	cloud.google.com/go/auth v0.17.0 // indirect

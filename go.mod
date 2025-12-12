@@ -21,7 +21,7 @@ require github.com/rancherlabs/slsactl v0.1.11
 require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/go-git/go-billy/v5 v5.6.2
+	github.com/go-git/go-billy/v5 v5.7.0
 	github.com/go-git/go-git/v5 v5.16.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.20.7
@@ -37,7 +37,6 @@ require (
 	sigs.k8s.io/release-utils v0.12.2 // indirect
 	sigs.k8s.io/yaml v1.6.0
 )
-
 
 require (
 	cloud.google.com/go/auth v0.17.0 // indirect

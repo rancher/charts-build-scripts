@@ -26,7 +26,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.20.7
 	github.com/google/go-github/v41 v41.0.0
-	github.com/lmittmann/tint v1.0.7
+	github.com/lmittmann/tint v1.1.2
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli v1.22.17
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621
@@ -37,7 +37,6 @@ require (
 	sigs.k8s.io/release-utils v0.12.2 // indirect
 	sigs.k8s.io/yaml v1.6.0
 )
-
 
 require (
 	cloud.google.com/go/auth v0.17.0 // indirect

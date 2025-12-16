@@ -1044,7 +1044,9 @@ func chartBump(c *cli.Context) {
 	}
 
 	if OverrideVersion != "patch" && OverrideVersion != "minor" && OverrideVersion != "auto" {
-		logger.Fatal(ctx, "OverrideVersion must be set to either patch, minor, or auto")
+		if !auto.IsRancherChartVersion(OverrideVersion) {
+			logger.Fatal(ctx, "OverrideVersion must be set to either patch, minor, or auto")
+		}
 	}
 
 	ChartsScriptOptionsFile = path.ConfigurationYamlFile

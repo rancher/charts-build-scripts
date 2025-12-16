@@ -271,7 +271,7 @@ func checkAsset(ctx context.Context, helmClient *registry.Client, ociDNS, custom
 	tagsURL := buildTagsURL(ociDNS, customPath, chart, version)
 	existingVersions, err := helmClient.Tags(tagsURL)
 	if err != nil {
-		if strings.Contains(err.Error(), "unexpected status code 404: name unknown: repository name not known to registry") {
+		if strings.Contains(err.Error(), "404") {
 			logger.Log(ctx, slog.LevelDebug, "asset does not exist at registry", slog.String("chart", chart))
 			return false, nil
 		}

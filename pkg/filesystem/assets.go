@@ -101,7 +101,7 @@ func DecodeValueYamlInTgz(ctx context.Context, tgzPath string, fileNames []strin
 			}
 
 			// decode into values opened streamReader buffer
-			if err := safeDecodeYaml(ctx, streamReader, &values, true); err != nil {
+			if err := SafeDecodeYaml(ctx, streamReader, &values, true); err != nil {
 				logger.Log(ctx, slog.LevelError, "yaml decode failure", logger.Err(err), slog.String("tgz", tgzPath))
 				return nil, err
 			}

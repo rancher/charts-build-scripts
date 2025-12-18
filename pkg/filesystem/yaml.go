@@ -40,18 +40,18 @@ func LoadYamlFile[YamlFields any](ctx context.Context, filepath string, ignoreFo
 
 	logger.Log(ctx, slog.LevelDebug, "decoding", slog.String("filepath", filepath))
 
-	if err := safeDecodeYaml(ctx, reader, &yamlFields, false); err != nil {
+	if err := SafeDecodeYaml(ctx, reader, &yamlFields, false); err != nil {
 		return nil, err
 	}
 
 	return yamlFields, nil
 }
 
-// safeDecodeYaml will attempt to decode a yaml file in-memory.
+// SafeDecodeYaml will attempt to decode a yaml file in-memory.
 // The 1st attempt will always be using yaml.v3, that has stricter format rules.
 // If 'ignoreFormat' is true, it can try a 2nd attempt using yaml.v2.
 // see 'decodeErrorsToIgnore' function below for a list of legacy errors allowed to be skipped.
-func safeDecodeYaml(ctx context.Context, reader StreamReader, data interface{}, ignoreFormat bool) error {
+func SafeDecodeYaml(ctx context.Context, reader StreamReader, data interface{}, ignoreFormat bool) error {
 	// stream1 is the first attempt of reading the file with yaml.v3 package
 	stream1, err := reader()
 	if err != nil {
@@ -151,9 +151,9 @@ func CreateAndOpenYamlFile(ctx context.Context, filePath string, truncate bool) 
 	return file, nil
 }
 
-// UpdateYamlFile receives a map and updates a yaml file
-func UpdateYamlFile(file *os.File, imageTagMap map[string][]string) error {
+// UpdateYamlFile encodes any data structure to a YAML file
+func UpdateYamlFile(file *os.File, data any) error {
 	encoder := yamlV3.NewEncoder(file)
 	encoder.SetIndent(2)
-	return encoder.Encode(imageTagMap)
+	return encoder.Encode(data)
 }

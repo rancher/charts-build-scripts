@@ -1,4 +1,4 @@
-package auto
+package registries
 
 import (
 	"context"
@@ -8,10 +8,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
@@ -22,7 +21,7 @@ type loadAssetFunc func(chart, asset string) ([]byte, error)
 type checkAssetFunc func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error)
 type pushFunc func(helmClient *registry.Client, data []byte, url string) error
 
-type oci struct {
+type ociRegistry struct {
 	DNS        string
 	CustomPath string
 	user       string
@@ -33,19 +32,38 @@ type oci struct {
 	push       pushFunc
 }
 
-// UpdateOCI pushes Helm charts to an OCI registry
-func UpdateOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, customPath, ociUser, ociPass string, debug bool) error {
-	release, err := options.LoadReleaseOptionsFromFile(ctx, rootFs, path.RepositoryReleaseYaml)
+// PusthToOci pushes Helm charts to an OCI registry
+func PusthToOci(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, debug bool) error {
+	emptyUser := ociDNS == ""
+	emptyPass := ociPass == ""
+	emptyDNS := ociDNS == ""
+
+	if emptyUser || emptyPass || emptyDNS {
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("OCI User Empty", emptyUser))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("OCI Password Empty", emptyPass))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("OCI DNS Empty", emptyDNS))
+		return errors.New("no credentials provided for pushing helm chart to OCI registry")
+	}
+	if customPath != "" {
+		logger.Log(ctx, slog.LevelDebug, "custom override path", slog.String("path", customPath))
+	}
+
+	cfg, err := config.FromContext(ctx)
 	if err != nil {
 		return err
 	}
 
-	oci, err := setupOCI(ctx, ociDNS, customPath, ociUser, ociPass, debug)
+	release, err := options.LoadReleaseOptionsFromFile(ctx, cfg.RootFS, config.PathReleaseYaml)
 	if err != nil {
 		return err
 	}
 
-	pushedAssets, err := oci.update(ctx, &release)
+	o, err := setupOCI(ctx, ociDNS, customPath, ociUser, ociPass, debug)
+	if err != nil {
+		return err
+	}
+
+	pushedAssets, err := o.update(ctx, &release)
 	if err != nil {
 		return err
 	}
@@ -54,13 +72,13 @@ func UpdateOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, customPath,
 	return nil
 }
 
-func setupOCI(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, debug bool) (*oci, error) {
+func setupOCI(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, debug bool) (*ociRegistry, error) {
 	// Strip http:// or https:// scheme if present
 	ociDNS = strings.TrimPrefix(ociDNS, "https://")
 	ociDNS = strings.TrimPrefix(ociDNS, "http://")
 
 	var err error
-	o := &oci{
+	o := &ociRegistry{
 		DNS:        ociDNS,
 		CustomPath: customPath,
 		user:       ociUser,
@@ -157,7 +175,7 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 // 2 phases:
 //   - 1: Pre-Flight validations (check the current chart + check if it already exists)
 //   - 2: Push
-func (o *oci) update(ctx context.Context, release *options.ReleaseOptions) ([]string, error) {
+func (o *ociRegistry) update(ctx context.Context, release *options.ReleaseOptions) ([]string, error) {
 	var pushedAssets []string
 
 	// List of assets to process
@@ -245,7 +263,7 @@ func push(helmClient *registry.Client, data []byte, url string) error {
 }
 
 func loadAsset(chart, asset string) ([]byte, error) {
-	return os.ReadFile(path.RepositoryAssetsDir + "/" + chart + "/" + asset)
+	return os.ReadFile(config.PathAssetsDir + "/" + chart + "/" + asset)
 }
 
 // oci://<oci-dns>/<chart(repository)>:<version>

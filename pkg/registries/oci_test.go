@@ -1,4 +1,4 @@
-package auto
+package registries
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 
 func Test_push(t *testing.T) {
 	type input struct {
-		o       *oci
+		o       *ociRegistry
 		release options.ReleaseOptions
 	}
 	type expected struct {
@@ -29,7 +29,7 @@ func Test_push(t *testing.T) {
 		{
 			name: "Test #1",
 			input: input{
-				o: &oci{
+				o: &ociRegistry{
 					DNS:        "######",
 					user:       "######",
 					password:   "######",
@@ -56,7 +56,7 @@ func Test_push(t *testing.T) {
 		{
 			name: "Test #2",
 			input: input{
-				o: &oci{
+				o: &ociRegistry{
 					DNS:        "######",
 					user:       "######",
 					password:   "######",
@@ -89,7 +89,7 @@ func Test_push(t *testing.T) {
 		{
 			name: "Test #3",
 			input: input{
-				o: &oci{
+				o: &ociRegistry{
 					DNS:        "######",
 					user:       "######",
 					password:   "######",
@@ -116,7 +116,7 @@ func Test_push(t *testing.T) {
 		{
 			name: "Test #4",
 			input: input{
-				o: &oci{
+				o: &ociRegistry{
 					DNS:        "######",
 					user:       "######",
 					password:   "######",
@@ -143,7 +143,7 @@ func Test_push(t *testing.T) {
 		{
 			name: "Test #5",
 			input: input{
-				o: &oci{
+				o: &ociRegistry{
 					DNS:        "######",
 					user:       "######",
 					password:   "######",
@@ -170,7 +170,7 @@ func Test_push(t *testing.T) {
 		{
 			name: "Test #6",
 			input: input{
-				o: &oci{
+				o: &ociRegistry{
 					DNS:        "######",
 					user:       "######",
 					password:   "######",

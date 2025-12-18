@@ -16,7 +16,6 @@ import (
 	"strings"
 
 	"github.com/rancher/charts-build-scripts/pkg/logger"
-	"github.com/rancher/charts-build-scripts/pkg/util"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/osfs"
@@ -509,7 +508,7 @@ func compareTars(ctx context.Context, leftFile, rightFile io.Reader) (bool, erro
 }
 
 // ArchiveDir archives a directory or a file into a tgz file and put it at destTgzPath which should end with .tgz
-func ArchiveDir(ctx context.Context, fs billy.Filesystem, srcPath, destTgzPath string) error {
+func ArchiveDir(ctx context.Context, fs billy.Filesystem, srcPath, destTgzPath string, isSoftErrorOn bool) error {
 	logger.Log(ctx, slog.LevelDebug, "archive directory inside .tgz", slog.String("srcPath", srcPath), slog.String("destTgzPath", destTgzPath))
 
 	if !strings.HasSuffix(destTgzPath, ".tgz") {
@@ -527,7 +526,7 @@ func ArchiveDir(ctx context.Context, fs billy.Filesystem, srcPath, destTgzPath s
 	tarWriter := tar.NewWriter(gz)
 	defer tarWriter.Close()
 
-	return WalkDir(ctx, fs, srcPath, func(ctx context.Context, fs billy.Filesystem, path string, isDir bool) error {
+	return WalkDir(ctx, fs, srcPath, isSoftErrorOn, func(ctx context.Context, fs billy.Filesystem, path string, isDir bool) error {
 		info, err := fs.Stat(path)
 		if err != nil {
 			return err
@@ -564,7 +563,7 @@ type RelativePathPairFunc func(ctx context.Context, fs billy.Filesystem, leftPat
 
 // WalkDir walks through a directory given by dirPath rooted in the filesystem and performs doFunc at the path
 // The path on each call will be relative to the filesystem provided.
-func WalkDir(ctx context.Context, fs billy.Filesystem, dirPath string, doFunc RelativePathFunc) error {
+func WalkDir(ctx context.Context, fs billy.Filesystem, dirPath string, isSoftErrorOn bool, doFunc RelativePathFunc) error {
 	// Create all necessary directories
 	return filepath.Walk(GetAbsPath(fs, dirPath), func(abspath string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -572,7 +571,7 @@ func WalkDir(ctx context.Context, fs billy.Filesystem, dirPath string, doFunc Re
 				// Path does not exist anymore, so do not walk it
 				return nil
 			}
-			if !util.IsSoftErrorOn() {
+			if !isSoftErrorOn {
 				return err
 			}
 			// Log the error if soft errors are enabled
@@ -583,7 +582,7 @@ func WalkDir(ctx context.Context, fs billy.Filesystem, dirPath string, doFunc Re
 			return err
 		}
 		walkFuncRes := doFunc(ctx, fs, path, info.IsDir())
-		if !util.IsSoftErrorOn() {
+		if !isSoftErrorOn {
 			return walkFuncRes
 		} else if walkFuncRes != nil {
 			logger.Log(ctx, slog.LevelError, "error walkFunc", logger.Err(walkFuncRes))
@@ -593,10 +592,10 @@ func WalkDir(ctx context.Context, fs billy.Filesystem, dirPath string, doFunc Re
 }
 
 // CopyDir copies all files from srcDir to dstDir
-func CopyDir(ctx context.Context, fs billy.Filesystem, srcDir string, dstDir string) error {
+func CopyDir(ctx context.Context, fs billy.Filesystem, srcDir string, dstDir string, isSoftErrorOn bool) error {
 	logger.Log(ctx, slog.LevelDebug, "copying files", slog.String("srcDir", srcDir), slog.String("dstDir", dstDir))
 
-	return WalkDir(ctx, fs, srcDir, func(ctx context.Context, fs billy.Filesystem, srcPath string, isDir bool) error {
+	return WalkDir(ctx, fs, srcDir, isSoftErrorOn, func(ctx context.Context, fs billy.Filesystem, srcPath string, isDir bool) error {
 		dstPath, err := MovePath(ctx, srcPath, srcDir, dstDir)
 		if err != nil {
 			return err
@@ -616,7 +615,7 @@ func CopyDir(ctx context.Context, fs billy.Filesystem, srcDir string, dstDir str
 }
 
 // MakeSubdirectoryRoot makes a particular subdirectory of a path its main directory
-func MakeSubdirectoryRoot(ctx context.Context, fs billy.Filesystem, path, subdirectory string) error {
+func MakeSubdirectoryRoot(ctx context.Context, fs billy.Filesystem, path, subdirectory string, isSoftErrorOn bool) error {
 	exists, err := PathExists(ctx, fs, filepath.Join(path, subdirectory))
 	if err != nil {
 		return err
@@ -633,7 +632,7 @@ func MakeSubdirectoryRoot(ctx context.Context, fs billy.Filesystem, path, subdir
 	if err != nil {
 		return err
 	}
-	if err := CopyDir(ctx, fs, filepath.Join(path, subdirectory), tempDir); err != nil {
+	if err := CopyDir(ctx, fs, filepath.Join(path, subdirectory), tempDir, isSoftErrorOn); err != nil {
 		return err
 	}
 	if err := RemoveAll(fs, path); err != nil {
@@ -648,7 +647,7 @@ func MakeSubdirectoryRoot(ctx context.Context, fs billy.Filesystem, path, subdir
 // CompareDirs compares the contents of the directory at fromDirpath against that of the directory at toDirpath within a given filesystem
 // It execute leftOnlyFunc on paths that only exist on the leftDirpath and rightOnlyFunc on paths that only exist on rightDirpath
 // It executes bothFunc on paths that exist on both the left and the right. Order will be preserved in the function arguments
-func CompareDirs(ctx context.Context, fs billy.Filesystem, leftDirpath, rightDirpath string, leftOnlyFunc, rightOnlyFunc RelativePathFunc, bothFunc RelativePathPairFunc) error {
+func CompareDirs(ctx context.Context, fs billy.Filesystem, leftDirpath, rightDirpath string, leftOnlyFunc, rightOnlyFunc RelativePathFunc, bothFunc RelativePathPairFunc, isSoftErrorOn bool) error {
 	logger.Log(ctx, slog.LevelDebug, "compare directories", slog.String("leftDirpath", leftDirpath), slog.String("rightDirpath", rightDirpath))
 
 	applyLeftOnlyOrBoth := func(ctx context.Context, fs billy.Filesystem, leftPath string, isDir bool) error {
@@ -681,11 +680,11 @@ func CompareDirs(ctx context.Context, fs billy.Filesystem, leftDirpath, rightDir
 		return nil
 	}
 
-	if err := WalkDir(ctx, fs, leftDirpath, applyLeftOnlyOrBoth); err != nil {
+	if err := WalkDir(ctx, fs, leftDirpath, isSoftErrorOn, applyLeftOnlyOrBoth); err != nil {
 		return err
 	}
 
-	return WalkDir(ctx, fs, rightDirpath, applyRightOnly)
+	return WalkDir(ctx, fs, rightDirpath, isSoftErrorOn, applyRightOnly)
 }
 
 // GetRootPath returns the first directory in a given path

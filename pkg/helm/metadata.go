@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"sigs.k8s.io/yaml"
@@ -107,7 +108,7 @@ func ConvertToHelmChart(ctx context.Context, fs billy.Filesystem, dirPath string
 		return fs.Rename(path, destPath)
 	}
 
-	if err := filesystem.WalkDir(ctx, fs, dirPath, moveYamlToTemplates); err != nil {
+	if err := filesystem.WalkDir(ctx, fs, dirPath, config.IsSoftError(ctx), moveYamlToTemplates); err != nil {
 		return fmt.Errorf("unable to move YAML files in %s to templates: %s", dirPath, err)
 	}
 

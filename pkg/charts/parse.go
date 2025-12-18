@@ -9,30 +9,31 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
 	"helm.sh/helm/v3/pkg/registry"
 )
 
 // GetPackages returns all packages found within the repository. If there is a specific package provided, it will return just that Package in the list
-func GetPackages(ctx context.Context, repoRoot, specificPackage string) ([]*Package, error) {
-	var packageList []string
-	var err error
+func GetPackages(ctx context.Context, specificPackage string) ([]*Package, error) {
+	cfg, err := config.FromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// Parse option or get list of all packages in the repo
-	packageList, err = ListPackages(ctx, repoRoot, specificPackage)
+	packageList, err := ListPackages(ctx, specificPackage)
 	if err != nil {
 		return nil, fmt.Errorf("encountered error while listing packages: %v", err)
 	}
 
 	// Instantiate each package that was requested and return the list
 	var packages []*Package
-	rootFs := filesystem.GetFilesystem(repoRoot)
 	for _, packagePath := range packageList {
-		pkg, err := GetPackage(ctx, rootFs, packagePath)
+		pkg, err := GetPackage(ctx, cfg.RootFS, packagePath)
 		if err != nil {
 			return nil, err
 		}
@@ -45,10 +46,15 @@ func GetPackages(ctx context.Context, repoRoot, specificPackage string) ([]*Pack
 }
 
 // ListPackages returns a list of packages found within the repository. If there is a specific package provided, it will return just that Package in the list
-func ListPackages(ctx context.Context, repoRoot string, specificPackage string) ([]string, error) {
+func ListPackages(ctx context.Context, specificPackage string) ([]string, error) {
 	var packageList []string
-	rootFs := filesystem.GetFilesystem(repoRoot)
-	exists, err := filesystem.PathExists(ctx, rootFs, path.RepositoryPackagesDir)
+
+	cfg, err := config.FromContext(ctx)
+	if err != nil {
+		return packageList, err
+	}
+
+	exists, err := filesystem.PathExists(ctx, cfg.RootFS, config.PathPackagesDir)
 	if err != nil || !exists {
 		return packageList, err
 	}
@@ -58,20 +64,20 @@ func ListPackages(ctx context.Context, repoRoot string, specificPackage string) 
 			return nil
 		}
 		if len(specificPackage) > 0 {
-			packagePrefix := filepath.Join(path.RepositoryPackagesDir, specificPackage)
+			packagePrefix := filepath.Join(config.PathPackagesDir, specificPackage)
 			if dirPath != packagePrefix && !strings.HasPrefix(dirPath, packagePrefix+"/") {
 				// Ignore packages not selected by specificPackage
 				return nil
 			}
 		}
-		exists, err := filesystem.PathExists(ctx, rootFs, filepath.Join(dirPath, path.PackageOptionsFile))
+		exists, err := filesystem.PathExists(ctx, cfg.RootFS, filepath.Join(dirPath, config.PathPackageYaml))
 		if err != nil {
 			return err
 		}
 		if !exists {
 			return nil
 		}
-		packageName, err := filesystem.MovePath(ctx, dirPath, path.RepositoryPackagesDir, "")
+		packageName, err := filesystem.MovePath(ctx, dirPath, config.PathPackagesDir, "")
 		if err != nil {
 			return err
 		}
@@ -81,13 +87,13 @@ func ListPackages(ctx context.Context, repoRoot string, specificPackage string) 
 		return nil
 	}
 
-	return packageList, filesystem.WalkDir(ctx, rootFs, path.RepositoryPackagesDir, listPackages)
+	return packageList, filesystem.WalkDir(ctx, cfg.RootFS, config.PathPackagesDir, config.IsSoftError(ctx), listPackages)
 }
 
 // GetPackage returns a Package based on the options provided
 func GetPackage(ctx context.Context, rootFs billy.Filesystem, name string) (*Package, error) {
 	// Get pkgFs
-	packageRoot := filepath.Join(path.RepositoryPackagesDir, name)
+	packageRoot := filepath.Join(config.PathPackagesDir, name)
 	exists, err := filesystem.PathExists(ctx, rootFs, packageRoot)
 	if err != nil {
 		return nil, err
@@ -100,7 +106,7 @@ func GetPackage(ctx context.Context, rootFs billy.Filesystem, name string) (*Pac
 		return nil, err
 	}
 	// Get package options from package.yaml
-	packageOpt, err := options.LoadPackageOptionsFromFile(ctx, pkgFs, path.PackageOptionsFile)
+	packageOpt, err := options.LoadPackageOptionsFromFile(ctx, pkgFs, config.PathPackageYaml)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +209,7 @@ func GetAdditionalChartFromOptions(ctx context.Context, opt options.AdditionalCh
 			return a, fmt.Errorf("CRD options must provide a template directory")
 		}
 		if crdDirectory == "" && useTarArchive {
-			crdDirectory = path.ChartCRDDir
+			crdDirectory = config.PathCrdsDir
 		}
 		a.CRDChartOptions = &options.CRDChartOptions{
 			TemplateDirectory:           templateDirectory,

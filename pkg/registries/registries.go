@@ -2,14 +2,15 @@ package registries
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"strings"
 
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 )
 
 // chartsToIgnoreTags defines the charts and system charts in which a specified
@@ -26,6 +27,9 @@ var chartsToIgnoreTags = map[string]string{
 //
 // Which will be used by another process to sync images/tags to Prime registry.
 func Scan(ctx context.Context, primeRegistry string) error {
+	if primeRegistry == "" {
+		return errors.New("no Prime URL provided")
+	}
 	// check the state of current assets and prime/staging registries
 	_, dockerToPrime, stagingToPrime, err := checkRegistriesImagesTags(ctx, primeRegistry)
 	if err != nil {
@@ -35,17 +39,17 @@ func Scan(ctx context.Context, primeRegistry string) error {
 	fromDocker, fromStaging := sanitizeTags(dockerToPrime), sanitizeTags(stagingToPrime)
 
 	logger.Log(ctx, slog.LevelInfo, "Docker to Prime registry",
-		slog.String("file", path.DockerToPrimeSync))
+		slog.String("file", config.PathDockerSyncYaml))
 
 	// Create the sync yaml files
-	if err := createSyncYamlFile(ctx, fromDocker, path.DockerToPrimeSync); err != nil {
+	if err := createSyncYamlFile(ctx, fromDocker, config.PathDockerSyncYaml); err != nil {
 		return err
 	}
 
 	logger.Log(ctx, slog.LevelInfo, "Staging to Prime registry",
-		slog.String("file", path.StagingToPrimeSync))
+		slog.String("file", config.PathStagingSyncYaml))
 
-	if err := createSyncYamlFile(ctx, fromStaging, path.StagingToPrimeSync); err != nil {
+	if err := createSyncYamlFile(ctx, fromStaging, config.PathStagingSyncYaml); err != nil {
 		return err
 	}
 

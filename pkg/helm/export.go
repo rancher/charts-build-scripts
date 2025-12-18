@@ -12,9 +12,9 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 	helmAction "helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
@@ -55,9 +55,9 @@ func ExportHelmChart(ctx context.Context, rootFs, fs billy.Filesystem, helmChart
 	}
 
 	// Assets are indexed by chart name, independent of which package that chart is contained within
-	chartAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, chart.Metadata.Name)
+	chartAssetsDirpath := filepath.Join(config.PathAssetsDir, chart.Metadata.Name)
 	// All generated charts are indexed by chart name and version
-	chartChartsDirpath := filepath.Join(path.RepositoryChartsDir, chart.Metadata.Name, chartVersion)
+	chartChartsDirpath := filepath.Join(config.PathChartsDir, chart.Metadata.Name, chartVersion)
 
 	// Create directories structure
 	if err := handleDirStructure(rootFs, chartAssetsDirpath, chartChartsDirpath); err != nil {

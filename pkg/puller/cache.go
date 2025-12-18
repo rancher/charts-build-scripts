@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
@@ -15,37 +16,44 @@ import (
 var RootCache cacher = &noopCache{}
 
 // InitRootCache initializes a cache at the repository's root to be used, if it does not currently exist
-func InitRootCache(ctx context.Context, repoRoot string, cacheMode bool, path string) error {
+func InitRootCache(ctx context.Context, cacheMode bool, path string) error {
 	if !cacheMode {
 		return nil
 	}
 
+	cfg, err := config.FromContext(ctx)
+	if err != nil {
+		return err
+	}
+
 	logger.Log(ctx, slog.LevelInfo, "setting up cache", slog.String("path", path))
-	// Get repository filesystem
-	rootFs := filesystem.GetFilesystem(repoRoot)
 
 	// Instantiate cache
-	if err := rootFs.MkdirAll(path, os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create cache directory at %s/%s: %s", rootFs.Root(), path, err)
+	if err := cfg.RootFS.MkdirAll(path, os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create cache directory at %s/%s: %s", cfg.RootFS.Root(), path, err)
 	}
-	cacheFs, err := rootFs.Chroot(path)
+	cacheFs, err := cfg.RootFS.Chroot(path)
 	if err != nil {
-		return fmt.Errorf("failed to get cacheFs based on cache in %s/%s: %s", rootFs.Root(), path, err)
+		return fmt.Errorf("failed to get cacheFs based on cache in %s/%s: %s", cfg.RootFS.Root(), path, err)
 	}
 	RootCache = &cache{
-		rootFs:  rootFs,
+		rootFs:  cfg.RootFS,
 		cacheFs: cacheFs,
 	}
 	return nil
 }
 
 // CleanRootCache removes any existing entries in the cache
-func CleanRootCache(ctx context.Context, repoRoot string, path string) error {
-	rootFs := filesystem.GetFilesystem(repoRoot)
-	if err := filesystem.RemoveAll(rootFs, path); err != nil {
+func CleanRootCache(ctx context.Context, path string) error {
+	cfg, err := config.FromContext(ctx)
+	if err != nil {
 		return err
 	}
-	return filesystem.PruneEmptyDirsInPath(ctx, rootFs, path)
+
+	if err := filesystem.RemoveAll(cfg.RootFS, path); err != nil {
+		return err
+	}
+	return filesystem.PruneEmptyDirsInPath(ctx, cfg.RootFS, path)
 }
 
 type cacher interface {
@@ -106,7 +114,7 @@ func (c *cache) Add(ctx context.Context, key string, fs billy.Filesystem, path s
 		return false, fmt.Errorf("cannot cache directory located at %s: caching files is not supported", filesystem.GetAbsPath(fs, path))
 	}
 	// Perform copying
-	err = filesystem.CopyDir(ctx, c.rootFs, rootPath, rootCacheKeyPath)
+	err = filesystem.CopyDir(ctx, c.rootFs, rootPath, rootCacheKeyPath, config.IsSoftError(ctx))
 	if err != nil {
 		return false, err
 	}
@@ -146,7 +154,7 @@ func (c *cache) Get(ctx context.Context, key string, fs billy.Filesystem, path s
 		return false, fmt.Errorf("cannot retrieve non-directory located at %s: only retrieving directories from cache is supported", filesystem.GetAbsPath(c.cacheFs, key))
 	}
 	// Perform copying
-	err = filesystem.CopyDir(ctx, c.rootFs, rootCacheKeyPath, rootPath)
+	err = filesystem.CopyDir(ctx, c.rootFs, rootCacheKeyPath, rootPath, config.IsSoftError(ctx))
 	if err != nil {
 		return false, err
 	}

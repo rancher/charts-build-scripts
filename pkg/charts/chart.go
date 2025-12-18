@@ -8,10 +8,10 @@ import (
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/change"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
 )
 
@@ -145,5 +145,5 @@ func (c *Chart) OriginalDir() string {
 
 // GeneratedChangesRootDir stored the directory rooted at the package level where generated changes for this chart can be found
 func (c *Chart) GeneratedChangesRootDir() string {
-	return path.GeneratedChangesDir
+	return config.PathChangesDir
 }

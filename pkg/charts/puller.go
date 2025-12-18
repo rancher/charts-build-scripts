@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
@@ -53,11 +54,11 @@ func (u LocalPackage) Pull(ctx context.Context, rootFs, fs billy.Filesystem, pat
 	if err != nil {
 		return err
 	}
-	if err := filesystem.CopyDir(ctx, rootFs, repositoryPackageWorkingDir, repositoryPath); err != nil {
+	if err := filesystem.CopyDir(ctx, rootFs, repositoryPackageWorkingDir, repositoryPath, config.IsSoftError(ctx)); err != nil {
 		return fmt.Errorf("encountered error while copying prepared package into path: %s", err)
 	}
 	if u.Subdirectory != nil && len(*u.Subdirectory) > 0 {
-		if err := filesystem.MakeSubdirectoryRoot(ctx, fs, path, *u.Subdirectory); err != nil {
+		if err := filesystem.MakeSubdirectoryRoot(ctx, fs, path, *u.Subdirectory, config.IsSoftError(ctx)); err != nil {
 			return err
 		}
 	}

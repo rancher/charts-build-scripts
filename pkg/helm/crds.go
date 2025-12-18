@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
@@ -34,7 +34,7 @@ func CopyCRDsFromChart(ctx context.Context, fs billy.Filesystem, srcHelmChartPat
 
 	logger.Log(ctx, slog.LevelInfo, "copying CRDs", slog.String("srcCRDsDirpath", srcCRDsDirpath), slog.String("dstCRDsDirpath", dstCRDsDirpath))
 
-	return filesystem.CopyDir(ctx, fs, srcCRDsDirpath, dstCRDsDirpath)
+	return filesystem.CopyDir(ctx, fs, srcCRDsDirpath, dstCRDsDirpath, config.IsSoftError(ctx))
 }
 
 // DeleteCRDsFromChart deletes all the CRDs loaded by a chart
@@ -72,8 +72,8 @@ func ArchiveCRDs(ctx context.Context, fs billy.Filesystem, srcHelmChartPath, src
 		return err
 	}
 	srcCRDsDirPath := filepath.Join(srcHelmChartPath, srcCRDsDir)
-	dstFilePath := filepath.Join(dstHelmChartPath, destCRDsDir, path.ChartCRDTgzFilename)
+	dstFilePath := filepath.Join(dstHelmChartPath, destCRDsDir, config.PathCrdTgz)
 
 	logger.Log(ctx, slog.LevelDebug, "compressing CRDs", slog.String("srcCRDsDirPath", srcCRDsDirPath), slog.String("dstFilePath", dstFilePath))
-	return filesystem.ArchiveDir(ctx, fs, srcCRDsDirPath, dstFilePath)
+	return filesystem.ArchiveDir(ctx, fs, srcCRDsDirPath, dstFilePath, config.IsSoftError(ctx))
 }

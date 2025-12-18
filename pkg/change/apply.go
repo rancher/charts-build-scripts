@@ -8,29 +8,28 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
-	"github.com/rancher/charts-build-scripts/pkg/diff"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 )
 
 // ApplyChanges applies the changes from the gcOverlayDirpath, gcExcludeDirpath, and gcPatchDirpath within gcDir to toDir within the package filesystem
 func ApplyChanges(ctx context.Context, fs billy.Filesystem, toDir, gcRootDir string) error {
 	logger.Log(ctx, slog.LevelInfo, "applying changes")
-	// gcRootDir should always end with path.GeneratedChangesDir
-	if !strings.HasSuffix(gcRootDir, path.GeneratedChangesDir) {
-		return fmt.Errorf("root directory for generated changes should end with %s, received: %s", path.GeneratedChangesDir, gcRootDir)
+	// gcRootDir should always end with config.PathChangesDir
+	if !strings.HasSuffix(gcRootDir, config.PathChangesDir) {
+		return fmt.Errorf("root directory for generated changes should end with %s, received: %s", config.PathChangesDir, gcRootDir)
 	}
-	chartsOverlayDirpath := filepath.Join(gcRootDir, path.GeneratedChangesOverlayDir)
-	chartsExcludeDirpath := filepath.Join(gcRootDir, path.GeneratedChangesExcludeDir)
-	chartsPatchDirpath := filepath.Join(gcRootDir, path.GeneratedChangesPatchDir)
+	chartsOverlayDirpath := filepath.Join(gcRootDir, config.PathOverlayDir)
+	chartsExcludeDirpath := filepath.Join(gcRootDir, config.PathExcludeDir)
+	chartsPatchDirpath := filepath.Join(gcRootDir, config.PathPatchDir)
 	applyPatchFile := func(ctx context.Context, fs billy.Filesystem, patchPath string, isDir bool) error {
 		if isDir {
 			return nil
 		}
 
 		logger.Log(ctx, slog.LevelDebug, "applying patch", slog.String("path", patchPath))
-		return diff.ApplyPatch(ctx, fs, patchPath, toDir)
+		return ApplyPatchDiff(ctx, fs, patchPath, toDir)
 	}
 
 	applyOverlayFile := func(ctx context.Context, fs billy.Filesystem, overlayPath string, isDir bool) error {
@@ -63,7 +62,7 @@ func ApplyChanges(ctx context.Context, fs billy.Filesystem, toDir, gcRootDir str
 		return err
 	}
 	if exists {
-		err = filesystem.WalkDir(ctx, fs, chartsPatchDirpath, applyPatchFile)
+		err = filesystem.WalkDir(ctx, fs, chartsPatchDirpath, config.IsSoftError(ctx), applyPatchFile)
 		if err != nil {
 			return err
 		}
@@ -73,7 +72,7 @@ func ApplyChanges(ctx context.Context, fs billy.Filesystem, toDir, gcRootDir str
 		return err
 	}
 	if exists {
-		err = filesystem.WalkDir(ctx, fs, chartsExcludeDirpath, applyExcludeFile)
+		err = filesystem.WalkDir(ctx, fs, chartsExcludeDirpath, config.IsSoftError(ctx), applyExcludeFile)
 		if err != nil {
 			return err
 		}
@@ -83,7 +82,7 @@ func ApplyChanges(ctx context.Context, fs billy.Filesystem, toDir, gcRootDir str
 		return err
 	}
 	if exists {
-		err = filesystem.WalkDir(ctx, fs, chartsOverlayDirpath, applyOverlayFile)
+		err = filesystem.WalkDir(ctx, fs, chartsOverlayDirpath, config.IsSoftError(ctx), applyOverlayFile)
 		if err != nil {
 			return err
 		}

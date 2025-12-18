@@ -8,10 +8,9 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
-	"github.com/rancher/charts-build-scripts/pkg/diff"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 )
 
 const (
@@ -20,11 +19,11 @@ const (
 
 // GenerateChanges generates the change between fromDir and toDir and places it in the appropriate directories within gcDir
 func GenerateChanges(ctx context.Context, fs billy.Filesystem, fromDir, toDir, gcRootDir string, replacePaths []string) error {
-	logger.Log(ctx, slog.LevelInfo, "generating changes", slog.String("GeneratedChangesDir", path.GeneratedChangesDir))
+	logger.Log(ctx, slog.LevelInfo, "generating changes", slog.String("GeneratedChangesDir", config.PathChangesDir))
 
-	// gcRootDir should always end with path.GeneratedChangesDir
-	if !strings.HasSuffix(gcRootDir, path.GeneratedChangesDir) {
-		return fmt.Errorf("root directory for generated changes should end with %s, received: %s", path.GeneratedChangesDir, gcRootDir)
+	// gcRootDir should always end with config.PathChangesDir
+	if !strings.HasSuffix(gcRootDir, config.PathChangesDir) {
+		return fmt.Errorf("root directory for generated changes should end with %s, received: %s", config.PathChangesDir, gcRootDir)
 	}
 	if err := removeAllGeneratedChanges(ctx, fs, gcRootDir); err != nil {
 		return fmt.Errorf("encountered error while trying to remove all existing generated changes before generating new changes: %s", err)
@@ -37,7 +36,7 @@ func GenerateChanges(ctx context.Context, fs billy.Filesystem, fromDir, toDir, g
 		if isDir {
 			return nil
 		}
-		overlayPath, err := filesystem.MovePath(ctx, toPath, toDir, filepath.Join(gcRootDir, path.GeneratedChangesOverlayDir))
+		overlayPath, err := filesystem.MovePath(ctx, toPath, toDir, filepath.Join(gcRootDir, config.PathOverlayDir))
 		if err != nil {
 			return err
 		}
@@ -52,7 +51,7 @@ func GenerateChanges(ctx context.Context, fs billy.Filesystem, fromDir, toDir, g
 		if isDir {
 			return nil
 		}
-		excludePath, err := filesystem.MovePath(ctx, fromPath, fromDir, filepath.Join(gcRootDir, path.GeneratedChangesExcludeDir))
+		excludePath, err := filesystem.MovePath(ctx, fromPath, fromDir, filepath.Join(gcRootDir, config.PathExcludeDir))
 		if err != nil {
 			return err
 		}
@@ -83,9 +82,9 @@ func GenerateChanges(ctx context.Context, fs billy.Filesystem, fromDir, toDir, g
 			return nil
 		}
 
-		patchPath := filepath.Join(gcRootDir, path.GeneratedChangesPatchDir, p)
+		patchPath := filepath.Join(gcRootDir, config.PathPatchDir, p)
 		patchPathWithExt := fmt.Sprintf(patchFmt, patchPath)
-		generatedPatch, err := diff.GeneratePatch(ctx, fs, patchPathWithExt, fromPath, toPath)
+		generatedPatch, err := GeneratePatchDiff(ctx, fs, patchPathWithExt, fromPath, toPath)
 		if err != nil {
 			return err
 		}
@@ -95,27 +94,27 @@ func GenerateChanges(ctx context.Context, fs billy.Filesystem, fromDir, toDir, g
 
 		return nil
 	}
-	return filesystem.CompareDirs(ctx, fs, fromDir, toDir, generateExcludeFile, generateOverlayFile, generatePatchFile)
+	return filesystem.CompareDirs(ctx, fs, fromDir, toDir, generateExcludeFile, generateOverlayFile, generatePatchFile, config.IsSoftError(ctx))
 }
 
 func removeAllGeneratedChanges(ctx context.Context, fs billy.Filesystem, gcRootDir string) error {
-	// gcRootDir should always end with path.GeneratedChangesDir
-	if !strings.HasSuffix(gcRootDir, path.GeneratedChangesDir) {
-		return fmt.Errorf("root directory for generated changes should end with %s, received: %s", path.GeneratedChangesDir, gcRootDir)
+	// gcRootDir should always end with config.PathChangesDir
+	if !strings.HasSuffix(gcRootDir, config.PathChangesDir) {
+		return fmt.Errorf("root directory for generated changes should end with %s, received: %s", config.PathChangesDir, gcRootDir)
 	}
 	// Remove all overlays
-	if err := filesystem.RemoveAll(fs, filepath.Join(gcRootDir, path.GeneratedChangesOverlayDir)); err != nil {
+	if err := filesystem.RemoveAll(fs, filepath.Join(gcRootDir, config.PathOverlayDir)); err != nil {
 		return err
 	}
 	// Remove all excludes
-	if err := filesystem.RemoveAll(fs, filepath.Join(gcRootDir, path.GeneratedChangesExcludeDir)); err != nil {
+	if err := filesystem.RemoveAll(fs, filepath.Join(gcRootDir, config.PathExcludeDir)); err != nil {
 		return err
 	}
 	// Remove all patches
-	if err := filesystem.RemoveAll(fs, filepath.Join(gcRootDir, path.GeneratedChangesPatchDir)); err != nil {
+	if err := filesystem.RemoveAll(fs, filepath.Join(gcRootDir, config.PathPatchDir)); err != nil {
 		return err
 	}
-	dependenciesPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir)
+	dependenciesPath := filepath.Join(gcRootDir, config.PathDependenciesDir)
 	exists, err := filesystem.PathExists(ctx, fs, dependenciesPath)
 	if err != nil {
 		return err
@@ -133,7 +132,7 @@ func removeAllGeneratedChanges(ctx context.Context, fs billy.Filesystem, gcRootD
 			continue
 		}
 		dependencyName := fileInfo.Name()
-		newRootDir := filepath.Join(dependenciesPath, dependencyName, path.GeneratedChangesDir)
+		newRootDir := filepath.Join(dependenciesPath, dependencyName, config.PathChangesDir)
 		if err := removeAllGeneratedChanges(ctx, fs, newRootDir); err != nil {
 			return err
 		}

@@ -9,11 +9,11 @@ import (
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/change"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
 )
 
@@ -50,7 +50,7 @@ func (c *AdditionalChart) ApplyMainChanges(ctx context.Context, pkgFs billy.File
 	if err != nil {
 		return fmt.Errorf("encountered error while trying to get the main chart's working directory: %s", err)
 	}
-	if err := helm.CopyCRDsFromChart(ctx, pkgFs, mainChartWorkingDir, path.ChartCRDDir, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
+	if err := helm.CopyCRDsFromChart(ctx, pkgFs, mainChartWorkingDir, config.PathCrdsDir, c.WorkingDir, c.CRDChartOptions.CRDDirectory); err != nil {
 		return fmt.Errorf("encountered error while trying to copy CRDs from %s to %s: %s", mainChartWorkingDir, c.WorkingDir, err)
 	}
 	if c.CRDChartOptions.AddCRDValidationToMainChart {
@@ -59,7 +59,7 @@ func (c *AdditionalChart) ApplyMainChanges(ctx context.Context, pkgFs billy.File
 		}
 	}
 	if c.CRDChartOptions.UseTarArchive {
-		if err := helm.ArchiveCRDs(ctx, pkgFs, mainChartWorkingDir, path.ChartCRDDir, c.WorkingDir, path.ChartExtraFileDir); err != nil {
+		if err := helm.ArchiveCRDs(ctx, pkgFs, mainChartWorkingDir, config.PathCrdsDir, c.WorkingDir, config.PathFilesDir); err != nil {
 			return fmt.Errorf("encountered error while trying to bundle and compress CRD files from the main chart: %s", err)
 		}
 
@@ -90,12 +90,12 @@ func (c *AdditionalChart) RevertMainChanges(ctx context.Context, pkgFs billy.Fil
 		return fmt.Errorf("encountered error while trying to get the main chart's working directory: %s", err)
 	}
 	if c.CRDChartOptions.UseTarArchive {
-		if err := filesystem.UnarchiveTgz(ctx, pkgFs, filepath.Join(c.WorkingDir, path.ChartExtraFileDir, path.ChartCRDTgzFilename), "", filepath.Join(c.WorkingDir, c.CRDChartOptions.CRDDirectory), false); err != nil {
-			return fmt.Errorf("encountered error while trying to unarchive CRD files from %s: %s", filepath.Join(c.WorkingDir, "files", path.ChartCRDTgzFilename), err)
+		if err := filesystem.UnarchiveTgz(ctx, pkgFs, filepath.Join(c.WorkingDir, config.PathFilesDir, config.PathCrdTgz), "", filepath.Join(c.WorkingDir, c.CRDChartOptions.CRDDirectory), false); err != nil {
+			return fmt.Errorf("encountered error while trying to unarchive CRD files from %s: %s", filepath.Join(c.WorkingDir, "files", config.PathCrdTgz), err)
 		}
 	}
 	// copy CRD files from packages/<package>/<workingDir>/<crdDirectory>/ back to packages/<package>/crds/
-	if err := helm.CopyCRDsFromChart(ctx, pkgFs, c.WorkingDir, c.CRDChartOptions.CRDDirectory, mainChartWorkingDir, path.ChartCRDDir); err != nil {
+	if err := helm.CopyCRDsFromChart(ctx, pkgFs, c.WorkingDir, c.CRDChartOptions.CRDDirectory, mainChartWorkingDir, config.PathCrdsDir); err != nil {
 		return fmt.Errorf("encountered error while trying to copy CRDs from %s to %s: %s", c.WorkingDir, mainChartWorkingDir, err)
 	}
 	if c.CRDChartOptions.AddCRDValidationToMainChart {
@@ -131,19 +131,19 @@ func (c *AdditionalChart) Prepare(ctx context.Context, rootFs, pkgFs billy.Files
 		}
 		if c.Upstream != nil {
 			u := *c.Upstream
-			if err := u.Pull(ctx, rootFs, pkgFs, filepath.Join(mainChartWorkingDir, path.ChartCRDDir)); err != nil {
+			if err := u.Pull(ctx, rootFs, pkgFs, filepath.Join(mainChartWorkingDir, config.PathCrdsDir)); err != nil {
 				return fmt.Errorf("encountered error while trying to pull upstream into %s: %s", mainChartWorkingDir, err)
 			}
 		}
-		exists, err := filesystem.PathExists(ctx, pkgFs, filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
+		exists, err := filesystem.PathExists(ctx, pkgFs, filepath.Join(mainChartWorkingDir, config.PathCrdsDir))
 		if err != nil {
-			return fmt.Errorf("encountered error while trying to check if %s exists: %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir), err)
+			return fmt.Errorf("encountered error while trying to check if %s exists: %s", filepath.Join(mainChartWorkingDir, config.PathCrdsDir), err)
 		}
 		if !exists {
-			return fmt.Errorf("unable to prepare a CRD chart since there are no CRDs at %s", filepath.Join(mainChartWorkingDir, path.ChartCRDDir))
+			return fmt.Errorf("unable to prepare a CRD chart since there are no CRDs at %s", filepath.Join(mainChartWorkingDir, config.PathCrdsDir))
 		}
 
-		if err := GenerateCRDChartFromTemplate(ctx, pkgFs, c.WorkingDir, filepath.Join(path.PackageTemplatesDir, c.CRDChartOptions.TemplateDirectory), c.CRDChartOptions.CRDDirectory); err != nil {
+		if err := GenerateCRDChartFromTemplate(ctx, pkgFs, c.WorkingDir, filepath.Join(config.PathTemplatesDir, c.CRDChartOptions.TemplateDirectory), c.CRDChartOptions.CRDDirectory); err != nil {
 			return fmt.Errorf("encountered error while trying to generate CRD chart from template at %s: %s", c.CRDChartOptions.TemplateDirectory, err)
 		}
 	} else {
@@ -177,7 +177,7 @@ func (c *AdditionalChart) Prepare(ctx context.Context, rootFs, pkgFs billy.Files
 
 // getMainChartWorkingDir gets the working directory of the main chart
 func (c *AdditionalChart) getMainChartWorkingDir(ctx context.Context, pkgFs billy.Filesystem) (string, error) {
-	packageOpts, err := options.LoadPackageOptionsFromFile(ctx, pkgFs, path.PackageOptionsFile)
+	packageOpts, err := options.LoadPackageOptionsFromFile(ctx, pkgFs, config.PathPackageYaml)
 	if err != nil {
 		return "", fmt.Errorf("unable to read package.yaml: %s", err)
 	}
@@ -204,7 +204,7 @@ func (c *AdditionalChart) GeneratePatch(ctx context.Context, rootFs, pkgFs billy
 	}
 
 	if c.CRDChartOptions != nil {
-		logger.Log(ctx, slog.LevelWarn, "patches are not supported for CRD charts using CRDChartOptions. Any local changes will be overridden; please make the changes directly at %s", slog.String("TemplateDirectory", filepath.Join(path.PackageTemplatesDir, c.CRDChartOptions.TemplateDirectory)))
+		logger.Log(ctx, slog.LevelWarn, "patches are not supported for CRD charts using CRDChartOptions. Any local changes will be overridden; please make the changes directly at %s", slog.String("TemplateDirectory", filepath.Join(config.PathTemplatesDir, c.CRDChartOptions.TemplateDirectory)))
 		return nil
 	}
 
@@ -249,5 +249,5 @@ func (c *AdditionalChart) OriginalDir() string {
 
 // GeneratedChangesRootDir stored the directory rooted at the package level where generated changes for this chart can be found
 func (c *AdditionalChart) GeneratedChangesRootDir() string {
-	return filepath.Join(path.GeneratedChangesDir, path.GeneratedChangesAdditionalChartDir, c.WorkingDir, path.GeneratedChangesDir)
+	return filepath.Join(config.PathChangesDir, config.PathAdditionalDir, c.WorkingDir, config.PathChangesDir)
 }

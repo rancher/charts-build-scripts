@@ -7,10 +7,10 @@ import (
 	"os"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 
 	helmRepo "helm.sh/helm/v3/pkg/repo"
 )
@@ -75,7 +75,7 @@ func removeIndexCharts(ctx context.Context, rootFs billy.Filesystem, charts []st
 		removeEntryVersionFromIndex(ctx, index, chart, version)
 	}
 
-	idxAbsPath := filesystem.GetAbsPath(rootFs, path.RepositoryHelmIndexFile)
+	idxAbsPath := filesystem.GetAbsPath(rootFs, config.PathIndexYaml)
 	if err := index.WriteFile(idxAbsPath, os.ModePerm); err != nil {
 		logger.Log(ctx, slog.LevelError, "failed to remove charts from index.yaml", logger.Err(err))
 		return err

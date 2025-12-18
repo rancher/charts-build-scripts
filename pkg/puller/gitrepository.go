@@ -12,6 +12,7 @@ import (
 	"github.com/go-git/go-billy/v5"
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	git "github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
@@ -159,7 +160,7 @@ func (r GithubRepository) Pull(ctx context.Context, rootFs, fs billy.Filesystem,
 	if r.Subdirectory != nil {
 		logger.Log(ctx, slog.LevelDebug, "", slog.String("subdirectory", *r.Subdirectory))
 		if len(*r.Subdirectory) > 0 {
-			if err := filesystem.MakeSubdirectoryRoot(ctx, fs, path, *r.Subdirectory); err != nil {
+			if err := filesystem.MakeSubdirectoryRoot(ctx, fs, path, *r.Subdirectory, config.IsSoftError(ctx)); err != nil {
 				return err
 			}
 		}

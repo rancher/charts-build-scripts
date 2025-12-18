@@ -1,4 +1,4 @@
-package standardize
+package helm
 
 import (
 	"context"
@@ -7,11 +7,9 @@ import (
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
-	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/zip"
 
 	helmChart "helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
@@ -20,15 +18,23 @@ import (
 // RestructureChartsAndAssets takes in a Helm repository and restructures the contents of assets/ based on the contents of charts/
 // It then dumps the created assets/ back into charts/ and regenerates the Helm index.
 // As a result, the final outputted Helm repository can now be used by the charts-build-scripts as it has been standardized.
-func RestructureChartsAndAssets(ctx context.Context, repoFs billy.Filesystem) error {
-	exists, err := filesystem.PathExists(ctx, repoFs, path.RepositoryChartsDir)
+func RestructureChartsAndAssets(ctx context.Context, rootFS billy.Filesystem) error {
+	if rootFS == nil {
+		cfg, err := config.FromContext(ctx)
+		if err != nil {
+			return err
+		}
+		rootFS = cfg.RootFS
+	}
+
+	exists, err := filesystem.PathExists(ctx, rootFS, config.PathChartsDir)
 	if err != nil {
-		return fmt.Errorf("encountered error while checking if %s exists: %s", path.RepositoryChartsDir, err)
+		return fmt.Errorf("encountered error while checking if %s exists: %s", config.PathChartsDir, err)
 	}
 	if !exists {
-		return fmt.Errorf("could not find charts in repository rooted at %s", repoFs.Root())
+		return fmt.Errorf("could not find charts in repository rooted at %s", rootFS.Root())
 	}
-	return standardizeAssetsFromCharts(ctx, repoFs)
+	return standardizeAssetsFromCharts(ctx, rootFS)
 }
 
 func standardizeAssetsFromCharts(ctx context.Context, repoFs billy.Filesystem) error {
@@ -51,9 +57,7 @@ func standardizeAssetsFromCharts(ctx context.Context, repoFs billy.Filesystem) e
 		return nil
 	}
 	// Collect all charts from charts directory
-	logger.Log(ctx, slog.LevelInfo, "collecting valid charts", slog.String("RepositoryChartsDir", path.RepositoryChartsDir))
-
-	if err := filesystem.WalkDir(ctx, repoFs, path.RepositoryChartsDir, collectAllValidCharts); err != nil {
+	if err := filesystem.WalkDir(ctx, repoFs, config.PathChartsDir, config.IsSoftError(ctx), collectAllValidCharts); err != nil {
 		return fmt.Errorf("encountered error while trying to find Helm charts in repository: %s", err)
 	}
 	// Ensure you do not collect subcharts defined within charts
@@ -90,25 +94,25 @@ func standardizeAssetsFromCharts(ctx context.Context, repoFs billy.Filesystem) e
 		return fmt.Errorf("chart %s at version %s is declared in %s and %s", chart.Metadata.Name, chart.Metadata.Version, currChartPath, chartPath)
 	}
 	// Archive charts into assets
-	if err := filesystem.RemoveAll(repoFs, path.RepositoryAssetsDir); err != nil {
+	if err := filesystem.RemoveAll(repoFs, config.PathAssetsDir); err != nil {
 		return fmt.Errorf("unable to remove all assets to reconstruct directory: %s", err)
 	}
 	for chartPath, chart := range targetChartPaths {
-		chartAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, chart.Metadata.Name)
-		if _, err := helm.GenerateArchive(ctx, repoFs, repoFs, chartPath, chartAssetsDirpath, nil); err != nil {
+		chartAssetsDirpath := filepath.Join(config.PathAssetsDir, chart.Metadata.Name)
+		if _, err := GenerateArchive(ctx, repoFs, repoFs, chartPath, chartAssetsDirpath, nil); err != nil {
 			return fmt.Errorf("encountered error while trying to update archive based on chart in %s: %s", chartPath, err)
 		}
 	}
 	// Remove charts because all of them will be reconstructed
-	if err := filesystem.RemoveAll(repoFs, path.RepositoryChartsDir); err != nil {
+	if err := filesystem.RemoveAll(repoFs, config.PathChartsDir); err != nil {
 		return fmt.Errorf("unable to remove all assets to reconstruct directory: %s", err)
 	}
 	// Reconstruct charts
-	if err := zip.DumpAssets(ctx, repoFs.Root(), ""); err != nil {
+	if err := DumpAssets(ctx, ""); err != nil {
 		return fmt.Errorf("encountered error while trying to dump Helm charts in repository: %s", err)
 	}
 	// Reconstruct index.yaml
-	if err := helm.CreateOrUpdateHelmIndex(ctx, repoFs); err != nil {
+	if err := CreateOrUpdateHelmIndex(ctx); err != nil {
 		return fmt.Errorf("encountered error while trying to recreate Helm index: %s", err)
 	}
 	return nil

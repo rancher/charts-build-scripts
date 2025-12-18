@@ -1,12 +1,11 @@
-package auto
+package validate
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
 	"github.com/google/go-github/v41/github"
-	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/stretchr/testify/assert"
 )
@@ -17,19 +16,18 @@ func Test_validateReleaseYaml(t *testing.T) {
 		return fmt.Errorf("%w: %v", errReleaseYaml, assetFilePathErrors)
 	}
 
-	vr := &lifecycle.VersionRules{
-		Rules: map[string]lifecycle.Version{
-			"2.10": {Min: "105.0.0", Max: "106.0.0"},
-			"2.9":  {Min: "104.0.0", Max: "105.0.0"},
-			"2.8":  {Min: "103.0.0", Max: "104.0.0"},
-		},
+	vr := &config.VersionRules{
 		BranchVersion: "2.9",
-		MinVersion:    104,
-		MaxVersion:    105,
+		Rules: map[string]int{
+			"2.10": 105,
+			"2.9":  104,
+			"2.8":  103,
+		},
 	}
 
 	type input struct {
 		releaseOpts options.ReleaseOptions
+		cfg         *config.Config
 		validation  validation
 	}
 	type expected struct {
@@ -44,10 +42,14 @@ func Test_validateReleaseYaml(t *testing.T) {
 	tests := []test{
 		// #1
 		{
-			name: "Test #1 - [1 chart; 1 version] : Expected NIL",
+			name: "#1",
 			i: input{
 				releaseOpts: options.ReleaseOptions{
 					"chart-1": {"104.0.0"},
+				},
+				cfg: &config.Config{
+					VersionRules:      vr,
+					AssetsVersionsMap: map[string][]string{},
 				},
 				validation: validation{
 					files: []*github.CommitFile{
@@ -55,9 +57,6 @@ func Test_validateReleaseYaml(t *testing.T) {
 							Filename: github.String("assets/chart-1/chart-1-104.0.0.tgz"),
 							Status:   github.String("added"),
 						},
-					},
-					dep: &lifecycle.Dependencies{
-						AssetsVersionsMap: map[string][]lifecycle.Asset{},
 					},
 				},
 			},
@@ -68,10 +67,16 @@ func Test_validateReleaseYaml(t *testing.T) {
 
 		// #2
 		{
-			name: "Test #2 - [1 chart; 1 version; N files; minor update] : Expected NIL",
+			name: "#2 - [1 chart; 1 version; N files; minor update]",
 			i: input{
 				releaseOpts: options.ReleaseOptions{
 					"chart-1": {"104.0.1"},
+				},
+				cfg: &config.Config{
+					VersionRules: vr,
+					AssetsVersionsMap: map[string][]string{
+						"chart-1": {"104.0.1", "104.0.0"},
+					},
 				},
 				validation: validation{
 					files: []*github.CommitFile{
@@ -88,19 +93,6 @@ func Test_validateReleaseYaml(t *testing.T) {
 							Status:   github.String("modified"),
 						},
 					},
-					dep: &lifecycle.Dependencies{
-						AssetsVersionsMap: map[string][]lifecycle.Asset{
-							"chart-1": []lifecycle.Asset{
-								{
-									Version: "104.0.1",
-								},
-								{
-									Version: "104.0.0",
-								},
-							},
-						},
-						VR: vr,
-					},
 				},
 			},
 			ex: expected{
@@ -110,11 +102,17 @@ func Test_validateReleaseYaml(t *testing.T) {
 
 		// #3
 		{
-			name: "Test #3 - [2 charts; 1 version; N files; 2 new charts] : Expected NIL",
+			name: "#3 - [2 charts; 1 version; N files; 2 new charts]",
 			i: input{
 				releaseOpts: options.ReleaseOptions{
 					"chart-1": {"104.0.0"},
 					"chart-2": {"104.0.0"},
+				},
+				cfg: &config.Config{
+					VersionRules: vr,
+					AssetsVersionsMap: map[string][]string{
+						"chart-1": {"104.0.1", "104.0.0"},
+					},
 				},
 				validation: validation{
 					files: []*github.CommitFile{
@@ -135,21 +133,6 @@ func Test_validateReleaseYaml(t *testing.T) {
 							Status:   github.String("modified"),
 						},
 					},
-					dep: &lifecycle.Dependencies{
-						AssetsVersionsMap: map[string][]lifecycle.Asset{
-							"chart-1": []lifecycle.Asset{
-								{
-									Version: "104.0.0",
-								},
-							},
-							"chart-2": []lifecycle.Asset{
-								{
-									Version: "104.0.0",
-								},
-							},
-						},
-						VR: vr,
-					},
 				},
 			},
 			ex: expected{
@@ -159,10 +142,16 @@ func Test_validateReleaseYaml(t *testing.T) {
 
 		// #4
 		{
-			name: "Test #4 - [1 chart; 1 version; N files] : Expected ERROR",
+			name: "#4 - [1 chart; 1 version; N files]",
 			i: input{
 				releaseOpts: options.ReleaseOptions{
 					"chart-1": {"104.0.0"},
+				},
+				cfg: &config.Config{
+					VersionRules: vr,
+					AssetsVersionsMap: map[string][]string{
+						"chart-1": {"104.0.0"},
+					},
 				},
 				validation: validation{
 					files: []*github.CommitFile{
@@ -178,16 +167,6 @@ func Test_validateReleaseYaml(t *testing.T) {
 							Filename: github.String("charts/chart-1/Chart.yaml"),
 							Status:   github.String("modified"),
 						},
-					},
-					dep: &lifecycle.Dependencies{
-						AssetsVersionsMap: map[string][]lifecycle.Asset{
-							"chart-1": []lifecycle.Asset{
-								{
-									Version: "104.0.0",
-								},
-							},
-						},
-						VR: vr,
 					},
 				},
 			},
@@ -206,6 +185,13 @@ func Test_validateReleaseYaml(t *testing.T) {
 					"chart-1": {"104.0.0"},
 					"chart-2": {"104.0.0"},
 				},
+				cfg: &config.Config{
+					VersionRules: vr,
+					AssetsVersionsMap: map[string][]string{
+						"chart-1": {"104.0.0"},
+						"chart-2": {"104.0.0"},
+					},
+				},
 				validation: validation{
 					files: []*github.CommitFile{
 						{
@@ -225,21 +211,6 @@ func Test_validateReleaseYaml(t *testing.T) {
 							Status:   github.String("modified"),
 						},
 					},
-					dep: &lifecycle.Dependencies{
-						AssetsVersionsMap: map[string][]lifecycle.Asset{
-							"chart-1": []lifecycle.Asset{
-								{
-									Version: "104.0.0",
-								},
-							},
-							"chart-2": []lifecycle.Asset{
-								{
-									Version: "104.0.0",
-								},
-							},
-						},
-						VR: vr,
-					},
 				},
 			},
 			ex: expected{
@@ -251,11 +222,18 @@ func Test_validateReleaseYaml(t *testing.T) {
 
 		// #6
 		{
-			name: "Test #6 - [2 chart; 1 version; N files] : Expected >1 ERRORs",
+			name: "#6 - [2 chart; 1 version; N files]",
 			i: input{
 				releaseOpts: options.ReleaseOptions{
 					"chart-1": {"104.0.0"},
 					"chart-2": {"104.0.0"},
+				},
+				cfg: &config.Config{
+					VersionRules: vr,
+					AssetsVersionsMap: map[string][]string{
+						"chart-1": {"104.0.0"},
+						"chart-2": {"104.0.0"},
+					},
 				},
 				validation: validation{
 					files: []*github.CommitFile{
@@ -276,21 +254,6 @@ func Test_validateReleaseYaml(t *testing.T) {
 							Status:   github.String("modified"),
 						},
 					},
-					dep: &lifecycle.Dependencies{
-						AssetsVersionsMap: map[string][]lifecycle.Asset{
-							"chart-1": []lifecycle.Asset{
-								{
-									Version: "104.0.0",
-								},
-							},
-							"chart-2": []lifecycle.Asset{
-								{
-									Version: "104.0.0",
-								},
-							},
-						},
-						VR: vr,
-					},
 				},
 			},
 			ex: expected{
@@ -302,11 +265,9 @@ func Test_validateReleaseYaml(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.i.validation.validateReleaseYaml(ctx, tt.i.releaseOpts)
+			err := tt.i.validation.validateReleaseYaml(tt.i.cfg, tt.i.releaseOpts)
 			if tt.ex.err == nil {
 				assert.Nil(t, err, "expected nil error")
 			} else {
@@ -317,21 +278,22 @@ func Test_validateReleaseYaml(t *testing.T) {
 }
 
 func Test_checkMinorPatchVersion(t *testing.T) {
-	vr := &lifecycle.VersionRules{
-		Rules: map[string]lifecycle.Version{
-			"2.10": {Min: "105.0.0", Max: "106.0.0"},
-			"2.9":  {Min: "104.0.0", Max: "105.0.0"},
-			"2.8":  {Min: "103.0.0", Max: "104.0.0"},
+	cfg := &config.Config{
+		VersionRules: &config.VersionRules{
+			BranchVersion: "2.9",
+			Rules: map[string]int{
+				"2.10": 105,
+				"2.9":  104,
+				"2.8":  103,
+			},
 		},
-		BranchVersion: "2.9",
-		MinVersion:    104,
-		MaxVersion:    105,
 	}
 
 	type input struct {
 		validation       validation
+		cfg              *config.Config
 		version          string
-		releasedVersions []lifecycle.Asset
+		releasedVersions []string
 	}
 	type expected struct {
 		err error
@@ -344,210 +306,168 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 
 	tests := []test{
 		{
-			name: "Test #1.0 [patch update] : Expected NIL",
+			name: "#1.0 [patch update]",
 			i: input{
-				validation: validation{
-					dep: &lifecycle.Dependencies{
-						VR: vr,
-					},
-				},
+				validation:       validation{},
+				cfg:              cfg,
 				version:          "104.0.1",
-				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}},
+				releasedVersions: []string{"104.0.0"},
 			},
 			ex: expected{
 				err: nil,
 			},
 		},
 		{
-			name: "Test #1.1 [minor update] : Expected NIL",
+			name: "#1.1 [minor update]",
 			i: input{
-				validation: validation{
-					dep: &lifecycle.Dependencies{
-						VR: vr,
-					},
-				},
+				validation:       validation{},
+				cfg:              cfg,
 				version:          "104.1.0",
-				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}},
+				releasedVersions: []string{"104.0.0"},
 			},
 			ex: expected{
 				err: nil,
 			},
 		},
 		{
-			name: "Test #1.2 [minor update && > 1 released chart] : Expected NIL",
+			name: "#1.2 [minor update && > 1 released chart]",
 			i: input{
-				validation: validation{
-					dep: &lifecycle.Dependencies{
-						VR: vr,
-					},
-				},
+				validation:       validation{},
+				cfg:              cfg,
 				version:          "104.2.0",
-				releasedVersions: []lifecycle.Asset{{Version: "104.1.0"}, {Version: "104.0.0"}},
+				releasedVersions: []string{"104.1.0", "104.0.0"},
 			},
 			ex: expected{
 				err: nil,
 			},
 		},
 		{
-			name: "Test #1.3 [patch update && > 1 released chart] : Expected NIL",
+			name: "#1.3 [patch update && > 1 released chart]",
 			i: input{
-				validation: validation{
-					dep: &lifecycle.Dependencies{
-						VR: vr,
-					},
-				},
+				validation:       validation{},
+				cfg:              cfg,
 				version:          "104.2.1",
-				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
+				releasedVersions: []string{"104.2.0", "104.1.0", "104.0.0"},
 			},
 			ex: expected{
 				err: nil,
 			},
 		},
 		{
-			name: "Test #1.4 [patch update (old chart) && > 1 released chart] : Expected NIL",
+			name: "#1.4 [patch update (old chart) && > 1 released chart]",
 			i: input{
-				validation: validation{
-					dep: &lifecycle.Dependencies{
-						VR: vr,
-					},
-				},
+				validation:       validation{},
+				cfg:              cfg,
 				version:          "104.1.1",
-				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
+				releasedVersions: []string{"104.2.0", "104.1.0", "104.0.0"},
 			},
 			ex: expected{
 				err: nil,
 			},
 		},
 		{
-			name: "Test #1.5 [patch update (old chart) && > 1 released chart] : Expected NIL",
+			name: "#1.5 [patch update (old chart) && > 1 released chart]",
 			i: input{
-				validation: validation{
-					dep: &lifecycle.Dependencies{
-						VR: vr,
-					},
-				},
+				validation:       validation{},
+				cfg:              cfg,
 				version:          "104.0.1",
-				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
+				releasedVersions: []string{"104.2.0", "104.1.0", "104.0.0"},
 			},
 			ex: expected{
 				err: nil,
 			},
 		},
 		{
-			name: "Test #2.0 [patch update (old chart) && > 1 released chart] : Expected ERR",
+			name: "#2.0 [patch update (old chart) && > 1 released chart]",
 			i: input{
-				validation: validation{
-					dep: &lifecycle.Dependencies{
-						VR: vr,
-					},
-				},
+				validation:       validation{},
+				cfg:              cfg,
 				version:          "104.0.2",
-				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
+				releasedVersions: []string{"104.2.0", "104.1.0", "104.0.0"},
 			},
 			ex: expected{
 				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.0.2"),
 			},
 		},
 		{
-			name: "Test #2.1 [patch update (old chart) && > 1 released chart] : Expected ERR",
+			name: "#2.1 [patch update (old chart) && > 1 released chart]",
 			i: input{
-				validation: validation{
-					dep: &lifecycle.Dependencies{
-						VR: vr,
-					},
-				},
+				validation:       validation{},
+				cfg:              cfg,
 				version:          "104.1.2",
-				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
+				releasedVersions: []string{"104.2.0", "104.1.0", "104.0.0"},
 			},
 			ex: expected{
 				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.1.2"),
 			},
 		},
 		{
-			name: "Test #2.2 [patch update (new chart) && > 1 released chart] : Expected ERR",
+			name: "#2.2 [patch update (new chart) && > 1 released chart]",
 			i: input{
-				validation: validation{
-					dep: &lifecycle.Dependencies{
-						VR: vr,
-					},
-				},
+				validation:       validation{},
+				cfg:              cfg,
 				version:          "104.2.2",
-				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
+				releasedVersions: []string{"104.2.0", "104.1.0", "104.0.0"},
 			},
 			ex: expected{
 				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.2.2"),
 			},
 		},
 		{
-			name: "Test #2.3 [minor/patch update (new chart) && > 1 released chart] : Expected ERR",
+			name: "#2.3 [minor/patch update (new chart) && > 1 released chart]",
 			i: input{
-				validation: validation{
-					dep: &lifecycle.Dependencies{
-						VR: vr,
-					},
-				},
+				validation:       validation{},
+				cfg:              cfg,
 				version:          "104.3.1",
-				releasedVersions: []lifecycle.Asset{{Version: "104.2.0"}, {Version: "104.1.0"}, {Version: "104.0.0"}},
+				releasedVersions: []string{"104.2.0", "104.1.0", "104.0.0"},
 			},
 			ex: expected{
 				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.3.1"),
 			},
 		},
 		{
-			name: "Test #3 [minor/patch update] : Expected Error",
+			name: "#3 [minor/patch update]",
 			i: input{
-				validation: validation{
-					dep: &lifecycle.Dependencies{
-						VR: vr,
-					},
-				},
+				validation:       validation{},
+				cfg:              cfg,
 				version:          "104.1.1",
-				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}},
+				releasedVersions: []string{"104.0.0"},
 			},
 			ex: expected{
 				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.1.1"),
 			},
 		},
 		{
-			name: "Test #4 [patch update > 1] : Expected Error",
+			name: "#4 [patch update > 1]",
 			i: input{
-				validation: validation{
-					dep: &lifecycle.Dependencies{
-						VR: vr,
-					},
-				},
+				validation:       validation{},
+				cfg:              cfg,
 				version:          "104.0.2",
-				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}},
+				releasedVersions: []string{"104.0.0"},
 			},
 			ex: expected{
 				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.0.2"),
 			},
 		},
 		{
-			name: "Test #5 [minor update > 1] : Expected Error",
+			name: "#5 [minor update > 1]",
 			i: input{
-				validation: validation{
-					dep: &lifecycle.Dependencies{
-						VR: vr,
-					},
-				},
+				validation:       validation{},
+				cfg:              cfg,
 				version:          "104.3.0",
-				releasedVersions: []lifecycle.Asset{{Version: "104.0.0"}},
+				releasedVersions: []string{"104.0.0"},
 			},
 			ex: expected{
 				err: fmt.Errorf("%w: version: %s", errMinorPatchVersion, "104.3.0"),
 			},
 		},
 		{
-			name: "Test #6 [forward-ported chart] : Expected nil",
+			name: "#6 [forward-ported chart]",
 			i: input{
-				validation: validation{
-					dep: &lifecycle.Dependencies{
-						VR: vr,
-					},
-				},
+				validation:       validation{},
+				cfg:              cfg,
 				version:          "103.1.5",
-				releasedVersions: []lifecycle.Asset{{Version: "104.1.2"}},
+				releasedVersions: []string{"104.1.2"},
 			},
 			ex: expected{
 				err: nil,
@@ -555,10 +475,9 @@ func Test_checkMinorPatchVersion(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.i.validation.checkMinorPatchVersion(ctx, tt.i.version, tt.i.releasedVersions)
+			err := tt.i.validation.checkMinorPatchVersion(tt.i.cfg, tt.i.version, tt.i.releasedVersions)
 			if tt.ex.err == nil {
 				assert.Nil(t, err, "expected nil error")
 			} else {

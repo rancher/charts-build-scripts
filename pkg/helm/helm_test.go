@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"helm.sh/helm/v3/pkg/chart"
 	helmRepo "helm.sh/helm/v3/pkg/repo"
 )
@@ -123,101 +124,94 @@ func TestSortVersions(t *testing.T) {
 }
 
 func Test_CheckVersionStandards(t *testing.T) {
-	ctx := context.Background()
+	cfg := &config.Config{
+		VersionRules: &config.VersionRules{
+			AllowedCandidates: []string{"-alpha", "-beta", "-rc"},
+			AllowedMetadata:   []string{"-rancher"},
+		},
+	}
+	ctx := config.WithConfig(context.Background(), cfg)
+
 	tests := []struct {
 		name        string
-		input       *helmRepo.IndexFile
+		input       map[string][]string
 		expectError bool
 		errorMsg    string
 	}{
 		{
-			name: "valid - all allowed prerelease types",
-			input: &helmRepo.IndexFile{
-				Entries: map[string]helmRepo.ChartVersions{
-					"test-chart": {
-						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0"}},
-						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-alpha.1"}},
-						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-beta.2"}},
-						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-rc.3"}},
-						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-rancher.5"}},
-					},
+			name: "#1 - all allowed prerelease types",
+			input: map[string][]string{
+				"test-chart": {
+					"108.0.0+up0.14.0",
+					"108.0.0+up0.14.0-alpha.1",
+					"108.0.0+up0.14.0-beta.2",
+					"108.0.0+up0.14.0-rc.3",
+					"108.0.0+up0.14.0-rancher.5",
 				},
 			},
 			expectError: false,
 		},
 		{
-			name: "valid - stable versions only",
-			input: &helmRepo.IndexFile{
-				Entries: map[string]helmRepo.ChartVersions{
-					"test-chart": {
-						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0"}},
-						{Metadata: &chart.Metadata{Version: "108.0.1+up0.14.1"}},
-						{Metadata: &chart.Metadata{Version: "108.0.2+up0.14.2"}},
-					},
+			name: "#2 - stable versions only",
+			input: map[string][]string{
+				"test-chart": {
+					"108.0.0+up0.14.0",
+					"108.0.1+up0.14.1",
+					"108.0.2+up0.14.2",
 				},
 			},
 			expectError: false,
 		},
 		{
-			name: "valid - versions without build metadata",
-			input: &helmRepo.IndexFile{
-				Entries: map[string]helmRepo.ChartVersions{
-					"test-chart": {
-						{Metadata: &chart.Metadata{Version: "1.0.0"}},
-						{Metadata: &chart.Metadata{Version: "1.0.1"}},
-					},
+			name: "#3 - versions without build metadata",
+			input: map[string][]string{
+				"test-chart": {
+					"1.0.0",
+					"1.0.1",
 				},
 			},
 			expectError: false,
 		},
 		{
-			name: "invalid - dev prerelease",
-			input: &helmRepo.IndexFile{
-				Entries: map[string]helmRepo.ChartVersions{
-					"test-chart": {
-						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-dev.1"}},
-					},
+			name: "#4 - dev prerelease",
+			input: map[string][]string{
+				"test-chart": {
+					"108.0.0+up0.14.0-dev.1",
 				},
 			},
 			expectError: true,
-			errorMsg:    "contains invalid prerelease identifier",
+			errorMsg:    "contains invalid build metadata identifier.",
 		},
 		{
-			name: "invalid - snapshot prerelease",
-			input: &helmRepo.IndexFile{
-				Entries: map[string]helmRepo.ChartVersions{
-					"test-chart": {
-						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-snapshot.1"}},
-					},
+			name: "#5 - snapshot prerelease",
+			input: map[string][]string{
+				"test-chart": {
+					"108.0.0+up0.14.0-snapshot.1",
 				},
 			},
 			expectError: true,
-			errorMsg:    "contains invalid prerelease identifier",
+			errorMsg:    "contains invalid build metadata identifier.",
 		},
 		{
-			name: "invalid - preview prerelease",
-			input: &helmRepo.IndexFile{
-				Entries: map[string]helmRepo.ChartVersions{
-					"test-chart": {
-						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-preview.1"}},
-					},
+			name: "#6 - preview prerelease",
+			input: map[string][]string{
+				"test-chart": {
+					"108.0.0+up0.14.0-preview.1",
 				},
 			},
 			expectError: true,
-			errorMsg:    "contains invalid prerelease identifier",
+			errorMsg:    "contains invalid build metadata identifier.",
 		},
 		{
-			name: "invalid - mixed valid and invalid",
-			input: &helmRepo.IndexFile{
-				Entries: map[string]helmRepo.ChartVersions{
-					"test-chart": {
-						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-alpha.1"}},
-						{Metadata: &chart.Metadata{Version: "108.0.0+up0.14.0-custom.1"}},
-					},
+			name: "#7 - mixed valid and invalid",
+			input: map[string][]string{
+				"test-chart": {
+					"108.0.0+up0.14.0-alpha.1",
+					"108.0.0+up0.14.0-custom.1",
 				},
 			},
 			expectError: true,
-			errorMsg:    "contains invalid prerelease identifier",
+			errorMsg:    "contains invalid build metadata identifier.",
 		},
 	}
 

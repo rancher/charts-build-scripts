@@ -1,16 +1,18 @@
-package update
+package puller
 
 import (
 	"context"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/puller"
 )
 
 var (
@@ -26,32 +28,41 @@ var (
 )
 
 // ApplyUpstreamTemplate updates a charts-build-scripts repository based on the Go templates tracked in this repository
-func ApplyUpstreamTemplate(ctx context.Context, rootFs billy.Filesystem, chartsScriptOptions options.ChartsScriptOptions) error {
-	for _, dir := range []string{"template", "generated"} {
-		if err := rootFs.MkdirAll(dir, os.ModePerm); err != nil {
-			return fmt.Errorf("unable to create empty directory at %s: %v", filesystem.GetAbsPath(rootFs, dir), err)
-		}
-		defer filesystem.RemoveAll(rootFs, dir)
-	}
-
-	err := pullUpstream(ctx, rootFs, rootFs, "template")
+func ApplyUpstreamTemplate(ctx context.Context) error {
+	cfg, err := config.FromContext(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = applyTemplate(ctx, rootFs, chartsScriptOptions, "template", "generated")
+	for _, dir := range []string{"template", "generated"} {
+		if err := cfg.RootFS.MkdirAll(dir, os.ModePerm); err != nil {
+			return fmt.Errorf("unable to create empty directory at %s: %v", filesystem.GetAbsPath(cfg.RootFS, dir), err)
+		}
+		defer filesystem.RemoveAll(cfg.RootFS, dir)
+	}
+
+	if err := pullUpstream(ctx, cfg.RootFS, cfg.RootFS, "template"); err != nil {
+		return err
+	}
+
+	err = applyTemplate(ctx, cfg.RootFS, cfg.ChartsScriptOptions, "template", "generated")
 	if err != nil {
 		return fmt.Errorf("could not apply template: %v", err)
 	}
 
-	return filesystem.CopyDir(ctx, rootFs, "generated", ".")
+	if err := filesystem.CopyDir(ctx, cfg.RootFS, "generated", ".", config.IsSoftError(ctx)); err != nil {
+		return err
+	}
+
+	logger.Log(ctx, slog.LevelInfo, "successfully updated repository based on upstream template")
+	return nil
 }
 
 func pullUpstream(ctx context.Context, rootFs billy.Filesystem, pkgFs billy.Filesystem, templateDir string) error {
 	upstreamTemplateDir := filepath.Join(ChartsBuildScriptRepositoryTemplatesDirectory, ChartsBuildScriptRepositoryTemplateDirectory)
 
 	// Get upstream contents at templates/template
-	templateRepository, err := puller.GetGithubRepository(
+	templateRepository, err := GetGithubRepository(
 		options.UpstreamOptions{
 			URL:          ChartsBuildScriptsRepositoryURL,
 			Subdirectory: &upstreamTemplateDir,
@@ -69,7 +80,7 @@ func pullUpstream(ctx context.Context, rootFs billy.Filesystem, pkgFs billy.File
 	return nil
 }
 
-func applyTemplate(ctx context.Context, pkgFs billy.Filesystem, chartsScriptOptions options.ChartsScriptOptions, templateDir string, generatedDir string) error {
+func applyTemplate(ctx context.Context, pkgFs billy.Filesystem, chartsScriptOptions *options.ChartsScriptOptions, templateDir string, generatedDir string) error {
 	tempFs := filesystem.GetFilesystem(filesystem.GetAbsPath(pkgFs, generatedDir))
 	applySingleTemplate := func(ctx context.Context, fs billy.Filesystem, path string, isDir bool) error {
 		if isDir {
@@ -93,5 +104,5 @@ func applyTemplate(ctx context.Context, pkgFs billy.Filesystem, chartsScriptOpti
 		}
 		return nil
 	}
-	return filesystem.WalkDir(ctx, pkgFs, templateDir, applySingleTemplate)
+	return filesystem.WalkDir(ctx, pkgFs, templateDir, config.IsSoftError(ctx), applySingleTemplate)
 }

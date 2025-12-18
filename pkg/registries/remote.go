@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rancher/charts-build-scripts/pkg/charts"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
@@ -391,10 +393,14 @@ func checkImagesFromDocker(ctx context.Context, assetsTagMap map[string][]string
 // 1. New implementation for checking RC tags
 
 // DockerCheckRCTags checks for any images that have RC tags
-func DockerCheckRCTags(ctx context.Context, repoRoot string) map[string][]string {
+func DockerCheckRCTags(ctx context.Context) error {
+	cfg, err := config.FromContext(ctx)
+	if err != nil {
+		return err
+	}
 
 	// Get the release options from the release.yaml file
-	releaseOptions := getReleaseOptions(ctx, repoRoot)
+	releaseOptions := getReleaseOptions(ctx, cfg.Root)
 	logger.Log(ctx, slog.LevelInfo, "checking for RC tags in charts", slog.Any("releaseOptions", releaseOptions))
 
 	rcImageTagMap := make(map[string][]string, 0)
@@ -416,7 +422,22 @@ func DockerCheckRCTags(ctx context.Context, repoRoot string) map[string][]string
 		}
 	}
 
-	return rcImageTagMap
+	// Grab all chart versions that contain RC tags
+	rcChartVersionMap, err := charts.CheckRCCharts(ctx, cfg.Root)
+	if err != nil {
+		return fmt.Errorf("unable to check for RC charts: %w", err)
+	}
+
+	// If there are any charts that contains RC version or images that contains RC tags
+	// log them and return an error
+	if len(rcChartVersionMap) > 0 || len(rcImageTagMap) > 0 {
+		logger.Log(ctx, slog.LevelError, "found images with RC tags", slog.Any("rcImageTagMap", rcImageTagMap))
+		logger.Log(ctx, slog.LevelError, "found charts with RC version", slog.Any("rcChartVersionMap", rcChartVersionMap))
+		return errors.New("RC check has failed")
+	}
+
+	logger.Log(ctx, slog.LevelInfo, "successfully checked RC tags and versions")
+	return nil
 }
 
 // getReleaseOptions returns the release options from the release.yaml file

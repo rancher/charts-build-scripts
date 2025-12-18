@@ -7,27 +7,38 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/go-git/go-billy/v5"
-	"github.com/rancher/charts-build-scripts/pkg/auto"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/zip"
-	"github.com/urfave/cli"
 )
 
 // ChartsRepository TODO
-func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, rootFs billy.Filesystem, csOptions *options.ChartsScriptOptions, skip, remoteMode, localMode bool, chart string) error {
+func ChartsRepository(ctx context.Context, skip, remoteMode, localMode bool, chart string) error {
+	logger.Log(ctx, slog.LevelInfo, "", slog.Group("inputs",
+		"LocalMode", localMode,
+		"RemoteMode", remoteMode,
+		"Skip", skip,
+		"CurrentPackage", chart))
 
-	if err := isGitClean(ctx, repoRoot, false); err != nil {
+	if localMode && remoteMode {
+		return errors.New("cannot specify both local and remote validation")
+	}
+
+	cfg, err := config.FromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	if err := isGitClean(ctx, false); err != nil {
 		return err
 	}
 
 	// Only skip icon validations for forward-ports
 	if !skip {
-		if err := auto.ValidateIcons(ctx, rootFs); err != nil {
+		if err := ValidateIcons(ctx); err != nil {
 			return err
 		}
 	}
@@ -37,30 +48,30 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 		logger.Log(ctx, slog.LevelInfo, "remote validation only")
 	} else {
 		logger.Log(ctx, slog.LevelInfo, "generating charts")
-		if err := generateChartsConcurrently(ctx, c, repoRoot, chart, csOptions, rootFs); err != nil {
+		if err := generateChartsConcurrently(ctx, chart); err != nil {
 			return err
 		}
 
-		if err := isGitClean(ctx, repoRoot, true); err != nil {
+		if err := isGitClean(ctx, true); err != nil {
 			return err
 		}
 
 		logger.Log(ctx, slog.LevelInfo, "successfully validated that current charts and assets are up-to-date")
 	}
 
-	if csOptions.ValidateOptions != nil {
+	if cfg.ChartsScriptOptions.ValidateOptions != nil {
 		if localMode {
 			logger.Log(ctx, slog.LevelInfo, "local validation only")
 		} else {
-			releaseOptions, err := options.LoadReleaseOptionsFromFile(ctx, rootFs, "release.yaml")
+			releaseOptions, err := options.LoadReleaseOptionsFromFile(ctx, cfg.RootFS, "release.yaml")
 			if err != nil {
 				return err
 			}
-			u := csOptions.ValidateOptions.UpstreamOptions
-			branch := csOptions.ValidateOptions.Branch
+			u := cfg.ChartsScriptOptions.ValidateOptions.UpstreamOptions
+			branch := cfg.ChartsScriptOptions.ValidateOptions.Branch
 
 			logger.Log(ctx, slog.LevelInfo, "upstream validation against repository", slog.String("url", u.URL), slog.String("branch", branch))
-			compareGeneratedAssetsResponse, err := CompareGeneratedAssets(ctx, repoRoot, rootFs, u, branch, releaseOptions)
+			compareGeneratedAssetsResponse, err := CompareGeneratedAssets(ctx, cfg.Root, cfg.RootFS, u, branch, releaseOptions)
 			if err != nil {
 				return err
 			}
@@ -69,12 +80,12 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 				compareGeneratedAssetsResponse.LogDiscrepancies(ctx)
 
 				logger.Log(ctx, slog.LevelInfo, "dumping release.yaml to track changes that have been introduced")
-				if err := compareGeneratedAssetsResponse.DumpReleaseYaml(ctx, rootFs); err != nil {
+				if err := compareGeneratedAssetsResponse.DumpReleaseYaml(ctx, cfg.RootFS); err != nil {
 					logger.Log(ctx, slog.LevelError, "unable to dump newly generated release.yaml", logger.Err(err))
 				}
 
 				logger.Log(ctx, slog.LevelInfo, "updating index.yaml")
-				if err := helm.CreateOrUpdateHelmIndex(ctx, rootFs); err != nil {
+				if err := helm.CreateOrUpdateHelmIndex(ctx); err != nil {
 					return err
 				}
 
@@ -86,16 +97,16 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 	logger.Log(ctx, slog.LevelInfo, "zipping charts to ensure that contents of assets, charts, and index.yaml are in sync")
 
 	// zipCharts
-	if err := zip.ArchiveCharts(ctx, repoRoot, chart); err != nil {
+	if err := helm.ArchiveCharts(ctx, chart); err != nil {
 		return err
 	}
 
 	// createOrUpdateIndex
-	if err := helm.CreateOrUpdateHelmIndex(ctx, rootFs); err != nil {
+	if err := helm.CreateOrUpdateHelmIndex(ctx); err != nil {
 		return err
 	}
 
-	if err := isGitClean(ctx, repoRoot, false); err != nil {
+	if err := isGitClean(ctx, false); err != nil {
 		return err
 	}
 
@@ -103,9 +114,15 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 	return nil
 }
 
-func isGitClean(ctx context.Context, repoRoot string, checkExceptions bool) error {
+func isGitClean(ctx context.Context, checkExceptions bool) error {
 	logger.Log(ctx, slog.LevelInfo, "checking if Git is clean")
-	_, _, status, err := git.GetGitInfo(ctx, repoRoot)
+
+	cfg, err := config.FromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, _, status, err := git.GetGitInfo(ctx, cfg.Root)
 	if err != nil {
 		return err
 	}
@@ -120,8 +137,8 @@ func isGitClean(ctx context.Context, repoRoot string, checkExceptions bool) erro
 	return StatusExceptions(ctx, status)
 }
 
-func generateChartsConcurrently(ctx context.Context, c *cli.Context, repoRoot, chart string, csOptions *options.ChartsScriptOptions, rootFs billy.Filesystem) error {
-	packages, err := charts.GetPackages(ctx, repoRoot, chart)
+func generateChartsConcurrently(ctx context.Context, chart string) error {
+	packages, err := charts.GetPackages(ctx, chart)
 	if err != nil {
 		return err
 	}
@@ -167,7 +184,7 @@ func generateChartsConcurrently(ctx context.Context, c *cli.Context, repoRoot, c
 			defer func() { <-semaphore }() // Release semaphore
 
 			logger.Log(ctx, slog.LevelInfo, "generating chart", slog.String("package", pkg.Name))
-			if err := pkg.GenerateCharts(ctx, csOptions.OmitBuildMetadataOnExport); err != nil {
+			if err := pkg.GenerateCharts(ctx); err != nil {
 				mu.Lock()
 				errs = append(errs, fmt.Errorf("package %s: %w", pkg.Name, err))
 				mu.Unlock()

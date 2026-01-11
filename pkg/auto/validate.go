@@ -15,7 +15,7 @@ import (
 	"github.com/Masterminds/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-github/v41/github"
+	"github.com/google/go-github/v81/github"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"

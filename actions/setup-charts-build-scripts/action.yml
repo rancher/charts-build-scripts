@@ -155,7 +155,7 @@ runs:
         download_checksum
         verify_checksum
 
-        # echo "${INSTALL_DIR}" >>"${GITHUB_PATH}"
+        echo "${BIN}" >>"${GITHUB_PATH}"
         ls -al "${INSTALL_DIR}"
 
         exit 0

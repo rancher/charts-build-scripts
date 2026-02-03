@@ -20,7 +20,7 @@ inputs:
     required: false
   install-dir:
     description: "Where to install the binary"
-    default: "$HOME/.charts-build-scripts"
+    default: ""
     required: false
   use-sudo:
     description: "Set to true if needed."
@@ -41,6 +41,7 @@ runs:
       VERSION=${VERSION:-""}
       USE_SUDO=${USE_SUDO:-"false"}
       INSTALL_DIR=${INSTALL_DIR:-"$HOME/.charts-build-scripts"}
+      INSTALL_DIR=$(envsubst <<<"${INSTALL_DIR}")
 
       REPO_NAME="charts-build-scripts"
       REPO_URL="https://github.com/rancher/${REPO_NAME}"

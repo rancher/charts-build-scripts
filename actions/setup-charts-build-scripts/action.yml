@@ -30,7 +30,7 @@ runs:
   using: 'composite'
   steps:
   - name: install charts-build-scripts
-    shell: bash
+    shell: sh
     env:
       VERSION: ${{ inputs.version }}
       USE_SUDO: ${{ inputs.use-sudo }}

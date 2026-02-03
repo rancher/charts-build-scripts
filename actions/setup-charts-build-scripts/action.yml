@@ -20,7 +20,7 @@ inputs:
     required: false
   install-dir:
     description: "Where to install the binary"
-    default: ""
+    default: "$HOME/.charts-build-scripts"
     required: false
   use-sudo:
     description: "Set to true if needed."

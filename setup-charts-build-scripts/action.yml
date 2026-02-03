@@ -1,0 +1,162 @@
+name: 'Setup charts-build-scripts'
+description: 'Installs charts-build-scripts'
+inputs:
+  version:
+    description: "The tag of the charts-build-scripts release to install."
+    required: false
+  install-dir:
+    description: "Where to install the binary"
+    default: "$HOME/.charts-build-scripts"
+    required: false
+  use-sudo:
+    description: "Set to true if needed."
+    default: false
+    required: false
+runs:
+  using: 'composite'
+  steps:
+  - name: install charts-build-scripts
+    shell: bash
+    env:
+      VERSION: ${{ inputs.version }}
+      USE_SUDO: ${{ inputs.use-sudo }}
+      INSTALL_DIR: ${{ inputs.install-dir }}
+    run: |
+      set -ex
+
+      VERSION=${VERSION:-""}
+      USE_SUDO=${VERSION:-"false"}
+      INSTALL_DIR=${INSTALL_DIR:-"$HOME/.charts-build-scripts"}
+
+      REPO_NAME="charts-build-scripts"
+      REPO_URL="https://github.com/rancher/${REPO_NAME}"
+      REPO_RELEASE_URL="${REPO_URL}/releases"
+      BIN="${INSTALL_DIR}/charts-build-scripts"
+      CHECKSUM_FILE="/tmp/charts-build-scripts-checksums.txt"
+      SUFFIX=""
+      DOWNLOADER=""
+
+      SUDO=
+      if [ "${USE_SUDO}" = "true" ] && command -v sudo >/dev/null; then
+        SUDO=sudo
+      fi
+
+      fatal() {
+        >&2 echo "$1"
+        #exit 1
+      }
+
+      # setup_suffix set arch and suffix fatal if architecture not supported.
+      setup_suffix() {
+        arch=$(uname -m)
+        os=$(uname -s)
+
+        case "$arch" in
+        x86_64 | amd64)
+          arch=amd64
+          ;;
+        aarch64 | arm64)
+          arch=arm64
+          ;;
+        *)
+          fatal "unsupported architecture ${arch}"
+          exit 1
+          ;;
+        esac
+
+        case "$os" in
+        Darwin | darwin)
+          os="darwin"
+          ;;
+        Linux | linux)
+          os="linux"
+          ;;
+        *)
+          fatal "unsupported os ${os}"
+          ;;
+        esac
+
+        SUFFIX="${os}_${arch}"
+      }
+
+      # verify_downloader verifies existence of network downloader executable.
+      verify_downloader() {
+        cmd="$(command -v "${1}")"
+        if [ -z "${cmd}" ]; then
+          return 1
+        fi
+        if [ ! -x "${cmd}" ]; then
+          return 1
+        fi
+
+        DOWNLOADER=${cmd}
+        return 0
+      }
+
+      # download downloads a file from a url using either curl or wget.
+      download() {
+        download_url=$1
+        output_file=$2
+
+        case "${DOWNLOADER}" in
+        *curl)
+          if ! curl -fsSL "${download_url}" -o "${output_file}"; then
+            fatal "error: download failed"
+          fi
+          ;;
+        *wget)
+          if ! wget -q -O "${output_file}" "${download_url}"; then
+            fatal "error: download failed"
+          fi
+          ;;
+        esac
+      }
+
+      # download_binary downloads the binary for the given version.
+      download_binary() {
+        DONWNLOAD_URL="${REPO_RELEASE_URL}/download/${VERSION}/charts-build-scripts_${SUFFIX}"
+
+        echo "downloading binary from ${DONWNLOAD_URL}"
+
+        mkdir -p "${INSTALL_DIR}"
+        download "${DONWNLOAD_URL}" "${BIN}"
+        $SUDO chmod +x "${BIN}"
+      }
+
+      # download_checksum downloads the checksum for the given version.
+      download_checksum() {
+        DONWNLOAD_URL="${REPO_RELEASE_URL}/download/${VERSION}/checksums.txt"
+
+        echo "downloading checksums from ${DONWNLOAD_URL}"
+
+        mkdir -p /tmp
+        download "${DONWNLOAD_URL}" "${CHECKSUM_FILE}"
+      }
+
+      # verify_checksum checks if the checksum of the binary downladed matches the checksum file
+      verify_checksum() {
+        if ! grep "$(sha256sum "${BIN}" | cut -d ' ' -f1)" "${CHECKSUM_FILE}"; then
+          fatal "error: checksum doesn't match"
+        fi
+      }
+
+      { # main
+        if [ -z "$VERSION" ]; then
+          VERSION=$(basename "$(curl -Ls -o /dev/null -w %\{url_effective\} $REPO_RELEASE_URL/latest)")
+        fi
+
+        echo "Installing charts-build-scripts: ${VERSION}"
+
+        setup_suffix
+
+        verify_downloader curl || verify_downloader wget || fatal "error: cannot find curl or wget"
+        download_binary
+
+        download_checksum
+        verify_checksum
+
+        # echo "${INSTALL_DIR}" >>"${GITHUB_PATH}"
+        ls -al "${INSTALL_DIR}"
+
+        exit 0
+      }

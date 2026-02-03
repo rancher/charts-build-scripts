@@ -51,7 +51,7 @@ runs:
       DOWNLOADER=""
 
       SUDO=
-      if [ "${USE_SUDO}" = "true" ] && command -v sudo >/dev/null; then
+      if [ "${USE_SUDO}" = true ] && command -v sudo >/dev/null; then
         SUDO=sudo
       fi
 

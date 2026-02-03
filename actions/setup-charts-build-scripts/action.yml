@@ -155,7 +155,7 @@ runs:
       }
 
       { # main
-        if [ -z "$VERSION" || "$VERSION"="latest" ]; then
+        if [ -z "${VERSION}" || "${VERSION}" = "latest" ]; then
           VERSION=$(basename "$(curl -Ls -o /dev/null -w %\{url_effective\} $REPO_RELEASE_URL/latest)")
         fi
 

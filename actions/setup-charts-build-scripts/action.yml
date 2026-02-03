@@ -39,7 +39,7 @@ runs:
       set -ex
 
       VERSION=${VERSION:-""}
-      USE_SUDO=${VERSION:-"false"}
+      USE_SUDO=${USE_SUDO:-"false"}
       INSTALL_DIR=${INSTALL_DIR:-"$HOME/.charts-build-scripts"}
 
       REPO_NAME="charts-build-scripts"

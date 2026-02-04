@@ -7,7 +7,7 @@
 #      - uses: rancher/charts-build-scripts/actions/setup-charts-build-scripts@main
 #        with:
 #          version: latest
-#          install-dir: "$HOME/.charts-build-scripts"
+#          install-dir: "/tmp/.charts-build-scripts"
 #          use-sudo: false
 #
 # All inputs are optional
@@ -19,8 +19,8 @@ inputs:
     description: "The tag of the charts-build-scripts release to install."
     required: false
   install-dir:
-    description: "Where to install the binary"
-    default: "$HOME/.charts-build-scripts"
+    description: "Where to install the binary. Default is '$HOME/.charts-build-scripts'. Don't use environment variables here, they are not expanded"
+    default: ""
     required: false
   use-sudo:
     description: "Set to true if needed."
@@ -30,7 +30,7 @@ runs:
   using: 'composite'
   steps:
   - name: install charts-build-scripts
-    shell: bash
+    shell: sh
     env:
       VERSION: ${{ inputs.version }}
       USE_SUDO: ${{ inputs.use-sudo }}
@@ -169,7 +169,7 @@ runs:
         download_checksum
         verify_checksum
 
-        echo "${INSTALL_DIR}" >> "${GITHUB_PATH}"
+        echo "${INSTALL_DIR}" >> $GITHUB_PATH
         ls -al "${INSTALL_DIR}"
 
         exit 0

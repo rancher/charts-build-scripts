@@ -25,7 +25,7 @@ require (
 	github.com/go-git/go-git/v5 v5.16.4
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.20.7
-	github.com/google/go-github/v41 v41.0.0
+	github.com/google/go-github/v82 v82.0.0
 	github.com/lmittmann/tint v1.0.7
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli v1.22.17

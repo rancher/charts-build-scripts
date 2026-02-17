@@ -63,18 +63,10 @@ func (c *AdditionalChart) ApplyMainChanges(ctx context.Context, pkgFs billy.File
 		}
 	}
 	if c.CRDChartOptions.UseTarArchive {
-		// Archive CRDs from the correct source based on whether upstream was specified
-		var srcChartPath, srcCRDsDir string
-		if c.Upstream != nil {
-			// Upstream CRDs are already in the CRD chart's directory
-			srcChartPath = c.WorkingDir
-			srcCRDsDir = c.CRDChartOptions.CRDDirectory
-		} else {
-			// No upstream: CRDs were copied from main chart
-			srcChartPath = mainChartWorkingDir
-			srcCRDsDir = path.ChartCRDDir
-		}
-		if err := helm.ArchiveCRDs(ctx, pkgFs, srcChartPath, srcCRDsDir, c.WorkingDir, path.ChartExtraFileDir); err != nil {
+		// CRDs are in the CRD chart's directory in both cases:
+		// - Upstream != nil: pulled directly there during Prepare
+		// - Upstream == nil: copied from main chart above (lines 56-58)
+		if err := helm.ArchiveCRDs(ctx, pkgFs, c.WorkingDir, c.CRDChartOptions.CRDDirectory, c.WorkingDir, path.ChartExtraFileDir); err != nil {
 			return fmt.Errorf("encountered error while trying to bundle and compress CRD files: %s", err)
 		}
 

@@ -9,43 +9,83 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/git"
-	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
+	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
-	"github.com/rancher/charts-build-scripts/pkg/path"
-	"helm.sh/helm/v3/pkg/chart"
-	helmChartutil "helm.sh/helm/v3/pkg/chartutil"
+	"github.com/rancher/charts-build-scripts/pkg/validate"
 )
 
-// Release holds necessary metadata to release a chart version
-type Release struct {
-	git             *git.Git
-	VR              *lifecycle.VersionRules
-	AssetTgz        string
-	AssetPath       string
-	ChartVersion    string
-	Chart           string
-	ReleaseYamlPath string
-	ForkRemoteURL   string
+// Asset holds necessary metadata to release a chart version
+type Asset struct {
+	Tgz     string
+	Path    string
+	Version string
+	Chart   string
 }
 
-// InitRelease will create the Release struct with access to the necessary dependencies.
-func InitRelease(ctx context.Context, d *lifecycle.Dependencies, s *lifecycle.Status, v, c, f string) (*Release, error) {
-	r := &Release{
-		git:           d.Git,
-		VR:            d.VR,
-		ChartVersion:  v,
-		Chart:         c,
-		ForkRemoteURL: f,
+// Release will release a chart from a dev branch to a release branch
+func Release(ctx context.Context, version, chart string) error {
+	if chart == "" {
+		return errors.New("CHART environment variable must be set to run release cmd")
+	}
+
+	cfg, err := config.FromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	devBranch := cfg.VersionRules.DevPrefix + cfg.VersionRules.BranchVersion
+
+	status, err := validate.LoadStateFile(ctx)
+	if err != nil {
+		return fmt.Errorf("could not load state; please run lifecycle-status before this command: %w", err)
+	}
+
+	asset, err := loadAssetInfo(status, chart, version)
+	if err != nil {
+		return err
+	}
+
+	if err := PullAsset(devBranch, asset.Path, cfg.Repo); err != nil {
+		return fmt.Errorf("failed to execute release: %w", err)
+	}
+
+	// Unzip assets
+	currentAsset := asset.Chart + "/" + asset.Tgz
+	if err := helm.DumpAssets(ctx, currentAsset); err != nil {
+		return err
+	}
+	// make index
+	if err := helm.CreateOrUpdateHelmIndex(ctx); err != nil {
+		return err
+	}
+
+	if err := PullIcon(ctx, cfg.RootFS, cfg.Repo, asset.Chart, asset.Version, devBranch); err != nil {
+		return err
+	}
+
+	if err := UpdateReleaseYaml(ctx, true, asset.Chart, asset.Version, config.PathReleaseYaml); err != nil {
+		return err
+	}
+
+	return helm.CreateOrUpdateHelmIndex(ctx)
+}
+
+// loadAssetInfo will create the Asset struct with access to the necessary data.
+func loadAssetInfo(status *validate.Status, chart, version string) (*Asset, error) {
+	r := &Asset{
+		Version: version,
+		Chart:   chart,
 	}
 
 	var ok bool
-	var assetVersions []lifecycle.Asset
+	var assetVersions []string
 
-	assetVersions, ok = s.AssetsToBeReleased[r.Chart]
+	assetVersions, ok = status.ToRelease[r.Chart]
 	if !ok {
-		assetVersions, ok = s.AssetsToBeForwardPorted[r.Chart]
+		assetVersions, ok = status.ToForwardPort[r.Chart]
 		if !ok {
 			return nil, errors.New("no asset version to release for chart:" + r.Chart)
 		}
@@ -53,47 +93,40 @@ func InitRelease(ctx context.Context, d *lifecycle.Dependencies, s *lifecycle.St
 
 	var assetVersion string
 	for _, version := range assetVersions {
-		if version.Version == r.ChartVersion {
-			assetVersion = version.Version
+		if version == r.Version {
+			assetVersion = version
 			break
 		}
 	}
 	if assetVersion == "" {
-		return nil, errors.New("no asset version to release for chart:" + r.Chart + " version:" + r.ChartVersion)
+		return nil, errors.New("no asset version to release for chart:" + r.Chart + " version:" + r.Version)
 	}
 
-	r.AssetPath, r.AssetTgz = mountAssetVersionPath(r.Chart, assetVersion)
+	r.Path, r.Tgz = mountAssetVersionPath(r.Chart, assetVersion)
 
 	// Check again if the asset was already released in the local repository
-	if err := checkAssetReleased(r.AssetPath); err != nil {
+	if err := checkAssetReleased(r.Path); err != nil {
 		return nil, fmt.Errorf("failed to check for chart:%s ; err: %w", r.Chart, err)
 	}
-
-	// Check if we have a release.yaml file in the expected path
-	if exist, err := filesystem.PathExists(ctx, d.RootFs, path.RepositoryReleaseYaml); err != nil || !exist {
-		return nil, errors.New("release.yaml not found")
-	}
-
-	r.ReleaseYamlPath = filesystem.GetAbsPath(d.RootFs, path.RepositoryReleaseYaml)
 
 	return r, nil
 }
 
 // PullAsset will execute the release porting for a chart in the repository
-func (r *Release) PullAsset() error {
-	if err := r.git.FetchBranch(r.VR.DevBranch); err != nil {
+func PullAsset(sourceBranch string, assetPath string, g *git.Git) error {
+	if err := g.FetchBranch(sourceBranch); err != nil {
 		return err
 	}
 
-	if err := r.git.CheckFileExists(r.AssetPath, r.VR.DevBranch); err != nil {
+	if err := g.CheckFileExists(assetPath, sourceBranch); err != nil {
 		return fmt.Errorf("asset version not found in dev branch: %w", err)
 	}
 
-	if err := r.git.CheckoutFile(r.VR.DevBranch, r.AssetPath); err != nil {
+	if err := g.CheckoutFile(sourceBranch, assetPath); err != nil {
 		return err
 	}
 
-	return r.git.ResetHEAD()
+	return g.ResetHEAD()
 }
 
 func checkAssetReleased(chartVersion string) error {
@@ -126,20 +159,20 @@ func readReleaseYaml(ctx context.Context, path string) (map[string][]string, err
 }
 
 // UpdateReleaseYaml reads and parse the release.yaml file to a map, appends the new version and writes it back to the file.
-func (r *Release) UpdateReleaseYaml(ctx context.Context, overwrite bool) error {
-	releaseVersions, err := readReleaseYaml(ctx, r.ReleaseYamlPath)
+func UpdateReleaseYaml(ctx context.Context, overwrite bool, chart, version, releaseYamlPath string) error {
+	releaseVersions, err := readReleaseYaml(ctx, releaseYamlPath)
 	if err != nil {
 		return err
 	}
 
 	// Overwrite with the target version or append
 	if overwrite {
-		releaseVersions[r.Chart] = []string{r.ChartVersion}
+		releaseVersions[chart] = []string{version}
 	} else {
-		releaseVersions[r.Chart] = append(releaseVersions[r.Chart], r.ChartVersion)
+		releaseVersions[chart] = append(releaseVersions[chart], version)
 	}
 
-	file, err := filesystem.CreateAndOpenYamlFile(ctx, r.ReleaseYamlPath, true)
+	file, err := filesystem.CreateAndOpenYamlFile(ctx, releaseYamlPath, true)
 	if err != nil {
 		return err
 	}
@@ -148,11 +181,11 @@ func (r *Release) UpdateReleaseYaml(ctx context.Context, overwrite bool) error {
 }
 
 // PullIcon will pull the icon from the chart and save it to the local assets/logos directory
-func (r *Release) PullIcon(ctx context.Context, rootFs billy.Filesystem) error {
+func PullIcon(ctx context.Context, rootFs billy.Filesystem, g *git.Git, chart, version, branch string) error {
 	logger.Log(ctx, slog.LevelInfo, "starting to pull icon process")
 
 	// Get Chart.yaml path and load it
-	chartMetadata, err := loadChartYaml(rootFs, r.Chart, r.ChartVersion)
+	chartMetadata, err := helm.LoadChartYaml(rootFs, chart, version)
 	if err != nil {
 		return err
 	}
@@ -181,30 +214,16 @@ func (r *Release) PullIcon(ctx context.Context, rootFs billy.Filesystem) error {
 	}
 
 	// Check if the icon exists in the dev branch
-	if err := r.git.CheckFileExists(relativeIconPath, r.VR.DevBranch); err != nil {
+	if err := g.CheckFileExists(relativeIconPath, branch); err != nil {
 		logger.Log(ctx, slog.LevelError, "icon file not found in dev branch but should", slog.String("icon", relativeIconPath), logger.Err(err))
 		return errors.New("icon file not found in dev branch but should: " + err.Error())
 	}
 
 	// checkout the icon file from the dev branch
-	if err := r.git.CheckoutFile(r.VR.DevBranch, relativeIconPath); err != nil {
+	if err := g.CheckoutFile(branch, relativeIconPath); err != nil {
 		return err
 	}
 
 	// git reset return
-	return r.git.ResetHEAD()
-}
-
-func loadChartYaml(rootFs billy.Filesystem, chart string, chartVersion string) (*chart.Metadata, error) {
-	// Get Chart.yaml path and load it
-	chartYamlPath := path.RepositoryChartsDir + "/" + chart + "/" + chartVersion + "/Chart.yaml"
-	absChartPath := filesystem.GetAbsPath(rootFs, chartYamlPath)
-
-	// Load Chart.yaml file
-	chartMetadata, err := helmChartutil.LoadChartfile(absChartPath)
-	if err != nil {
-		return nil, errors.New("could not load: " + chartYamlPath + " err: " + err.Error())
-	}
-
-	return chartMetadata, nil
+	return g.ResetHEAD()
 }

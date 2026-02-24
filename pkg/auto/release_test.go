@@ -2,10 +2,13 @@ package auto
 
 import (
 	"context"
+	"errors"
 	"log"
 	"os"
 	"testing"
 
+	"github.com/rancher/charts-build-scripts/pkg/validate"
+	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
 )
 
@@ -223,17 +226,11 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 
 			tempDir := tempReleaseYamlFunc(tt.i.ReleaseVersions)
 
-			r := &Release{
-				ChartVersion:    tt.i.ChartVersion,
-				Chart:           tt.i.Chart,
-				ReleaseYamlPath: tempDir + "/release.yaml",
-			}
-
-			if err := r.UpdateReleaseYaml(ctx, tt.i.OverWrite); err != nil {
+			if err := UpdateReleaseYaml(ctx, tt.i.OverWrite, tt.i.Chart, tt.i.ChartVersion, tempDir+"/release.yaml"); err != nil {
 				t.Fatalf("expected nil, got %v", err)
 			}
 
-			releaseVersions, err := readReleaseYaml(ctx, r.ReleaseYamlPath)
+			releaseVersions, err := readReleaseYaml(ctx, tempDir+"/release.yaml")
 			if err != nil {
 				t.Fatalf("expected nil, got %v", err)
 			}
@@ -257,6 +254,129 @@ func Test_UpdateReleaseYaml(t *testing.T) {
 		})
 	}
 
+}
+
+func Test_loadAssetInfo(t *testing.T) {
+	type input struct {
+		status  *validate.Status
+		chart   string
+		version string
+	}
+	type expected struct {
+		asset *Asset
+		err   error
+	}
+	type test struct {
+		name     string
+		input    input
+		expected expected
+	}
+
+	tests := []test{
+		{
+			// chart present in ToRelease, exact version matched
+			name: "#1",
+			input: input{
+				status: &validate.Status{
+					ToRelease: map[string][]string{
+						"fleet": {"108.0.0+up0.11.1", "107.0.0+up0.10.0"},
+					},
+					ToForwardPort: map[string][]string{},
+				},
+				chart:   "fleet",
+				version: "108.0.0+up0.11.1",
+			},
+			expected: expected{
+				asset: &Asset{
+					Chart:   "fleet",
+					Version: "108.0.0+up0.11.1",
+					Path:    "assets/fleet/fleet-108.0.0+up0.11.1.tgz",
+					Tgz:     "fleet-108.0.0+up0.11.1.tgz",
+				},
+			},
+		},
+		{
+			// chart absent from ToRelease, present in ToForwardPort, version matched
+			name: "#2",
+			input: input{
+				status: &validate.Status{
+					ToRelease: map[string][]string{},
+					ToForwardPort: map[string][]string{
+						"fleet": {"108.0.0+up0.11.1"},
+					},
+				},
+				chart:   "fleet",
+				version: "108.0.0+up0.11.1",
+			},
+			expected: expected{
+				asset: &Asset{
+					Chart:   "fleet",
+					Version: "108.0.0+up0.11.1",
+					Path:    "assets/fleet/fleet-108.0.0+up0.11.1.tgz",
+					Tgz:     "fleet-108.0.0+up0.11.1.tgz",
+				},
+			},
+		},
+		{
+			// chart absent from both maps
+			name: "#3",
+			input: input{
+				status: &validate.Status{
+					ToRelease:     map[string][]string{},
+					ToForwardPort: map[string][]string{},
+				},
+				chart:   "fleet",
+				version: "108.0.0+up0.11.1",
+			},
+			expected: expected{
+				err: errors.New("no asset version to release for chart:fleet"),
+			},
+		},
+		{
+			// chart in ToRelease, requested version not in list
+			name: "#4",
+			input: input{
+				status: &validate.Status{
+					ToRelease: map[string][]string{
+						"fleet": {"107.0.0+up0.10.0"},
+					},
+					ToForwardPort: map[string][]string{},
+				},
+				chart:   "fleet",
+				version: "108.0.0+up0.11.1",
+			},
+			expected: expected{
+				err: errors.New("no asset version to release for chart:fleet version:108.0.0+up0.11.1"),
+			},
+		},
+		{
+			// chart in ToForwardPort only, requested version not in list
+			name: "#5",
+			input: input{
+				status: &validate.Status{
+					ToRelease: map[string][]string{},
+					ToForwardPort: map[string][]string{
+						"fleet": {"107.0.0+up0.10.0"},
+					},
+				},
+				chart:   "fleet",
+				version: "108.0.0+up0.11.1",
+			},
+			expected: expected{
+				err: errors.New("no asset version to release for chart:fleet version:108.0.0+up0.11.1"),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			asset, err := loadAssetInfo(tc.input.status, tc.input.chart, tc.input.version)
+			assertError(t, err, tc.expected.err)
+			if tc.expected.err == nil {
+				assert.Equal(t, tc.expected.asset, asset)
+			}
+		})
+	}
 }
 
 func Test_mountAssetVersionPath(t *testing.T) {

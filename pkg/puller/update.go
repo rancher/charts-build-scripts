@@ -1,4 +1,4 @@
-package update
+package puller
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/puller"
 )
 
 var (
@@ -51,7 +50,7 @@ func pullUpstream(ctx context.Context, rootFs billy.Filesystem, pkgFs billy.File
 	upstreamTemplateDir := filepath.Join(ChartsBuildScriptRepositoryTemplatesDirectory, ChartsBuildScriptRepositoryTemplateDirectory)
 
 	// Get upstream contents at templates/template
-	templateRepository, err := puller.GetGithubRepository(
+	templateRepository, err := GetGithubRepository(
 		options.UpstreamOptions{
 			URL:          ChartsBuildScriptsRepositoryURL,
 			Subdirectory: &upstreamTemplateDir,

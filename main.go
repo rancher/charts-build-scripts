@@ -21,10 +21,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
 	"github.com/rancher/charts-build-scripts/pkg/registries"
-	"github.com/rancher/charts-build-scripts/pkg/standardize"
-	"github.com/rancher/charts-build-scripts/pkg/update"
 	"github.com/rancher/charts-build-scripts/pkg/validate"
-	"github.com/rancher/charts-build-scripts/pkg/zip"
 	"github.com/urfave/cli"
 	"gopkg.in/yaml.v2"
 )
@@ -481,13 +478,13 @@ func main() {
 				cli.StringFlag{
 					Name:        "repositoryUrl,r",
 					Required:    false,
-					Destination: &update.ChartsBuildScriptsRepositoryURL,
+					Destination: &puller.ChartsBuildScriptsRepositoryURL,
 					Value:       "https://github.com/rancher/charts-build-scripts.git",
 				},
 				cli.StringFlag{
 					Name:        "branch,b",
 					Required:    false,
-					Destination: &update.ChartsBuildScriptsRepositoryBranch,
+					Destination: &puller.ChartsBuildScriptsRepositoryBranch,
 					Value:       "master",
 				},
 			},
@@ -514,18 +511,6 @@ func main() {
 			Saves the logs in the logs/ directory.`,
 			Action: lifecycleStatus,
 			Flags:  []cli.Flag{branchVersionFlag, chartFlag},
-		},
-		{
-			Name: "auto-forward-port",
-			Usage: `Execute the forward-port script to forward port a chart or all to the production branch.
-				The charts to be forward ported are listed in the result of lifecycle-status command.
-				It is advised to run make lifecycle-status before running this command.
-				At the end of the execution, the script will create a PR with the changes to each chart.
-				At the end of the execution, the script will save the logs in the logs directory,
-				with all assets versions and branches that were pushed to the upstream repository.
-			`,
-			Action: autoForwardPort,
-			Flags:  []cli.Flag{branchVersionFlag, chartFlag, forkFlag},
 		},
 		{
 			Name: "release",
@@ -684,7 +669,7 @@ func zipCharts(c *cli.Context) {
 	ctx := context.Background()
 
 	getRepoRoot()
-	if err := zip.ArchiveCharts(ctx, RepoRoot, CurrentChart); err != nil {
+	if err := helm.ArchiveCharts(ctx, RepoRoot, CurrentChart); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 	createOrUpdateIndex(c)
@@ -694,7 +679,7 @@ func unzipAssets(c *cli.Context) {
 	ctx := context.Background()
 
 	getRepoRoot()
-	if err := zip.DumpAssets(ctx, RepoRoot, CurrentAsset); err != nil {
+	if err := helm.DumpAssets(ctx, RepoRoot, CurrentAsset); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 	createOrUpdateIndex(c)
@@ -742,7 +727,7 @@ func standardizeRepo(c *cli.Context) {
 
 	getRepoRoot()
 	repoFs := filesystem.GetFilesystem(RepoRoot)
-	if err := standardize.RestructureChartsAndAssets(ctx, repoFs); err != nil {
+	if err := helm.RestructureChartsAndAssets(ctx, repoFs); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }
@@ -753,7 +738,7 @@ func createOrUpdateTemplate(c *cli.Context) {
 	getRepoRoot()
 	repoFs := filesystem.GetFilesystem(RepoRoot)
 	chartsScriptOptions := parseScriptOptions(ctx)
-	if err := update.ApplyUpstreamTemplate(ctx, repoFs, *chartsScriptOptions); err != nil {
+	if err := puller.ApplyUpstreamTemplate(ctx, repoFs, *chartsScriptOptions); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to update repository based on upstream template: %w", err).Error())
 	}
 
@@ -888,43 +873,6 @@ func lifecycleStatus(c *cli.Context) {
 	_, err = lifeCycleDep.CheckLifecycleStatusAndSave(ctx, CurrentChart)
 	if err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to check lifecycle status: %w", err).Error())
-	}
-}
-
-func autoForwardPort(c *cli.Context) {
-	ctx := context.Background()
-
-	if ForkURL == "" {
-		logger.Fatal(ctx, "FORK environment variable must be set to run auto-forward-port")
-	}
-
-	// Initialize dependencies with branch-version and current chart
-	logger.Log(ctx, slog.LevelDebug, "initialize auto forward port")
-
-	getRepoRoot()
-	rootFs := filesystem.GetFilesystem(RepoRoot)
-
-	lifeCycleDep, err := lifecycle.InitDependencies(ctx, rootFs, RepoRoot, c.String("branch-version"), CurrentChart, false)
-	if err != nil {
-		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
-	}
-
-	// Execute lifecycle status check and save the logs
-	logger.Log(ctx, slog.LevelInfo, "checking lifecycle status and saving logs")
-	status, err := lifeCycleDep.CheckLifecycleStatusAndSave(ctx, CurrentChart)
-	if err != nil {
-		logger.Fatal(ctx, fmt.Errorf("failed to check lifecycle status: %w", err).Error())
-	}
-
-	// Execute forward port with loaded information from status
-	fp, err := auto.CreateForwardPortStructure(ctx, lifeCycleDep, status.AssetsToBeForwardPorted, ForkURL)
-	if err != nil {
-		logger.Fatal(ctx, fmt.Errorf("failed to prepare forward port: %w", err).Error())
-	}
-
-	err = fp.ExecuteForwardPort(ctx, CurrentChart)
-	if err != nil {
-		logger.Fatal(ctx, fmt.Errorf("failed to execute forward port: %w", err).Error())
 	}
 }
 

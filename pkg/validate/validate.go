@@ -12,13 +12,12 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	bashGit "github.com/rancher/charts-build-scripts/pkg/git"
+	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"github.com/rancher/charts-build-scripts/pkg/standardize"
-	"github.com/rancher/charts-build-scripts/pkg/zip"
 
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
@@ -100,7 +99,7 @@ func CompareGeneratedAssets(ctx context.Context, repoRoot string, repoFs billy.F
 		return response, fmt.Errorf("failed to get filesystem for %s: %s", path.ChartsRepositoryUpstreamBranchDir, err)
 	}
 
-	if err := standardize.RestructureChartsAndAssets(ctx, releaseFs); err != nil {
+	if err := helm.RestructureChartsAndAssets(ctx, releaseFs); err != nil {
 		return response, fmt.Errorf("failed to standardize upstream: %s", err)
 	}
 
@@ -219,7 +218,7 @@ func copyAndUnzip(ctx context.Context, repoFs billy.Filesystem, upstreamPath, lo
 	if err := filesystem.CopyFile(ctx, repoFs, upstreamPath, localPath); err != nil {
 		return err
 	}
-	if err := zip.DumpAssets(ctx, repoFs.Root(), specificAsset); err != nil {
+	if err := helm.DumpAssets(ctx, repoFs.Root(), specificAsset); err != nil {
 		return fmt.Errorf("encountered error while copying over contents of modified upstream asset to charts: %s", err)
 	}
 	return nil

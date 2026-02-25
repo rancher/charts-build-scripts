@@ -1,4 +1,4 @@
-package diff
+package change
 
 import (
 	"bufio"
@@ -30,9 +30,9 @@ func checkDependencyPackage(pathToCmd string) error {
 	return nil
 }
 
-// GeneratePatch generates the patch between the files at srcPath and dstPath and outputs it to patchPath
+// GeneratePatchDiff generates the patch between the files at srcPath and dstPath and outputs it to patchPath
 // It returns whether the patch was generated or any errors that were encountered
-func GeneratePatch(ctx context.Context, fs billy.Filesystem, patchPath, srcPath, dstPath string) (bool, error) {
+func GeneratePatchDiff(ctx context.Context, fs billy.Filesystem, patchPath, srcPath, dstPath string) (bool, error) {
 	// TODO(aiyengar2): find a better library to actually generate and apply patches
 	// There doesn't seem to be any existing library at the moment that can work with unified patches
 	pathToDiffCmd, err := exec.LookPath("diff")
@@ -74,8 +74,8 @@ func GeneratePatch(ctx context.Context, fs billy.Filesystem, patchPath, srcPath,
 	return true, nil
 }
 
-// ApplyPatch applies a patch file located at patchPath to the destDir on the filesystem
-func ApplyPatch(ctx context.Context, fs billy.Filesystem, patchPath, destDir string) error {
+// ApplyPatchDiff applies a patch file located at patchPath to the destDir on the filesystem
+func ApplyPatchDiff(ctx context.Context, fs billy.Filesystem, patchPath, destDir string) error {
 	logger.Log(ctx, slog.LevelInfo, "applying patches", slog.String("patchPath", patchPath), slog.String("destDir", destDir))
 
 	// TODO(aiyengar2): find a better library to actually generate and apply patches

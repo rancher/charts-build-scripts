@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
-	"github.com/rancher/charts-build-scripts/pkg/diff"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
@@ -30,7 +29,7 @@ func ApplyChanges(ctx context.Context, fs billy.Filesystem, toDir, gcRootDir str
 		}
 
 		logger.Log(ctx, slog.LevelDebug, "applying patch", slog.String("path", patchPath))
-		return diff.ApplyPatch(ctx, fs, patchPath, toDir)
+		return ApplyPatchDiff(ctx, fs, patchPath, toDir)
 	}
 
 	applyOverlayFile := func(ctx context.Context, fs billy.Filesystem, overlayPath string, isDir bool) error {

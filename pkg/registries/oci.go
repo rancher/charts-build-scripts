@@ -9,13 +9,13 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
-	"github.com/rancher/charts-build-scripts/pkg/logger"
-	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/path"
-
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/registry"
+
+	"github.com/rancher/charts-build-scripts/pkg/logger"
+	"github.com/rancher/charts-build-scripts/pkg/options"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 )
 
 // loadAssetFunc reads a packaged chart archive (.tgz) from the local assets directory.
@@ -45,7 +45,7 @@ type oci struct {
 // two-phase check-and-push: pre-flight validation first, then push of only the new assets.
 // Existing versions in the registry are skipped rather than overwritten.
 func PushChartToOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, customPath, ociUser, ociPass string, debug bool) error {
-
+	logger.Log(ctx, slog.LevelInfo, "Pushing Chart to OCI Registry")
 	if customPath != "" {
 		logger.Log(ctx, slog.LevelDebug, "custom override path", slog.String("path", customPath))
 	}
@@ -82,6 +82,7 @@ func PushChartToOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, custom
 // setupOCI constructs an oci instance with an authenticated Helm registry client
 // and wires the real loadAsset, checkAsset, and push implementations.
 func setupOCI(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, debug bool) (*oci, error) {
+	logger.Log(ctx, slog.LevelInfo, "setup oci")
 	// Strip http:// or https:// scheme if present
 	ociDNS = strings.TrimPrefix(ociDNS, "https://")
 	ociDNS = strings.TrimPrefix(ociDNS, "http://")
@@ -112,6 +113,7 @@ func setupOCI(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, 
 //   - debug + localhost:   plain HTTP client (insecure login, no TLS)
 //   - production (default): standard HTTPS client with basic auth
 func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool) (*registry.Client, error) {
+	logger.Log(ctx, slog.LevelInfo, "setup helm")
 	settings := cli.New()
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), settings.Namespace(), os.Getenv("HELM_DRIVER"), func(format string, v ...interface{}) {
@@ -132,8 +134,7 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 		caFile := "/etc/docker/certs.d/" + ociDNS + "/ca.crt"
 		regClient, err = registry.NewRegistryClientWithTLS(os.Stdout, "", "", caFile, false, "", true)
 		if err != nil {
-			logger.Log(ctx, slog.LevelError, "failed to create registry client with TLS")
-			return nil, err
+			return nil, fmt.Errorf("create TLS registry client for %s: %w", ociDNS, err)
 		}
 		if err = regClient.Login(
 			ociDNS,
@@ -141,8 +142,7 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 			registry.LoginOptTLSClientConfig("", "", caFile),
 			registry.LoginOptBasicAuth(ociUser, ociPass),
 		); err != nil {
-			logger.Log(ctx, slog.LevelError, "failed to login to registry with TLS", slog.Group(ociDNS, ociUser, ociPass))
-			return nil, err
+			return nil, fmt.Errorf("login to TLS registry %s: %w", ociDNS, err)
 		}
 
 	// Debug Mode at localhost without TLS
@@ -153,14 +153,12 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 			registry.ClientOptPlainHTTP(),
 		)
 		if err != nil {
-			logger.Log(ctx, slog.LevelError, "failed to create registry client")
-			return nil, err
+			return nil, fmt.Errorf("create plain HTTP registry client for %s: %w", ociDNS, err)
 		}
 		if err = regClient.Login(ociDNS,
 			registry.LoginOptInsecure(true), // true for localhost, false for production
 			registry.LoginOptBasicAuth(ociUser, ociPass)); err != nil {
-			logger.Log(ctx, slog.LevelError, "failed to login to registry", slog.Group(ociDNS, ociUser, ociPass))
-			return nil, err
+			return nil, fmt.Errorf("login to registry %s: %w", ociDNS, err)
 		}
 
 	// Production code with Secure Mode and authentication
@@ -170,14 +168,12 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 			registry.ClientOptDebug(false),
 		)
 		if err != nil {
-			logger.Log(ctx, slog.LevelError, "failed to create registry client")
-			return nil, err
+			return nil, fmt.Errorf("create registry client for %s: %w", ociDNS, err)
 		}
 		if err = regClient.Login(ociDNS,
 			registry.LoginOptInsecure(false),
 			registry.LoginOptBasicAuth(ociUser, ociPass)); err != nil {
-			logger.Log(ctx, slog.LevelError, "failed to login")
-			return nil, err
+			return nil, fmt.Errorf("login to registry %s: %w", ociDNS, err)
 		}
 		logger.Log(ctx, slog.LevelDebug, "creds", slog.String("u", ociUser), slog.String("p", ociPass))
 	}
@@ -195,6 +191,7 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 // short-circuiting, so a single failure does not abort the remaining pushes.
 // If any pushes fail, the returned error lists the failed assets.
 func (o *oci) checkAndPush(ctx context.Context, release *options.ReleaseOptions) ([]string, error) {
+	logger.Log(ctx, slog.LevelInfo, "check and push")
 	var pushedAssets []string
 
 	// List of assets to process
@@ -213,8 +210,7 @@ func (o *oci) checkAndPush(ctx context.Context, release *options.ReleaseOptions)
 			asset := chart + "-" + version + ".tgz"
 			assetData, err := o.loadAsset(chart, asset)
 			if err != nil {
-				logger.Log(ctx, slog.LevelError, "failed to load asset", slog.String("asset", asset))
-				return pushedAssets, err
+				return pushedAssets, fmt.Errorf("load asset %s: %w", asset, err)
 			}
 
 			// Check if the asset version already exists in the OCI registry
@@ -254,7 +250,7 @@ func (o *oci) checkAndPush(ctx context.Context, release *options.ReleaseOptions)
 
 		if err := o.push(o.helmClient, info.data, buildPushURL(o.DNS, o.CustomPath, info.chart, info.version)); err != nil {
 			logger.Log(ctx, slog.LevelError, "failed to push asset", slog.String("asset", info.asset))
-			pushErrors = append(pushErrors, errors.New("asset: "+info.asset+" error: "+err.Error()))
+			pushErrors = append(pushErrors, fmt.Errorf("asset %s: %w", info.asset, err))
 			continue
 		}
 		pushedAssets = append(pushedAssets, info.asset)

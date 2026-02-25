@@ -21,7 +21,6 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
 	"github.com/rancher/charts-build-scripts/pkg/registries"
-	"github.com/rancher/charts-build-scripts/pkg/update"
 	"github.com/rancher/charts-build-scripts/pkg/validate"
 	"github.com/urfave/cli"
 	"gopkg.in/yaml.v2"
@@ -479,13 +478,13 @@ func main() {
 				cli.StringFlag{
 					Name:        "repositoryUrl,r",
 					Required:    false,
-					Destination: &update.ChartsBuildScriptsRepositoryURL,
+					Destination: &puller.ChartsBuildScriptsRepositoryURL,
 					Value:       "https://github.com/rancher/charts-build-scripts.git",
 				},
 				cli.StringFlag{
 					Name:        "branch,b",
 					Required:    false,
-					Destination: &update.ChartsBuildScriptsRepositoryBranch,
+					Destination: &puller.ChartsBuildScriptsRepositoryBranch,
 					Value:       "master",
 				},
 			},
@@ -751,7 +750,7 @@ func createOrUpdateTemplate(c *cli.Context) {
 	getRepoRoot()
 	repoFs := filesystem.GetFilesystem(RepoRoot)
 	chartsScriptOptions := parseScriptOptions(ctx)
-	if err := update.ApplyUpstreamTemplate(ctx, repoFs, *chartsScriptOptions); err != nil {
+	if err := puller.ApplyUpstreamTemplate(ctx, repoFs, *chartsScriptOptions); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to update repository based on upstream template: %w", err).Error())
 	}
 

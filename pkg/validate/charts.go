@@ -14,7 +14,6 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/zip"
 	"github.com/urfave/cli"
 )
 
@@ -86,7 +85,7 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 	logger.Log(ctx, slog.LevelInfo, "zipping charts to ensure that contents of assets, charts, and index.yaml are in sync")
 
 	// zipCharts
-	if err := zip.ArchiveCharts(ctx, repoRoot, chart); err != nil {
+	if err := helm.ArchiveCharts(ctx, repoRoot, chart); err != nil {
 		return err
 	}
 

@@ -11,7 +11,6 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"github.com/rancher/charts-build-scripts/pkg/zip"
 
 	helmChart "helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
@@ -104,7 +103,7 @@ func standardizeAssetsFromCharts(ctx context.Context, repoFs billy.Filesystem) e
 		return fmt.Errorf("unable to remove all assets to reconstruct directory: %s", err)
 	}
 	// Reconstruct charts
-	if err := zip.DumpAssets(ctx, repoFs.Root(), ""); err != nil {
+	if err := helm.DumpAssets(ctx, repoFs.Root(), ""); err != nil {
 		return fmt.Errorf("encountered error while trying to dump Helm charts in repository: %s", err)
 	}
 	// Reconstruct index.yaml

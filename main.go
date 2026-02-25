@@ -24,7 +24,6 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/standardize"
 	"github.com/rancher/charts-build-scripts/pkg/update"
 	"github.com/rancher/charts-build-scripts/pkg/validate"
-	"github.com/rancher/charts-build-scripts/pkg/zip"
 	"github.com/urfave/cli"
 	"gopkg.in/yaml.v2"
 )
@@ -684,7 +683,7 @@ func zipCharts(c *cli.Context) {
 	ctx := context.Background()
 
 	getRepoRoot()
-	if err := zip.ArchiveCharts(ctx, RepoRoot, CurrentChart); err != nil {
+	if err := helm.ArchiveCharts(ctx, RepoRoot, CurrentChart); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 	createOrUpdateIndex(c)
@@ -694,7 +693,7 @@ func unzipAssets(c *cli.Context) {
 	ctx := context.Background()
 
 	getRepoRoot()
-	if err := zip.DumpAssets(ctx, RepoRoot, CurrentAsset); err != nil {
+	if err := helm.DumpAssets(ctx, RepoRoot, CurrentAsset); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 	createOrUpdateIndex(c)

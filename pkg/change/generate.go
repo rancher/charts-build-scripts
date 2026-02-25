@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
-	"github.com/rancher/charts-build-scripts/pkg/diff"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
@@ -85,7 +84,7 @@ func GenerateChanges(ctx context.Context, fs billy.Filesystem, fromDir, toDir, g
 
 		patchPath := filepath.Join(gcRootDir, path.GeneratedChangesPatchDir, p)
 		patchPathWithExt := fmt.Sprintf(patchFmt, patchPath)
-		generatedPatch, err := diff.GeneratePatch(ctx, fs, patchPathWithExt, fromPath, toPath)
+		generatedPatch, err := GeneratePatchDiff(ctx, fs, patchPathWithExt, fromPath, toPath)
 		if err != nil {
 			return err
 		}

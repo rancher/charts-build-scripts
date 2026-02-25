@@ -1,4 +1,4 @@
-package zip
+package helm
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 
@@ -39,7 +38,7 @@ func ArchiveCharts(ctx context.Context, repoRoot string, specificChart string) e
 		}
 		foundChart = true
 		chartAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, filepath.Dir(chartVersionPath))
-		tgzPath, err := helm.GenerateArchive(ctx, repoFs, fs, helmChartPath, chartAssetsDirpath, nil)
+		tgzPath, err := GenerateArchive(ctx, repoFs, fs, helmChartPath, chartAssetsDirpath, nil)
 		if err != nil {
 			return fmt.Errorf("encountered error while trying to update archive based on chart in %s: %s", chartVersionPath, err)
 		}

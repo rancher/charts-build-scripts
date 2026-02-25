@@ -18,7 +18,6 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"github.com/rancher/charts-build-scripts/pkg/standardize"
 
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
@@ -100,7 +99,7 @@ func CompareGeneratedAssets(ctx context.Context, repoRoot string, repoFs billy.F
 		return response, fmt.Errorf("failed to get filesystem for %s: %s", path.ChartsRepositoryUpstreamBranchDir, err)
 	}
 
-	if err := standardize.RestructureChartsAndAssets(ctx, releaseFs); err != nil {
+	if err := helm.RestructureChartsAndAssets(ctx, releaseFs); err != nil {
 		return response, fmt.Errorf("failed to standardize upstream: %s", err)
 	}
 

@@ -21,7 +21,6 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
 	"github.com/rancher/charts-build-scripts/pkg/registries"
-	"github.com/rancher/charts-build-scripts/pkg/standardize"
 	"github.com/rancher/charts-build-scripts/pkg/update"
 	"github.com/rancher/charts-build-scripts/pkg/validate"
 	"github.com/urfave/cli"
@@ -741,7 +740,7 @@ func standardizeRepo(c *cli.Context) {
 
 	getRepoRoot()
 	repoFs := filesystem.GetFilesystem(RepoRoot)
-	if err := standardize.RestructureChartsAndAssets(ctx, repoFs); err != nil {
+	if err := helm.RestructureChartsAndAssets(ctx, repoFs); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }

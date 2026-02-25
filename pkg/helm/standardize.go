@@ -1,4 +1,4 @@
-package standardize
+package helm
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 
@@ -94,7 +93,7 @@ func standardizeAssetsFromCharts(ctx context.Context, repoFs billy.Filesystem) e
 	}
 	for chartPath, chart := range targetChartPaths {
 		chartAssetsDirpath := filepath.Join(path.RepositoryAssetsDir, chart.Metadata.Name)
-		if _, err := helm.GenerateArchive(ctx, repoFs, repoFs, chartPath, chartAssetsDirpath, nil); err != nil {
+		if _, err := GenerateArchive(ctx, repoFs, repoFs, chartPath, chartAssetsDirpath, nil); err != nil {
 			return fmt.Errorf("encountered error while trying to update archive based on chart in %s: %s", chartPath, err)
 		}
 	}
@@ -103,11 +102,11 @@ func standardizeAssetsFromCharts(ctx context.Context, repoFs billy.Filesystem) e
 		return fmt.Errorf("unable to remove all assets to reconstruct directory: %s", err)
 	}
 	// Reconstruct charts
-	if err := helm.DumpAssets(ctx, repoFs.Root(), ""); err != nil {
+	if err := DumpAssets(ctx, repoFs.Root(), ""); err != nil {
 		return fmt.Errorf("encountered error while trying to dump Helm charts in repository: %s", err)
 	}
 	// Reconstruct index.yaml
-	if err := helm.CreateOrUpdateHelmIndex(ctx, repoFs); err != nil {
+	if err := CreateOrUpdateHelmIndex(ctx, repoFs); err != nil {
 		return fmt.Errorf("encountered error while trying to recreate Helm index: %s", err)
 	}
 	return nil

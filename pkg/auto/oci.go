@@ -301,7 +301,7 @@ func buildPushURL(ociDNS, customPath, chart, version string) string {
 
 // buildTagsURL constructs the OCI tags listing URL for a chart repository (no version suffix).
 // Used by checkAsset to enumerate existing tags via helmClient.Tags().
-func buildTagsURL(ociDNS, customPath, chart, version string) string {
+func buildTagsURL(ociDNS, customPath, chart string) string {
 	if customPath != "" {
 		return ociDNS + "/" + customPath + "/" + chart
 	}
@@ -315,7 +315,7 @@ func buildTagsURL(ociDNS, customPath, chart, version string) string {
 // NOTE: helmClient.Tags() is used as a workaround because direct tag existence checks
 // are not yet supported. Track: https://github.com/helm/helm/issues/13368
 func checkAsset(ctx context.Context, helmClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
-	tagsURL := buildTagsURL(ociDNS, customPath, chart, version)
+	tagsURL := buildTagsURL(ociDNS, customPath, chart)
 	existingVersions, err := helmClient.Tags(tagsURL)
 	if err != nil {
 		if strings.Contains(err.Error(), "404") {

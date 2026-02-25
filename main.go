@@ -513,18 +513,6 @@ func main() {
 			Flags:  []cli.Flag{branchVersionFlag, chartFlag},
 		},
 		{
-			Name: "auto-forward-port",
-			Usage: `Execute the forward-port script to forward port a chart or all to the production branch.
-				The charts to be forward ported are listed in the result of lifecycle-status command.
-				It is advised to run make lifecycle-status before running this command.
-				At the end of the execution, the script will create a PR with the changes to each chart.
-				At the end of the execution, the script will save the logs in the logs directory,
-				with all assets versions and branches that were pushed to the upstream repository.
-			`,
-			Action: autoForwardPort,
-			Flags:  []cli.Flag{branchVersionFlag, chartFlag, forkFlag},
-		},
-		{
 			Name: "release",
 			Usage: `Execute the release script to release a chart to the production branch.
 			`,
@@ -885,43 +873,6 @@ func lifecycleStatus(c *cli.Context) {
 	_, err = lifeCycleDep.CheckLifecycleStatusAndSave(ctx, CurrentChart)
 	if err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to check lifecycle status: %w", err).Error())
-	}
-}
-
-func autoForwardPort(c *cli.Context) {
-	ctx := context.Background()
-
-	if ForkURL == "" {
-		logger.Fatal(ctx, "FORK environment variable must be set to run auto-forward-port")
-	}
-
-	// Initialize dependencies with branch-version and current chart
-	logger.Log(ctx, slog.LevelDebug, "initialize auto forward port")
-
-	getRepoRoot()
-	rootFs := filesystem.GetFilesystem(RepoRoot)
-
-	lifeCycleDep, err := lifecycle.InitDependencies(ctx, rootFs, RepoRoot, c.String("branch-version"), CurrentChart, false)
-	if err != nil {
-		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
-	}
-
-	// Execute lifecycle status check and save the logs
-	logger.Log(ctx, slog.LevelInfo, "checking lifecycle status and saving logs")
-	status, err := lifeCycleDep.CheckLifecycleStatusAndSave(ctx, CurrentChart)
-	if err != nil {
-		logger.Fatal(ctx, fmt.Errorf("failed to check lifecycle status: %w", err).Error())
-	}
-
-	// Execute forward port with loaded information from status
-	fp, err := auto.CreateForwardPortStructure(ctx, lifeCycleDep, status.AssetsToBeForwardPorted, ForkURL)
-	if err != nil {
-		logger.Fatal(ctx, fmt.Errorf("failed to prepare forward port: %w", err).Error())
-	}
-
-	err = fp.ExecuteForwardPort(ctx, CurrentChart)
-	if err != nil {
-		logger.Fatal(ctx, fmt.Errorf("failed to execute forward port: %w", err).Error())
 	}
 }
 

@@ -30,10 +30,11 @@ type pushFunc func(helmClient *registry.Client, data []byte, url string) error
 // oci holds all state required for a single push session against an OCI registry.
 // The three function fields (loadAsset, checkAsset, push) are injectable for testing.
 type oci struct {
-	DNS        string // registry hostname, stripped of http/https scheme
-	CustomPath string // optional registry path override; defaults to rancher/charts
+	dns        string // registry hostname, stripped of http/https scheme
+	customPath string // optional registry path override; defaults to rancher/charts
 	user       string
 	password   string
+	debug      bool
 	helmClient *registry.Client
 	loadAsset  loadAssetFunc
 	checkAsset checkAssetFunc
@@ -87,15 +88,16 @@ func setupOCI(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, 
 	ociDNS = strings.TrimPrefix(ociDNS, "https://")
 	ociDNS = strings.TrimPrefix(ociDNS, "http://")
 
-	var err error
 	o := &oci{
-		DNS:        ociDNS,
-		CustomPath: customPath,
+		dns:        ociDNS,
+		customPath: customPath,
 		user:       ociUser,
 		password:   ociPass,
+		debug:      debug,
 	}
 
-	o.helmClient, err = setupHelm(ctx, o.DNS, o.user, o.password, debug)
+	var err error
+	o.helmClient, err = setupHelm(ctx, o)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +114,7 @@ func setupOCI(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, 
 //   - debug + remote host: TLS client using CA from /etc/docker/certs.d/<dns>/ca.crt
 //   - debug + localhost:   plain HTTP client (insecure login, no TLS)
 //   - production (default): standard HTTPS client with basic auth
-func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool) (*registry.Client, error) {
+func setupHelm(ctx context.Context, o *oci) (*registry.Client, error) {
 	logger.Log(ctx, slog.LevelInfo, "setup helm")
 	settings := cli.New()
 	actionConfig := new(action.Configuration)
@@ -125,40 +127,40 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 	var regClient *registry.Client
 	var err error
 
-	isLocalHost := strings.HasPrefix(ociDNS, "localhost:")
+	isLocalHost := strings.HasPrefix(o.dns, "localhost:")
 
 	switch {
 	// Debug Mode but pointing to a server with custom-certificates
-	case debug && !isLocalHost:
+	case o.debug && !isLocalHost:
 		logger.Log(ctx, slog.LevelDebug, "debug mode", slog.Bool("localhost", isLocalHost))
-		caFile := "/etc/docker/certs.d/" + ociDNS + "/ca.crt"
+		caFile := "/etc/docker/certs.d/" + o.dns + "/ca.crt"
 		regClient, err = registry.NewRegistryClientWithTLS(os.Stdout, "", "", caFile, false, "", true)
 		if err != nil {
-			return nil, fmt.Errorf("create TLS registry client for %s: %w", ociDNS, err)
+			return nil, fmt.Errorf("create TLS registry client for %s: %w", o.dns, err)
 		}
 		if err = regClient.Login(
-			ociDNS,
+			o.dns,
 			registry.LoginOptInsecure(false),
 			registry.LoginOptTLSClientConfig("", "", caFile),
-			registry.LoginOptBasicAuth(ociUser, ociPass),
+			registry.LoginOptBasicAuth(o.user, o.password),
 		); err != nil {
-			return nil, fmt.Errorf("login to TLS registry %s: %w", ociDNS, err)
+			return nil, fmt.Errorf("login to TLS registry %s: %w", o.dns, err)
 		}
 
 	// Debug Mode at localhost without TLS
-	case debug && isLocalHost:
+	case o.debug && isLocalHost:
 		logger.Log(ctx, slog.LevelDebug, "debug mode", slog.Bool("localhost", isLocalHost))
 		regClient, err = registry.NewClient(
 			registry.ClientOptDebug(true),
 			registry.ClientOptPlainHTTP(),
 		)
 		if err != nil {
-			return nil, fmt.Errorf("create plain HTTP registry client for %s: %w", ociDNS, err)
+			return nil, fmt.Errorf("create plain HTTP registry client for %s: %w", o.dns, err)
 		}
-		if err = regClient.Login(ociDNS,
+		if err = regClient.Login(o.dns,
 			registry.LoginOptInsecure(true), // true for localhost, false for production
-			registry.LoginOptBasicAuth(ociUser, ociPass)); err != nil {
-			return nil, fmt.Errorf("login to registry %s: %w", ociDNS, err)
+			registry.LoginOptBasicAuth(o.user, o.password)); err != nil {
+			return nil, fmt.Errorf("login to registry %s: %w", o.dns, err)
 		}
 
 	// Production code with Secure Mode and authentication
@@ -168,14 +170,14 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 			registry.ClientOptDebug(false),
 		)
 		if err != nil {
-			return nil, fmt.Errorf("create registry client for %s: %w", ociDNS, err)
+			return nil, fmt.Errorf("create registry client for %s: %w", o.dns, err)
 		}
-		if err = regClient.Login(ociDNS,
+		if err = regClient.Login(o.dns,
 			registry.LoginOptInsecure(false),
-			registry.LoginOptBasicAuth(ociUser, ociPass)); err != nil {
-			return nil, fmt.Errorf("login to registry %s: %w", ociDNS, err)
+			registry.LoginOptBasicAuth(o.user, o.password)); err != nil {
+			return nil, fmt.Errorf("login to registry %s: %w", o.dns, err)
 		}
-		logger.Log(ctx, slog.LevelDebug, "creds", slog.String("u", ociUser), slog.String("p", ociPass))
+		logger.Log(ctx, slog.LevelDebug, "creds", slog.String("u", o.user), slog.String("p", o.password))
 	}
 
 	return regClient, nil
@@ -215,7 +217,7 @@ func (o *oci) checkAndPush(ctx context.Context, release *options.ReleaseOptions)
 
 			// Check if the asset version already exists in the OCI registry
 			// Never overwrite a previously released chart!
-			exists, err := o.checkAsset(ctx, o.helmClient, o.DNS, o.CustomPath, chart, version)
+			exists, err := o.checkAsset(ctx, o.helmClient, o.dns, o.customPath, chart, version)
 			if err != nil {
 				return pushedAssets, err
 			}
@@ -248,7 +250,7 @@ func (o *oci) checkAndPush(ctx context.Context, release *options.ReleaseOptions)
 	for _, info := range assetsToProcess {
 		logger.Log(ctx, slog.LevelDebug, "pushing", slog.String("asset", info.asset))
 
-		if err := o.push(o.helmClient, info.data, buildPushURL(o.DNS, o.CustomPath, info.chart, info.version)); err != nil {
+		if err := o.push(o.helmClient, info.data, buildPushURL(o.dns, o.customPath, info.chart, info.version)); err != nil {
 			logger.Log(ctx, slog.LevelError, "failed to push asset", slog.String("asset", info.asset))
 			pushErrors = append(pushErrors, fmt.Errorf("asset %s: %w", info.asset, err))
 			continue
@@ -273,10 +275,8 @@ func (o *oci) checkAndPush(ctx context.Context, release *options.ReleaseOptions)
 // push uploads a packaged chart archive to the OCI registry at the given URL.
 // StrictMode ensures the artifact is validated as a proper OCI Helm chart on arrival.
 func push(helmClient *registry.Client, data []byte, url string) error {
-	if _, err := helmClient.Push(data, url, registry.PushOptStrictMode(true)); err != nil {
-		return err
-	}
-	return nil
+	_, err := helmClient.Push(data, url, registry.PushOptStrictMode(true))
+	return err
 }
 
 // loadAsset reads a packaged chart archive from assets/<chart>/<asset>.

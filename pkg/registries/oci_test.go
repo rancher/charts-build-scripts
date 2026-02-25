@@ -98,7 +98,7 @@ func Test_checkAndPush(t *testing.T) {
 			name: "#1",
 			input: input{
 				o: &oci{
-					DNS:        "######",
+					dns:        "######",
 					user:       "######",
 					password:   "######",
 					helmClient: &registry.Client{},
@@ -126,7 +126,7 @@ func Test_checkAndPush(t *testing.T) {
 			name: "#2",
 			input: input{
 				o: &oci{
-					DNS:        "######",
+					dns:        "######",
 					user:       "######",
 					password:   "######",
 					helmClient: &registry.Client{},
@@ -160,7 +160,7 @@ func Test_checkAndPush(t *testing.T) {
 			name: "#3",
 			input: input{
 				o: &oci{
-					DNS:        "######",
+					dns:        "######",
 					user:       "######",
 					password:   "######",
 					helmClient: &registry.Client{},
@@ -188,7 +188,7 @@ func Test_checkAndPush(t *testing.T) {
 			name: "#4",
 			input: input{
 				o: &oci{
-					DNS:        "######",
+					dns:        "######",
 					user:       "######",
 					password:   "######",
 					helmClient: &registry.Client{},
@@ -216,7 +216,7 @@ func Test_checkAndPush(t *testing.T) {
 			name: "#5",
 			input: input{
 				o: &oci{
-					DNS:        "######",
+					dns:        "######",
 					user:       "######",
 					password:   "######",
 					helmClient: &registry.Client{},
@@ -244,7 +244,7 @@ func Test_checkAndPush(t *testing.T) {
 			name: "#6",
 			input: input{
 				o: &oci{
-					DNS:        "######",
+					dns:        "######",
 					user:       "######",
 					password:   "######",
 					helmClient: &registry.Client{},
@@ -273,7 +273,7 @@ func Test_checkAndPush(t *testing.T) {
 			name: "#7",
 			input: input{
 				o: &oci{
-					DNS:        "######",
+					dns:        "######",
 					user:       "######",
 					password:   "######",
 					helmClient: &registry.Client{},
@@ -305,7 +305,7 @@ func Test_checkAndPush(t *testing.T) {
 			name: "#8",
 			input: input{
 				o: &oci{
-					DNS:        "######",
+					dns:        "######",
 					user:       "######",
 					password:   "######",
 					helmClient: &registry.Client{},
@@ -338,7 +338,7 @@ func Test_checkAndPush(t *testing.T) {
 			name: "#9",
 			input: input{
 				o: &oci{
-					DNS:        "######",
+					dns:        "######",
 					user:       "######",
 					password:   "######",
 					helmClient: &registry.Client{},

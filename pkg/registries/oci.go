@@ -1,4 +1,4 @@
-package auto
+package registries
 
 import (
 	"context"

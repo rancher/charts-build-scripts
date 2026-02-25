@@ -1015,7 +1015,7 @@ func updateOCIRegistry(c *cli.Context) {
 
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
-	if err := auto.PushChartToOCI(ctx, rootFs, OciDNS, CustomOCIPAth, OciUser, OciPassword, DebugMode); err != nil {
+	if err := registries.PushChartToOCI(ctx, rootFs, OciDNS, CustomOCIPAth, OciUser, OciPassword, DebugMode); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }

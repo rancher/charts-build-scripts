@@ -1013,23 +1013,9 @@ func chartBump(c *cli.Context) {
 func updateOCIRegistry(c *cli.Context) {
 	ctx := context.Background()
 
-	emptyUser := OciUser == ""
-	emptyPass := OciPassword == ""
-	emptyDNS := OciDNS == ""
-
-	if emptyUser || emptyPass || emptyDNS {
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("OCI User Empty", emptyUser))
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("OCI Password Empty", emptyPass))
-		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("OCI DNS Empty", emptyDNS))
-		logger.Fatal(ctx, errors.New("no credentials provided for pushing helm chart to OCI registry").Error())
-	}
-	if CustomOCIPAth != "" {
-		logger.Log(ctx, slog.LevelDebug, "custom override path", slog.String("path", CustomOCIPAth))
-	}
-
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
-	if err := auto.UpdateOCI(ctx, rootFs, OciDNS, CustomOCIPAth, OciUser, OciPassword, DebugMode); err != nil {
+	if err := auto.PushChartToOCI(ctx, rootFs, OciDNS, CustomOCIPAth, OciUser, OciPassword, DebugMode); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }

@@ -199,7 +199,7 @@ func Test_push(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assets, err := test.input.o.update(context.Background(), &test.input.release)
+			assets, err := test.input.o.checkAndPush(context.Background(), &test.input.release)
 			if test.expected.err == nil {
 				if err != nil {
 					t.Errorf("Expected no error, got: [%v]", err)

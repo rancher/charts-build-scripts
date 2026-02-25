@@ -18,13 +18,20 @@ import (
 	"helm.sh/helm/v3/pkg/registry"
 )
 
+// loadAssetFunc reads a packaged chart archive (.tgz) from the local assets directory.
 type loadAssetFunc func(chart, asset string) ([]byte, error)
+
+// checkAssetFunc reports whether a specific chart version already exists in the OCI registry.
 type checkAssetFunc func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error)
+
+// pushFunc uploads a packaged chart archive to the OCI registry at the given URL.
 type pushFunc func(helmClient *registry.Client, data []byte, url string) error
 
+// oci holds all state required for a single push session against an OCI registry.
+// The three function fields (loadAsset, checkAsset, push) are injectable for testing.
 type oci struct {
-	DNS        string
-	CustomPath string
+	DNS        string // registry hostname, stripped of http/https scheme
+	CustomPath string // optional registry path override; defaults to rancher/charts
 	user       string
 	password   string
 	helmClient *registry.Client
@@ -33,8 +40,26 @@ type oci struct {
 	push       pushFunc
 }
 
-// UpdateOCI pushes Helm charts to an OCI registry
-func UpdateOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, customPath, ociUser, ociPass string, debug bool) error {
+// PushChartToOCI reads release.yaml and pushes all listed chart versions to an OCI registry.
+// It validates credentials, sets up an authenticated Helm registry client, then runs a
+// two-phase check-and-push: pre-flight validation first, then push of only the new assets.
+// Existing versions in the registry are skipped rather than overwritten.
+func PushChartToOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, customPath, ociUser, ociPass string, debug bool) error {
+
+	if customPath != "" {
+		logger.Log(ctx, slog.LevelDebug, "custom override path", slog.String("path", customPath))
+	}
+
+	emptyUser := ociUser == ""
+	emptyPass := ociPass == ""
+	emptyDNS := ociDNS == ""
+	if ociDNS == "" || ociUser == "" || ociPass == "" {
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("OCI User Empty", emptyUser))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("OCI Password Empty", emptyPass))
+		logger.Log(ctx, slog.LevelError, "missing credential", slog.Bool("OCI DNS Empty", emptyDNS))
+		return errors.New("no credentials provided for pushing helm chart to OCI registry")
+	}
+
 	release, err := options.LoadReleaseOptionsFromFile(ctx, rootFs, path.RepositoryReleaseYaml)
 	if err != nil {
 		return err
@@ -45,7 +70,7 @@ func UpdateOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, customPath,
 		return err
 	}
 
-	pushedAssets, err := oci.update(ctx, &release)
+	pushedAssets, err := oci.checkAndPush(ctx, &release)
 	if err != nil {
 		return err
 	}
@@ -54,6 +79,8 @@ func UpdateOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, customPath,
 	return nil
 }
 
+// setupOCI constructs an oci instance with an authenticated Helm registry client
+// and wires the real loadAsset, checkAsset, and push implementations.
 func setupOCI(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, debug bool) (*oci, error) {
 	// Strip http:// or https:// scheme if present
 	ociDNS = strings.TrimPrefix(ociDNS, "https://")
@@ -79,6 +106,11 @@ func setupOCI(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, 
 	return o, nil
 }
 
+// setupHelm creates and authenticates a Helm registry client against the given OCI registry.
+// Three modes are supported based on the debug flag and whether the target is localhost:
+//   - debug + remote host: TLS client using CA from /etc/docker/certs.d/<dns>/ca.crt
+//   - debug + localhost:   plain HTTP client (insecure login, no TLS)
+//   - production (default): standard HTTPS client with basic auth
 func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool) (*registry.Client, error) {
 	settings := cli.New()
 	actionConfig := new(action.Configuration)
@@ -153,11 +185,16 @@ func setupHelm(ctx context.Context, ociDNS, ociUser, ociPass string, debug bool)
 	return regClient, nil
 }
 
-// update will attempt to update a helm chart to an OCI registry.
-// 2 phases:
-//   - 1: Pre-Flight validations (check the current chart + check if it already exists)
-//   - 2: Push
-func (o *oci) update(ctx context.Context, release *options.ReleaseOptions) ([]string, error) {
+// checkAndPush runs a two-phase push of all chart versions listed in release.yaml.
+//
+// Phase 1 — Pre-flight: for each chart/version, loads the .tgz from assets/ and checks
+// whether it already exists in the registry. Existing versions are skipped. Only new
+// assets are queued for Phase 2.
+//
+// Phase 2 — Push: uploads each queued asset. Errors are accumulated rather than
+// short-circuiting, so a single failure does not abort the remaining pushes.
+// If any pushes fail, the returned error lists the failed assets.
+func (o *oci) checkAndPush(ctx context.Context, release *options.ReleaseOptions) ([]string, error) {
 	var pushedAssets []string
 
 	// List of assets to process
@@ -237,6 +274,8 @@ func (o *oci) update(ctx context.Context, release *options.ReleaseOptions) ([]st
 	return pushedAssets, nil
 }
 
+// push uploads a packaged chart archive to the OCI registry at the given URL.
+// StrictMode ensures the artifact is validated as a proper OCI Helm chart on arrival.
 func push(helmClient *registry.Client, data []byte, url string) error {
 	if _, err := helmClient.Push(data, url, registry.PushOptStrictMode(true)); err != nil {
 		return err
@@ -244,11 +283,15 @@ func push(helmClient *registry.Client, data []byte, url string) error {
 	return nil
 }
 
+// loadAsset reads a packaged chart archive from assets/<chart>/<asset>.
 func loadAsset(chart, asset string) ([]byte, error) {
 	return os.ReadFile(path.RepositoryAssetsDir + "/" + chart + "/" + asset)
 }
 
-// oci://<oci-dns>/<chart(repository)>:<version>
+// buildPushURL constructs the OCI push target URL for a chart version.
+// Format: <dns>/<customPath>/<chart>:<version>  (custom path)
+//
+//	or <dns>/rancher/charts/<chart>:<version>  (default)
 func buildPushURL(ociDNS, customPath, chart, version string) string {
 	if customPath != "" {
 		return ociDNS + "/" + customPath + "/" + chart + ":" + version
@@ -256,6 +299,8 @@ func buildPushURL(ociDNS, customPath, chart, version string) string {
 	return ociDNS + "/rancher/charts/" + chart + ":" + version
 }
 
+// buildTagsURL constructs the OCI tags listing URL for a chart repository (no version suffix).
+// Used by checkAsset to enumerate existing tags via helmClient.Tags().
 func buildTagsURL(ociDNS, customPath, chart, version string) string {
 	if customPath != "" {
 		return ociDNS + "/" + customPath + "/" + chart
@@ -263,11 +308,13 @@ func buildTagsURL(ociDNS, customPath, chart, version string) string {
 	return ociDNS + "/rancher/charts/" + chart
 }
 
-// checkAsset checks if a specific asset version exists in the OCI registry
+// checkAsset reports whether a specific chart version already exists in the OCI registry.
+// It lists all tags for the chart repository and checks for an exact version match.
+// A 404 response is treated as "not found" (not an error) — the chart simply hasn't been pushed yet.
+//
+// NOTE: helmClient.Tags() is used as a workaround because direct tag existence checks
+// are not yet supported. Track: https://github.com/helm/helm/issues/13368
 func checkAsset(ctx context.Context, helmClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
-	// Once issue is resolved: https://github.com/helm/helm/issues/13368
-	// Replace by: helmClient.Tags(ociDNS + "/" + chart + ":" + version)
-	// tagsURL := ociDNS + "/rancher/charts/" + chart
 	tagsURL := buildTagsURL(ociDNS, customPath, chart, version)
 	existingVersions, err := helmClient.Tags(tagsURL)
 	if err != nil {

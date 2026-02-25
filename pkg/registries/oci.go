@@ -96,12 +96,12 @@ func setupOCI(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, 
 		debug:      debug,
 	}
 
-	var err error
-	o.helmClient, err = setupHelm(ctx, o)
+	helmClient, err := setupHelm(ctx, o)
 	if err != nil {
 		return nil, err
 	}
 
+	o.helmClient = helmClient
 	o.loadAsset = loadAsset
 	o.checkAsset = checkAsset
 	o.push = push
@@ -124,9 +124,6 @@ func setupHelm(ctx context.Context, o *oci) (*registry.Client, error) {
 		return nil, err
 	}
 
-	var regClient *registry.Client
-	var err error
-
 	isLocalHost := strings.HasPrefix(o.dns, "localhost:")
 
 	switch {
@@ -134,7 +131,7 @@ func setupHelm(ctx context.Context, o *oci) (*registry.Client, error) {
 	case o.debug && !isLocalHost:
 		logger.Log(ctx, slog.LevelDebug, "debug mode", slog.Bool("localhost", isLocalHost))
 		caFile := "/etc/docker/certs.d/" + o.dns + "/ca.crt"
-		regClient, err = registry.NewRegistryClientWithTLS(os.Stdout, "", "", caFile, false, "", true)
+		regClient, err := registry.NewRegistryClientWithTLS(os.Stdout, "", "", caFile, false, "", true)
 		if err != nil {
 			return nil, fmt.Errorf("create TLS registry client for %s: %w", o.dns, err)
 		}
@@ -146,11 +143,12 @@ func setupHelm(ctx context.Context, o *oci) (*registry.Client, error) {
 		); err != nil {
 			return nil, fmt.Errorf("login to TLS registry %s: %w", o.dns, err)
 		}
+		return regClient, nil
 
 	// Debug Mode at localhost without TLS
 	case o.debug && isLocalHost:
 		logger.Log(ctx, slog.LevelDebug, "debug mode", slog.Bool("localhost", isLocalHost))
-		regClient, err = registry.NewClient(
+		regClient, err := registry.NewClient(
 			registry.ClientOptDebug(true),
 			registry.ClientOptPlainHTTP(),
 		)
@@ -162,11 +160,12 @@ func setupHelm(ctx context.Context, o *oci) (*registry.Client, error) {
 			registry.LoginOptBasicAuth(o.user, o.password)); err != nil {
 			return nil, fmt.Errorf("login to registry %s: %w", o.dns, err)
 		}
+		return regClient, nil
 
 	// Production code with Secure Mode and authentication
 	default:
 		logger.Log(ctx, slog.LevelInfo, "production mode")
-		regClient, err = registry.NewClient(
+		regClient, err := registry.NewClient(
 			registry.ClientOptDebug(false),
 		)
 		if err != nil {
@@ -178,9 +177,8 @@ func setupHelm(ctx context.Context, o *oci) (*registry.Client, error) {
 			return nil, fmt.Errorf("login to registry %s: %w", o.dns, err)
 		}
 		logger.Log(ctx, slog.LevelDebug, "creds", slog.String("u", o.user), slog.String("p", o.password))
+		return regClient, nil
 	}
-
-	return regClient, nil
 }
 
 // checkAndPush runs a two-phase push of all chart versions listed in release.yaml.

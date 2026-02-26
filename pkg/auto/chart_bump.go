@@ -17,6 +17,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
+	"github.com/rancher/charts-build-scripts/pkg/validate"
 )
 
 // ChartTargetsMap represents all current active charts
@@ -172,7 +173,7 @@ func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string
 	//  Load the chart and release.yaml paths
 	releaseYamlPath := filesystem.GetAbsPath(dependencies.RootFs, path.RepositoryReleaseYaml)
 	if releaseYamlPath == "" {
-		return bump, errReleaseYaml
+		return bump, errors.New("release.yaml errors")
 	}
 
 	bump.releaseYaml = &Release{
@@ -427,7 +428,7 @@ func checkBumpAppVersion(ctx context.Context, bumpAppVersion *string, versions [
 // icon = make icon && git status && git add . && git commit -m "make icon"
 func (b *Bump) icon(ctx context.Context) error {
 	// Download logo at assets/logos
-	if !isIconException(b.target.main) {
+	if !validate.IsIconException(b.target.main) {
 		if err := b.Pkg.DownloadIcon(ctx); err != nil {
 			logger.Log(ctx, slog.LevelError, "error while downloading icon", logger.Err(err))
 			return err

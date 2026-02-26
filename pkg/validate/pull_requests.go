@@ -16,15 +16,15 @@ import (
 	"github.com/go-git/go-billy/v5"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-github/v41/github"
+	"golang.org/x/oauth2"
+	helmRepo "helm.sh/helm/v3/pkg/repo"
+
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"golang.org/x/oauth2"
-
-	helmRepo "helm.sh/helm/v3/pkg/repo"
 )
 
 // owner and repo identify the GitHub repository used for pull request lookups.
@@ -63,23 +63,23 @@ func loadPullRequestValidation(token, prNum string, dep *lifecycle.Dependencies)
 
 	pNum, err := strconv.Atoi(prNum)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid PR number %q: %w", prNum, err)
 	}
 
 	pr, resp, err := gitClient.PullRequests.Get(ctx, owner, repo, pNum)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get pull request %d: %w", pNum, err)
 	}
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to get pull request, status code: %s", resp.Status)
 	}
 
 	prFiles, _, err := gitClient.PullRequests.ListFiles(ctx, owner, repo, pNum, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list files for pull request %d: %w", pNum, err)
 	}
 
-	return &validation{pr, prFiles, dep}, nil
+	return &validation{pr: pr, files: prFiles, dep: dep}, nil
 }
 
 // PullRequests validates a pull request against the release.yaml checkpoints:
@@ -112,11 +112,7 @@ func PullRequests(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	if err := v.validateReleaseYaml(ctx, releaseOpts); err != nil {
-		return err
-	}
-
-	return nil
+	return v.validateReleaseYaml(ctx, releaseOpts)
 }
 
 // validateReleaseYaml validates the release.yaml file against three rules:
@@ -150,7 +146,6 @@ func (v *validation) validateReleaseYaml(ctx context.Context, releaseOpts option
 // checkMinorPatchVersion verifies that version is exactly one patch or minor bump above the
 // latest released version. Forward-ported charts (outside the current branch range) are skipped.
 func (v *validation) checkMinorPatchVersion(ctx context.Context, version string, releasedVersions []lifecycle.Asset) error {
-
 	latestReleasedVersion := releasedVersions[0].Version
 
 	// check if the chart version is being released or forward-ported
@@ -318,7 +313,7 @@ func Icons(ctx context.Context, rootFs billy.Filesystem) error {
 
 // IsIconException reports whether the given chart name is exempt from icon validation.
 func IsIconException(chart string) bool {
-	if strings.Contains(chart, "-crd") ||
+	return strings.Contains(chart, "-crd") ||
 		strings.Contains(chart, "fleet") ||
 		strings.Contains(chart, "harvester") ||
 		chart == "rancher-webhook" ||
@@ -332,10 +327,7 @@ func IsIconException(chart string) bool {
 		chart == "system-upgrade-controller" ||
 		chart == "ui-plugin-operator" ||
 		chart == "rancher-csp-adapter" ||
-		chart == "rancher-ali-operator" {
-		return true
-	}
-	return false
+		chart == "rancher-ali-operator"
 }
 
 // loadAndCheckIconPrefix loads Chart.yaml for the given chart version and verifies

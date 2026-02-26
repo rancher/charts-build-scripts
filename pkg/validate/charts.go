@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/go-git/go-billy/v5"
-	"github.com/rancher/charts-build-scripts/pkg/auto"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
@@ -26,7 +25,7 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 
 	// Only skip icon validations for forward-ports
 	if !skip {
-		if err := auto.ValidateIcons(ctx, rootFs); err != nil {
+		if err := ValidateIcons(ctx, rootFs); err != nil {
 			return err
 		}
 	}

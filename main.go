@@ -953,7 +953,7 @@ func validateRelease(c *cli.Context) {
 		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
 	}
 
-	if err := auto.ValidatePullRequest(ctx, GithubToken, PullRequest, dependencies); err != nil {
+	if err := validate.ValidatePullRequest(ctx, GithubToken, PullRequest, dependencies); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to validate pull request: %w", err).Error())
 	}
 }
@@ -968,7 +968,7 @@ func compareIndexFiles(c *cli.Context) {
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
 
-	if err := auto.CompareIndexFiles(ctx, rootFs); err != nil {
+	if err := validate.CompareIndexFiles(ctx, rootFs); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to compare index files: %w", err).Error())
 	}
 

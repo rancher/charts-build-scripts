@@ -1,4 +1,4 @@
-package auto
+package validate
 
 import (
 	"bytes"
@@ -274,7 +274,7 @@ func ValidateIcons(ctx context.Context, rootFs billy.Filesystem) error {
 
 	logger.Log(ctx, slog.LevelInfo, "checking if icons are present in the local filesystem")
 	for chart, versions := range releaseOpts {
-		if isIconException(chart) {
+		if IsIconException(chart) {
 			logger.Log(ctx, slog.LevelDebug, "skipping icon check for:", slog.String("chart", chart))
 			continue
 		}
@@ -289,7 +289,7 @@ func ValidateIcons(ctx context.Context, rootFs billy.Filesystem) error {
 	return nil
 }
 
-func isIconException(chart string) bool {
+func IsIconException(chart string) bool {
 	if strings.Contains(chart, "-crd") ||
 		strings.Contains(chart, "fleet") ||
 		strings.Contains(chart, "harvester") ||
@@ -311,7 +311,7 @@ func isIconException(chart string) bool {
 }
 
 func loadAndCheckIconPrefix(ctx context.Context, rootFs billy.Filesystem, chart string, chartVersion string) error {
-	metaData, err := loadChartYaml(rootFs, chart, chartVersion)
+	metaData, err := helm.LoadChartYaml(rootFs, chart, chartVersion)
 	if err != nil {
 		return err
 	}

@@ -25,7 +25,7 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 
 	// Only skip icon validations for forward-ports
 	if !skip {
-		if err := ValidateIcons(ctx, rootFs); err != nil {
+		if err := Icons(ctx, rootFs); err != nil {
 			return err
 		}
 	}

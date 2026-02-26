@@ -27,25 +27,31 @@ import (
 	helmRepo "helm.sh/helm/v3/pkg/repo"
 )
 
+// owner and repo identify the GitHub repository used for pull request lookups.
 // Referred to: https://github.com/rancher/charts
-const owner = "rancher"
-const repo = "charts"
-
-var (
-	errReleaseYaml       error = errors.New("release.yaml errors")
-	errModifiedChart     error = errors.New("released chart cannot be modified")
-	errMinorPatchVersion error = errors.New("chart version must be exactly 1 more patch/minor version than the previous chart version")
+const (
+	owner = "rancher"
+	repo  = "charts"
 )
 
-// validation struct will hold the pull request and its files to be validated.
+var (
+	// errReleaseYaml is returned when the release.yaml file contains validation errors.
+	errReleaseYaml = errors.New("release.yaml errors")
+	// errModifiedChart is returned when a previously released chart asset is modified in a PR.
+	errModifiedChart = errors.New("released chart cannot be modified")
+	// errMinorPatchVersion is returned when a chart version bumps by more than one patch or minor step.
+	errMinorPatchVersion = errors.New("chart version must be exactly 1 more patch/minor version than the previous chart version")
+)
+
+// validation holds the pull request metadata and changed files for a single validation session.
 type validation struct {
 	pr    *github.PullRequest
 	files []*github.CommitFile
 	dep   *lifecycle.Dependencies
 }
 
-// loadPullRequestValidation will load the pull request validation struct with the pull request and its files.
-// it will also load the dependencies struct with the filesystem, assets versions map, version rules and methods to enforce the lifecycle rules in the given branch.
+// loadPullRequestValidation authenticates with GitHub using the given token, fetches the pull
+// request and its changed files, and returns a validation ready for checkpoint evaluation.
 func loadPullRequestValidation(token, prNum string, dep *lifecycle.Dependencies) (*validation, error) {
 	ctx := context.Background()
 
@@ -76,10 +82,10 @@ func loadPullRequestValidation(token, prNum string, dep *lifecycle.Dependencies)
 	return &validation{pr, prFiles, dep}, nil
 }
 
-// PullRequests will execute the check a given pull request for the following:
-//   - Checkpoint 0: release.yaml file is valid
-//   - TODO: Checkpoint 1: Compare contents of assets/ to charts/
-//   - TODO: Checkpoint 2: Compare assets against index.yaml
+// PullRequests validates a pull request against the release.yaml checkpoints:
+//   - Checkpoint 0: release.yaml is internally consistent and no released chart is modified
+//   - TODO Checkpoint 1: compare contents of assets/ to charts/
+//   - TODO Checkpoint 2: compare assets against index.yaml
 func PullRequests(ctx context.Context,
 	token, prNum, branch string,
 	dep *lifecycle.Dependencies) error {
@@ -113,10 +119,10 @@ func PullRequests(ctx context.Context,
 	return nil
 }
 
-// validateReleaseYaml will validate the release.yaml file for:
-//   - each chart version in release.yaml does not modify an already released chart.
-//   - each chart version in release.yaml is exactly 1 more patch/minor version than the previous chart version if the chart is being released.
-//   - each chart version in release.yaml that is being forward-ported is within the range of the current branch version.
+// validateReleaseYaml validates the release.yaml file against three rules:
+//   - no chart version in release.yaml modifies an already released chart asset
+//   - each chart version is exactly 1 patch or minor bump above the previous released version
+//   - forward-ported chart versions are within the range of the current branch version
 func (v *validation) validateReleaseYaml(ctx context.Context, releaseOpts options.ReleaseOptions) error {
 	assetFilePaths := make(map[string]string, len(releaseOpts))
 
@@ -141,7 +147,8 @@ func (v *validation) validateReleaseYaml(ctx context.Context, releaseOpts option
 	return v.checkNeverModifyReleasedChart(assetFilePaths)
 }
 
-// checkMinorPatchVersion will check if the chart version is exactly 1 more patch/minor version than the previous chart version or if the chart is being released. If the chart is being forward-ported, this validation is skipped.
+// checkMinorPatchVersion verifies that version is exactly one patch or minor bump above the
+// latest released version. Forward-ported charts (outside the current branch range) are skipped.
 func (v *validation) checkMinorPatchVersion(ctx context.Context, version string, releasedVersions []lifecycle.Asset) error {
 
 	latestReleasedVersion := releasedVersions[0].Version
@@ -204,7 +211,8 @@ func (v *validation) checkMinorPatchVersion(ctx context.Context, version string,
 	return nil
 }
 
-// checkNeverModifyReleasedChart will check if the files in the pull request modify a released chart. If a file is found to modify a released chart, an error is returned.
+// checkNeverModifyReleasedChart returns an error for every asset in assetFilePaths that appears
+// in the PR with a status other than "added" or "removed" (i.e. modified).
 func (v *validation) checkNeverModifyReleasedChart(assetFilePaths map[string]string) error {
 	assetFilePathErrors := make(map[string]error)
 
@@ -227,7 +235,8 @@ func (v *validation) checkNeverModifyReleasedChart(assetFilePaths map[string]str
 	return nil
 }
 
-// CompareIndexFiles will load the current index.yaml file from the root filesystem and compare it with the index.yaml file from charts.rancher.io
+// CompareIndexFiles loads the local index.yaml and compares it against the live index.yaml
+// from charts.rancher.io, returning an error if the two differ.
 func CompareIndexFiles(ctx context.Context, rootFs billy.Filesystem, branch string) error {
 	if branch == "" {
 		return errors.New("BRANCH environment variable must be set to run compare-index-files")
@@ -280,8 +289,9 @@ func CompareIndexFiles(ctx context.Context, rootFs billy.Filesystem, branch stri
 	return nil
 }
 
-// ValidateIcons will check if the icons are present in the local filesystem and if they are not, it will return an error.
-func ValidateIcons(ctx context.Context, rootFs billy.Filesystem) error {
+// Icons checks that every chart listed in release.yaml has a local icon present
+// under a file:// path. Charts matching IsIconException are skipped.
+func Icons(ctx context.Context, rootFs billy.Filesystem) error {
 	releaseOpts, err := options.LoadReleaseOptionsFromFile(ctx, rootFs, path.RepositoryReleaseYaml)
 	if err != nil {
 		return err
@@ -306,6 +316,7 @@ func ValidateIcons(ctx context.Context, rootFs billy.Filesystem) error {
 	return nil
 }
 
+// IsIconException reports whether the given chart name is exempt from icon validation.
 func IsIconException(chart string) bool {
 	if strings.Contains(chart, "-crd") ||
 		strings.Contains(chart, "fleet") ||
@@ -327,6 +338,8 @@ func IsIconException(chart string) bool {
 	return false
 }
 
+// loadAndCheckIconPrefix loads Chart.yaml for the given chart version and verifies
+// that the icon field uses a local file:// path that actually exists on the filesystem.
 func loadAndCheckIconPrefix(ctx context.Context, rootFs billy.Filesystem, chart string, chartVersion string) error {
 	metaData, err := helm.LoadChartYaml(rootFs, chart, chartVersion)
 	if err != nil {

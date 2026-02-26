@@ -76,11 +76,25 @@ func loadPullRequestValidation(token, prNum string, dep *lifecycle.Dependencies)
 	return &validation{pr, prFiles, dep}, nil
 }
 
-// ValidatePullRequest will execute the check a given pull request for the following:
+// PullRequests will execute the check a given pull request for the following:
 //   - Checkpoint 0: release.yaml file is valid
 //   - TODO: Checkpoint 1: Compare contents of assets/ to charts/
 //   - TODO: Checkpoint 2: Compare assets against index.yaml
-func ValidatePullRequest(ctx context.Context, token, prNum string, dep *lifecycle.Dependencies) error {
+func PullRequests(ctx context.Context,
+	token, prNum, branch string,
+	dep *lifecycle.Dependencies) error {
+	if token == "" {
+		return errors.New("GH_TOKEN environment variable must be set to run validate-release-charts")
+	}
+	if prNum == "" {
+		return errors.New("PR_NUMBER environment variable must be set to run validate-release-charts")
+	}
+	if branch == "" {
+		return errors.New("BRANCH environment variable must be set to run validate-release-charts")
+	}
+	if !strings.HasPrefix(branch, "release-v") {
+		return errors.New("branch must be in the format release-v2.x")
+	}
 
 	v, err := loadPullRequestValidation(token, prNum, dep)
 	if err != nil {
@@ -214,7 +228,10 @@ func (v *validation) checkNeverModifyReleasedChart(assetFilePaths map[string]str
 }
 
 // CompareIndexFiles will load the current index.yaml file from the root filesystem and compare it with the index.yaml file from charts.rancher.io
-func CompareIndexFiles(ctx context.Context, rootFs billy.Filesystem) error {
+func CompareIndexFiles(ctx context.Context, rootFs billy.Filesystem, branch string) error {
+	if branch == "" {
+		return errors.New("BRANCH environment variable must be set to run compare-index-files")
+	}
 	// verify, search & open current index.yaml file
 	localIndexYaml, err := helm.OpenIndexYaml(ctx, rootFs)
 	if err != nil {

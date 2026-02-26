@@ -928,32 +928,14 @@ func release(c *cli.Context) {
 func validateRelease(c *cli.Context) {
 	ctx := context.Background()
 
-	if Skip {
-		logger.Log(ctx, slog.LevelInfo, "skipping release validation")
-		return
-	}
-	if GithubToken == "" {
-		logger.Fatal(ctx, "GH_TOKEN environment variable must be set to run validate-release-charts")
-	}
-	if PullRequest == "" {
-		logger.Fatal(ctx, "PR_NUMBER environment variable must be set to run validate-release-charts")
-	}
-	if Branch == "" {
-		logger.Fatal(ctx, "BRANCH environment variable must be set to run validate-release-charts")
-	}
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
-
-	if !strings.HasPrefix(Branch, "release-v") {
-		logger.Fatal(ctx, "branch must be in the format release-v2.x")
-	}
-
 	dependencies, err := lifecycle.InitDependencies(ctx, rootFs, RepoRoot, strings.TrimPrefix(Branch, "release-v"), "", false)
 	if err != nil {
 		logger.Fatal(ctx, fmt.Errorf("encountered error while initializing dependencies: %w", err).Error())
 	}
 
-	if err := validate.ValidatePullRequest(ctx, GithubToken, PullRequest, dependencies); err != nil {
+	if err := validate.PullRequests(ctx, GithubToken, PullRequest, Branch, dependencies); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to validate pull request: %w", err).Error())
 	}
 }
@@ -961,14 +943,10 @@ func validateRelease(c *cli.Context) {
 func compareIndexFiles(c *cli.Context) {
 	ctx := context.Background()
 
-	if Branch == "" {
-		logger.Fatal(ctx, "BRANCH environment variable must be set to run compare-index-files")
-	}
-
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
 
-	if err := validate.CompareIndexFiles(ctx, rootFs); err != nil {
+	if err := validate.CompareIndexFiles(ctx, rootFs, Branch); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to compare index files: %w", err).Error())
 	}
 

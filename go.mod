@@ -29,7 +29,7 @@ require (
 	github.com/lmittmann/tint v1.1.3
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli v1.22.17
-	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
+	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
 	golang.org/x/oauth2 v0.35.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1

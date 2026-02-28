@@ -31,7 +31,6 @@ require (
 	github.com/urfave/cli v1.22.17
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
 	golang.org/x/oauth2 v0.35.0
-	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.19.3 // Upgraded for oras-go v2 compatibility, semver v3.3.0 pinned below
 	sigs.k8s.io/release-utils v0.12.2 // indirect

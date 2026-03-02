@@ -77,8 +77,7 @@ func (p *Package) DownloadIcon(ctx context.Context) error {
 func downloadIcon(ctx context.Context, rootFs billy.Filesystem, metadata *chart.Metadata) (string, error) {
 	icon, err := http.Get(metadata.Icon)
 	if err != nil {
-		logger.Log(ctx, slog.LevelError, "failed to download icon", slog.String("icon", metadata.Icon), logger.Err(err))
-		return "", err
+		return "", fmt.Errorf("failed to download icon %s: %w", metadata.Icon, err)
 	}
 	defer icon.Body.Close()
 
@@ -90,15 +89,13 @@ func downloadIcon(ctx context.Context, rootFs billy.Filesystem, metadata *chart.
 	iconPath := fmt.Sprintf("%s/%s%s", path.RepositoryLogosDir, metadata.Name, byType[0])
 	create, err := rootFs.Create(iconPath)
 	if err != nil {
-		logger.Log(ctx, slog.LevelError, "failed to create icon", slog.String("icon", metadata.Icon), logger.Err(err))
-		return "", err
+		return "", fmt.Errorf("failed to create icon %s: %w", metadata.Icon, err)
 	}
 	defer create.Close()
 
 	_, err = io.Copy(create, icon.Body)
 	if err != nil {
-		logger.Log(ctx, slog.LevelError, "failed to write icon", slog.String("icon", metadata.Icon), logger.Err(err))
-		return "", err
+		return "", fmt.Errorf("failed to write icon %s: %w", metadata.Icon, err)
 	}
 	return iconPath, nil
 }

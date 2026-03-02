@@ -19,7 +19,7 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 )
 
-// DownloadIcon Downloads the icon from the charts.yaml file to the assets/logos folder
+// DownloadIcon downloads the icon from the charts.yaml file to the assets/logos folder
 // and changes the chart.yaml file to use it
 func (p *Package) DownloadIcon(ctx context.Context) error {
 	logger.Log(ctx, slog.LevelInfo, "make icon")

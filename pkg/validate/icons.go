@@ -63,17 +63,15 @@ func IsIconException(chart string) bool {
 // loadAndCheckIconPrefix loads Chart.yaml for the given chart version and verifies
 // that the icon field uses a local file:// path that actually exists on the filesystem.
 func loadAndCheckIconPrefix(ctx context.Context, rootFs billy.Filesystem, chart string, chartVersion string) error {
-	metaData, err := helm.LoadChartYaml(rootFs, chart, chartVersion)
+	metadata, err := helm.LoadChartYaml(rootFs, chart, chartVersion)
 	if err != nil {
 		return err
 	}
 
 	logger.Log(ctx, slog.LevelDebug, "checking if chart has downloaded icon")
-	iconField := metaData.Icon
+	iconField := metadata.Icon
 
-	// Check file prefix if it is a URL just skip this process
 	if !strings.HasPrefix(iconField, "file://") {
-		logger.Log(ctx, slog.LevelError, "icon path is not a file:// prefix")
 		return errors.New("icon path is not a file:// prefix, after make prepare, you need to run make icon for chart:" + chart)
 	}
 

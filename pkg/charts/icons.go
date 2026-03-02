@@ -27,7 +27,7 @@ func (p *Package) DownloadIcon(ctx context.Context) error {
 
 	exists, err := filesystem.PathExists(ctx, p.fs, path.RepositoryChartsDir)
 	if err != nil {
-		return fmt.Errorf("failed to check for charts dir. Err: %w", err)
+		return fmt.Errorf("failed to check for charts dir: %w", err)
 	}
 	if !exists {
 		logger.Log(ctx, slog.LevelError, "charts dir does not exist, run make prepare first", slog.String("path", path.RepositoryChartsDir))
@@ -37,7 +37,7 @@ func (p *Package) DownloadIcon(ctx context.Context) error {
 	absHelmChartPath := filesystem.GetAbsPath(p.fs, path.RepositoryChartsDir)
 	chart, err := helmLoader.Load(absHelmChartPath)
 	if err != nil {
-		return fmt.Errorf("could not load Helm chart: %s", err)
+		return fmt.Errorf("could not load Helm chart: %w", err)
 	}
 
 	if !strings.HasPrefix(chart.Metadata.Icon, "file://") {
@@ -54,16 +54,16 @@ func (p *Package) DownloadIcon(ctx context.Context) error {
 		chartYamlPath := fmt.Sprintf("%s/Chart.yaml", absHelmChartPath)
 		err = chartutil.SaveChartfile(chartYamlPath, chart.Metadata)
 		if err != nil {
-			return fmt.Errorf("failed to save chart.yaml file. err: %w", err)
+			return fmt.Errorf("failed to save chart.yaml file: %w", err)
 		}
 	}
 
-	exist, err := filesystem.PathExists(ctx, p.rootFs, strings.TrimPrefix(chart.Metadata.Icon, "file://"))
+	exists, err = filesystem.PathExists(ctx, p.rootFs, strings.TrimPrefix(chart.Metadata.Icon, "file://"))
 	if err != nil {
 		return err
 	}
 
-	if !exist {
+	if !exists {
 		return errors.New("icon path is a file:// prefix, but the icon does not exist, you will need to manually download it at assets/logos dir")
 	}
 
@@ -80,6 +80,7 @@ func downloadIcon(ctx context.Context, rootFs billy.Filesystem, metadata *chart.
 		logger.Log(ctx, slog.LevelError, "failed to download icon", slog.String("icon", metadata.Icon), logger.Err(err))
 		return "", err
 	}
+	defer icon.Body.Close()
 
 	byType, err := mime.ExtensionsByType(icon.Header.Get("Content-Type"))
 	if err != nil || len(byType) == 0 || icon.StatusCode != http.StatusOK {
@@ -95,7 +96,6 @@ func downloadIcon(ctx context.Context, rootFs billy.Filesystem, metadata *chart.
 	defer create.Close()
 
 	_, err = io.Copy(create, icon.Body)
-	defer icon.Body.Close()
 	if err != nil {
 		logger.Log(ctx, slog.LevelError, "failed to write icon", slog.String("icon", metadata.Icon), logger.Err(err))
 		return "", err

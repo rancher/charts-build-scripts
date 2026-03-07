@@ -22,7 +22,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/puller"
 	"github.com/rancher/charts-build-scripts/pkg/registries"
 	"github.com/rancher/charts-build-scripts/pkg/validate"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v3"
 	"gopkg.in/yaml.v2"
 )
 

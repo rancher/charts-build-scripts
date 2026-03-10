@@ -1,0 +1,13 @@
+# valid — rancher/ namespace with tag sibling → no violation
+validImage:
+  repository: rancher/valid-image
+  tag: v1.0.0
+
+# orphan_repository — tag key absent
+orphanImage:
+  repository: rancher/orphan-image
+
+# wrong_namespace — non-rancher repository with valid tag
+wrongNsImage:
+  repository: quay.io/external/image
+  tag: v2.0.0

@@ -15,7 +15,7 @@ import (
 	"github.com/Masterminds/semver"
 	"github.com/go-git/go-billy/v5"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-github/v41/github"
+	"github.com/google/go-github/v84/github"
 	"golang.org/x/oauth2"
 	helmRepo "helm.sh/helm/v3/pkg/repo"
 

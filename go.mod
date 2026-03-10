@@ -25,12 +25,12 @@ require (
 	github.com/go-git/go-git/v5 v5.17.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.21.2
-	github.com/google/go-github/v41 v41.0.0
+	github.com/google/go-github/v84 v84.0.0
 	github.com/lmittmann/tint v1.1.3
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli v1.22.17
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
-	golang.org/x/oauth2 v0.35.0
+	golang.org/x/oauth2 v0.36.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.19.3 // Upgraded for oras-go v2 compatibility, semver v3.3.0 pinned below

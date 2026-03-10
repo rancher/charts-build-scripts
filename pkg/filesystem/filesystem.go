@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/util"
@@ -528,6 +529,15 @@ func ArchiveDir(ctx context.Context, fs billy.Filesystem, srcPath, destTgzPath s
 	defer tarWriter.Close()
 
 	return WalkDir(ctx, fs, srcPath, func(ctx context.Context, fs billy.Filesystem, path string, isDir bool) error {
+		// Skip macOS metadata artifacts that pollute archives when building on a Mac:
+		// .DS_Store (Finder metadata), ._* (AppleDouble resource forks), __MACOSX (zip sidecars).
+		// Check every path component so nested entries inside __MACOSX/ are also excluded.
+		for _, part := range strings.Split(filepath.ToSlash(path), "/") {
+			if part == ".DS_Store" || part == "__MACOSX" || strings.HasPrefix(part, "._") {
+				return nil
+			}
+		}
+
 		info, err := fs.Stat(path)
 		if err != nil {
 			return err
@@ -538,6 +548,27 @@ func ArchiveDir(ctx context.Context, fs billy.Filesystem, srcPath, destTgzPath s
 		}
 		// overwrite the name to be the full path to the file
 		header.Name = path
+		// Normalize metadata so archives are reproducible regardless of who runs the build.
+		// Without this, uid/gid/username/groupname/timestamps vary per developer and cause
+		// spurious diffs when charts are rebuilt.
+		//
+		// Ownership: numeric 0/0, no name strings (equivalent to tar --numeric-owner with root)
+		header.Uid = 0
+		header.Gid = 0
+		header.Uname = ""
+		header.Gname = ""
+		// Timestamps: zero so rebuild time doesn't affect archive bytes
+		header.ModTime = time.Time{}
+		header.AccessTime = time.Time{}
+		header.ChangeTime = time.Time{}
+		// Permissions: ugo=rwX — r+w for everyone; x only for dirs or already-executable files
+		if isDir || header.Mode&0111 != 0 {
+			header.Mode = 0777
+		} else {
+			header.Mode = 0666
+		}
+		// Strip any extended attributes (macOS xattrs show up in PAXRecords)
+		header.PAXRecords = nil
 		if err := tarWriter.WriteHeader(header); err != nil {
 			return err
 		}

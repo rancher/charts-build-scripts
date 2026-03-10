@@ -495,6 +495,22 @@ func main() {
 			Action: checkImages,
 		},
 		{
+			Name:  "lint-images",
+			Usage: "Detects image blocks with a repository but no tag, and verifies the chart appVersion exists on Docker Hub",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:   "base-branch",
+					Usage:  "Base branch to diff against (e.g. dev-v2.10). Required unless --tgz is set.",
+					EnvVar: "BASE_BRANCH",
+				},
+				cli.StringFlag{
+					Name:  "tgz",
+					Usage: "Directly lint a specific .tgz path, bypassing git diff. Useful for local testing.",
+				},
+			},
+			Action: lintImages,
+		},
+		{
 			Name:   "check-rc",
 			Usage:  "Checks if there are any images with RC tags or charts with RC versions in the charts repository",
 			Action: checkRCTagsAndVersions,
@@ -828,6 +844,28 @@ func checkImages(c *cli.Context) {
 
 	if err := registries.DockerScan(ctx); err != nil {
 		logger.Fatal(ctx, err.Error())
+	}
+}
+
+func lintImages(c *cli.Context) {
+	ctx := context.Background()
+
+	warnings, err := registries.LintImageTags(ctx, c.String("base-branch"), c.String("tgz"))
+	if err != nil {
+		logger.Fatal(ctx, err.Error())
+	}
+
+	if len(warnings) > 0 {
+		for _, w := range warnings {
+			logger.Log(ctx, slog.LevelError, "image lint failure",
+				slog.String("tgz", w.Asset),
+				slog.String("path", w.YAMLPath),
+				slog.String("repository", w.Repository),
+				slog.String("tag", w.Tag),
+				slog.String("reason", w.Reason),
+			)
+		}
+		logger.Fatal(ctx, fmt.Sprintf("lint-images: %d issue(s) found", len(warnings)))
 	}
 }
 

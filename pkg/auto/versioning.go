@@ -218,8 +218,12 @@ func getLatestVersionFromIndex(versions []lifecycle.Asset) (string, string, bool
 
 // getLatestVersionRecursively will get the latest non-RC version from the entry at the index.yaml
 func getLatestVersionRecursively(versions []lifecycle.Asset) string {
+	if len(versions) == 0 {
+		return ""
+	}
+
 	latestVersion := versions[0].Version
-	if strings.Contains(latestVersion, "-rc") {
+	if strings.Contains(latestVersion, "-rc") || strings.Contains(latestVersion, "-alpha") || strings.Contains(latestVersion, "-beta") {
 		return getLatestVersionRecursively(versions[1:])
 	}
 

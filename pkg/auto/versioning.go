@@ -278,60 +278,77 @@ func parseRepoPrefixVersionIfAny(unparsedVersion string) (repoPrefix, version st
 }
 
 // applyVersionRules determines the correct repository-specific version prefix for the upcoming release.
-// It considers several factors:
-//   - branch's versioning rules (a new branch will reset the prefix to: 10x.0.0)
-//   - semantic difference between the latest released version and the new upstream version.
-//   - optional manual override for the version.
-//     It will calculate automatically patch or minor increments.
+//
+// The repo prefix follows the format 10X.Y.Z and is independent of the upstream app version.
+// Its major component (10X) is dictated by the Rancher branch line (e.g., dev-v2.11 → 107.x.x).
+// The minor and patch components are bumped based on the semantic difference with the latest released version.
+//
+// Branch transition (latestRepoPrefix is empty or differs by exactly 1 major from the rule):
+//
+//	last version: X.Y.Z+upA.B.C   | branch rule: 105.0.0  → toReleaseRepoPrefix: 105.0.0
+//	last version: 104.X.Y+upA.B.C | branch rule: 105.0.0  → toReleaseRepoPrefix: 105.0.0
+//
+// Same branch line (latestRepoPrefix major == rule major):
+//
+//	versionOverride "auto" or "": derive patch/minor increment from upstream semver diff
+//	versionOverride "patch":      force patch increment, reset minor
+//	versionOverride "minor":      force minor increment, reset patch
+//
+// Any other major version relationship (jump > 1 branch line, or rule behind latest) is a fatal
+// misconfiguration and returns an error immediately.
 func (b *Bump) applyVersionRules(versionOverride string) error {
-
-	// get the repository major prefix version rule (i.e., 105; 104; 103...)
+	// repoPrefixVersionRule is the minimum allowed repo prefix for this branch line (e.g., "105.0.0").
 	repoPrefixVersionRule := b.versionRules.Rules[b.versionRules.BranchVersion].Min
 	repoPrefixSemverRule, err := semver.Make(repoPrefixVersionRule)
 	if err != nil {
 		return err
 	}
 
-	/** This will handle the cases:
-	* 	- last version: X.Y.Z | repoPrefixVersion: 105.0.0
-	*   - last version: 104.X.Y+upX.Y.Z | repoPrefixVersion: 105.0.0
-	* in each case, the repoPrefixVersion will be bumped to 105.0.0
-	 */
-	if b.versions.latestRepoPrefix.txt == "" || repoPrefixSemverRule.Major != b.versions.latestRepoPrefix.svr.Major {
+	// Branch transition: no prior prefix exists, or we moved up exactly one Rancher major.
+	// In both cases the repo prefix resets to the branch rule floor (e.g., 105.0.0).
+	if b.versions.latestRepoPrefix.txt == "" || (repoPrefixSemverRule.Major-b.versions.latestRepoPrefix.svr.Major == 1) {
 		b.versions.toReleaseRepoPrefix.txt = repoPrefixVersionRule
 		if err := b.versions.toReleaseRepoPrefix.updateSemver(); err != nil {
 			return err
 		}
-		// if we are changing branch lines the repoPrefix will always be: 10X.0.0; return now.
 		return nil
 	}
 
+	// Guard: jumping more than one branch line, or the rule is behind the latest prefix,
+	// indicates a misconfigured branch or a corrupted index — fail fast.
+	if (repoPrefixSemverRule.Major-b.versions.latestRepoPrefix.svr.Major > 1) ||
+		(repoPrefixSemverRule.Major < b.versions.latestRepoPrefix.svr.Major) {
+		return errors.New("difference between major versions is more than 1 or repoPrefix version is lower than latestRepoPrefix version")
+	}
+
+	// Same branch line: start from the latest prefix and apply the requested increment.
 	b.versions.toReleaseRepoPrefix.txt = b.versions.latestRepoPrefix.txt
 	if err := b.versions.toReleaseRepoPrefix.updateSemver(); err != nil {
 		return err
 	}
 
-	if versionOverride == "" || versionOverride == "auto" {
-		// now only calculate if it is a minor or patch bump according to the latest version.
+	switch versionOverride {
+	case "auto", "":
+		// Derive the increment automatically from the upstream semver difference.
+		// Patch-only bump → increment repo patch. Minor or major bump → increment repo minor, reset patch.
 		majorBump := b.versions.toRelease.svr.Major > b.versions.latest.svr.Major
 		minorBump := b.versions.toRelease.svr.Minor > b.versions.latest.svr.Minor
 		patchBump := b.versions.toRelease.svr.Patch > b.versions.latest.svr.Patch
 
 		if patchBump && !majorBump && !minorBump {
-			b.versions.toReleaseRepoPrefix.svr.Patch++ // patch bump
+			b.versions.toReleaseRepoPrefix.svr.Patch++
 		}
 		if minorBump || majorBump {
-			b.versions.toReleaseRepoPrefix.svr.Minor++ // minor bump
+			b.versions.toReleaseRepoPrefix.svr.Minor++
 			b.versions.toReleaseRepoPrefix.svr.Patch = 0
 		}
-
-	} else if versionOverride == "patch" {
+	case "patch":
 		b.versions.toReleaseRepoPrefix.txt = b.versions.latestRepoPrefix.txt
 		b.versions.toReleaseRepoPrefix.updateSemver()
 		b.versions.toReleaseRepoPrefix.svr.Patch++
 		b.versions.toReleaseRepoPrefix.svr.Minor = 0
 		b.versions.toReleaseRepoPrefix.updateTxt()
-	} else if versionOverride == "minor" {
+	case "minor":
 		b.versions.toReleaseRepoPrefix.txt = b.versions.latestRepoPrefix.txt
 		b.versions.toReleaseRepoPrefix.updateSemver()
 		b.versions.toReleaseRepoPrefix.svr.Minor++

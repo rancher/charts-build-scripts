@@ -82,8 +82,10 @@ type Bump struct {
 // target chart, CRD and additional chart.
 // e.g., [main: fleet; additional:{fleet;fleet-crd;fleet-agent}]
 type target struct {
-	main       string
-	additional []string
+	main        string
+	additional  []string
+	bumpVersion string
+	branchLine  string
 }
 
 // BumpOutput defines the structure that will be written to config/bump.json
@@ -136,11 +138,12 @@ func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string
 	}
 
 	// Check if the targetBranch has dev-v prefix and extract the branch line (i.e., 2.X)
-	branch, err := parseBranchVersion(targetBranch)
+	branchLine, err := parseBranchVersion(targetBranch)
 	if err != nil {
 		return nil, err
 	}
-	logger.Log(ctx, slog.LevelDebug, "", slog.String("branch-line", branch))
+	logger.Log(ctx, slog.LevelDebug, "", slog.String("branch-line", branchLine))
+	bump.target.branchLine = branchLine
 
 	// Load and check the chart name from the target given package
 	if err := bump.parseChartFromPackage(targetPackage); err != nil {
@@ -148,7 +151,7 @@ func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string
 	}
 
 	//Initialize the lifecycle dependencies because of the versioning rules and the index.yaml mapping.
-	dependencies, err := lifecycle.InitDependencies(ctx, filesystem.GetFilesystem(repoRoot), repoRoot, branch, bump.target.main, newChart)
+	dependencies, err := lifecycle.InitDependencies(ctx, filesystem.GetFilesystem(repoRoot), repoRoot, bump.target.branchLine, bump.target.main, newChart)
 	if err != nil {
 		err = fmt.Errorf("failure at SetupBump: %w ", err)
 		return bump, err

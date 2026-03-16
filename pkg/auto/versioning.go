@@ -59,7 +59,7 @@ func (b *Bump) calculateNextVersion(ctx context.Context, versionOverride string,
 	logger.Log(ctx, slog.LevelInfo, "calculate next version")
 	var targetVersion string
 
-	if !IsRancherChartVersion(versionOverride) {
+	if !isRancherChartVersion(versionOverride) {
 		if newChart {
 			if err := b.netNewVersion(); err != nil {
 				return err
@@ -110,7 +110,7 @@ func (b *Bump) calculateNextVersion(ctx context.Context, versionOverride string,
 	return nil
 }
 
-func IsRancherChartVersion(s string) bool {
+func isRancherChartVersion(s string) bool {
 	// Pattern explanation:
 	// ^\d+\.\d+\.\d+     - Rancher version (e.g., 107.0.2)
 	// \+up               - Literal "+up" separator

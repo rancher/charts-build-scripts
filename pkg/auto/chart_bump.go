@@ -95,42 +95,109 @@ type BumpOutput struct {
 }
 
 var (
-	errNotDevBranch                 = errors.New("a development branch must be provided; (e.g., dev-v2.*)")
-	errBadPackage                   = errors.New("unexpected format for PACKAGE env variable")
-	errChartNotListed               = errors.New("chart not listed")
-	errNoPackage                    = errors.New("no package provided")
-	errMultiplePackages             = errors.New("multiple packages provided; this is not supported")
-	errFalseAuto                    = errors.New("package.yaml must be configured for auto-chart-bump")
-	errPackageName                  = errors.New("package name not loaded")
-	errPackageChartVersion          = errors.New("package chart version loaded but it should be dinamycally created")
-	errPackageVersion               = errors.New("package version loaded but it should be dinamycally created")
-	errPackegeDoNotRelease          = errors.New("package is marked as doNotRelease")
-	errChartWorkDir                 = errors.New("chart working directory not loaded")
-	errChartURL                     = errors.New("chart upstream url field must be a git repository (.git suffix)")
-	errChartRepoCommit              = errors.New("chart upstream commit field should not be provided")
-	errChartRepoBranch              = errors.New("chart upstream branch field must be provided")
-	errChartSubDir                  = errors.New("chart upstream subdirectory field must be provided")
-	errAdditionalChartWorkDir       = errors.New("additional chart template directory not loaded")
-	errCRDWorkDir                   = errors.New("additional chart CRDs directory not loaded")
-	errAdditionalChartCRDValidation = errors.New("additionalCharts.crdOptions.addCRDValidationToMainChart must be true")
-	errChartLatestVersion           = errors.New("latest version not found for chart")
-	errChartUpstreamVersion         = errors.New("upstream version not found for chart")
-	errChartUpstreamVersionWrong    = errors.New("upstream version should not have the repo prefix version already")
-	errBumpVersion                  = errors.New("version to bump is not greater than the latest version")
+	errNotDevBranch              = errors.New("a development branch must be provided; (e.g., dev-v2.*)")
+	errBadPackage                = errors.New("unexpected format for PACKAGE env variable")
+	errChartNotListed            = errors.New("chart not listed")
+	errNoPackage                 = errors.New("no package provided")
+	errMultiplePackages          = errors.New("multiple packages provided; this is not supported")
+	errFalseAuto                 = errors.New("package.yaml must be configured for auto-chart-bump")
+	errPackageName               = errors.New("package name not loaded")
+	errPackageChartVersion       = errors.New("package chart version loaded but it should be dinamycally created")
+	errPackageVersion            = errors.New("package version loaded but it should be dinamycally created")
+	errPackegeDoNotRelease       = errors.New("package is marked as doNotRelease")
+	errChartWorkDir              = errors.New("chart working directory not loaded")
+	errChartURL                  = errors.New("chart upstream url field must be a git repository (.git suffix)")
+	errChartRepoCommit           = errors.New("chart upstream commit field should not be provided")
+	errChartRepoBranch           = errors.New("chart upstream branch field must be provided")
+	errChartSubDir               = errors.New("chart upstream subdirectory field must be provided")
+	errAdditionalChartWorkDir    = errors.New("additional chart template directory not loaded")
+	errCRDWorkDir                = errors.New("additional chart CRDs directory not loaded")
+	errChartLatestVersion        = errors.New("latest version not found for chart")
+	errChartUpstreamVersion      = errors.New("upstream version not found for chart")
+	errChartUpstreamVersionWrong = errors.New("upstream version should not have the repo prefix version already")
+	errBumpVersion               = errors.New("version to bump is not greater than the latest version")
 )
 
-/*******************************************************
-*
-* This file can be understood in 2 sections:
-* 	- SetupBump and it's functions/methods, which won't generate any file changes at charts/ local repo.
-		It only, loads information about the chart to be bumped
-* 	- BumpChart and it's functions/methods, which will execute the bump,
-		generate file changes, stage and commit them.
-*
-*/
+// BumpChart will execute a similar approach as the defined development workflow for chartowners.
+// The main difference is that between the steps: (make prepare and make patch) we will calculate the next version to release.
+func BumpChart(ctx context.Context,
+	multiRCs, newChart, isPrimeChart bool,
+	repoRoot, currentPackage, branch, versionOverride string,
+	chartsScriptOptions *options.ChartsScriptOptions) error {
+	logger.Log(ctx, slog.LevelInfo, "start auto-chart-bump")
 
-// SetupBump will load and parse all related information to the chart that should be bumped.
-func SetupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string, chScriptOpts *options.ChartsScriptOptions, newChart bool) (*Bump, error) {
+	logger.Log(ctx, slog.LevelInfo, "received parameters")
+	logger.Log(ctx, slog.LevelInfo, "", slog.String("package", currentPackage))
+	logger.Log(ctx, slog.LevelInfo, "", slog.String("branch", branch))
+	logger.Log(ctx, slog.LevelInfo, "", slog.String("overrideVersion", versionOverride))
+	logger.Log(ctx, slog.LevelInfo, "", slog.Bool("multi-RC", multiRCs))
+	logger.Log(ctx, slog.LevelInfo, "", slog.Bool("new-chart", newChart))
+	logger.Log(ctx, slog.LevelInfo, "", slog.Bool("is-prime", isPrimeChart))
+
+	if currentPackage == "" || branch == "" || versionOverride == "" {
+		return fmt.Errorf("must provide values for currentPackage[%s], branch[%s], and versionOverride[%s]",
+			currentPackage, branch, versionOverride)
+	}
+
+	if versionOverride != "patch" && versionOverride != "minor" && versionOverride != "auto" {
+		if !isRancherChartVersion(versionOverride) {
+			return errors.New("versionOverride must be set to either patch, minor, or auto")
+		}
+	}
+
+	b, err := setupBump(ctx, repoRoot, currentPackage, branch, chartsScriptOptions, newChart)
+	if err != nil {
+		return err
+	}
+
+	if err := b.prepare(ctx); err != nil {
+		return err
+	}
+
+	// Calculate the next version to release
+	if err := b.calculateNextVersion(ctx, versionOverride, newChart); err != nil {
+		return err
+	}
+
+	if !isPrimeChart {
+		if err := b.icon(ctx); err != nil {
+			return err
+		}
+	}
+
+	if err := b.patch(ctx); err != nil {
+		return err
+	}
+
+	if err := b.clean(ctx); err != nil {
+		return err
+	}
+
+	if err := b.charts(ctx); err != nil {
+		return err
+	}
+
+	// check if should remove previous RCs versions
+	if !multiRCs && !newChart {
+		logger.Log(ctx, slog.LevelWarn, "removing existing RC's")
+		if err := b.checkMultiRC(ctx); err != nil {
+			return err
+		}
+	}
+
+	if err := b.updateReleaseYaml(ctx, b.target.additional, multiRCs); err != nil {
+		logger.Log(ctx, slog.LevelError, "error while updating release.yaml", logger.Err(err))
+		return err
+	}
+
+	logger.Log(ctx, slog.LevelInfo, "bump version",
+		slog.String("bumpVersion", b.Pkg.AutoGeneratedBumpVersion.String()))
+
+	return b.writeBumpJSON(ctx, b.target.additional, b.Pkg.AutoGeneratedBumpVersion.String())
+}
+
+// setupBump will load and parse all related information to the chart that should be bumped.
+func setupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string, chScriptOpts *options.ChartsScriptOptions, newChart bool) (*Bump, error) {
 	logger.Log(ctx, slog.LevelInfo, "setup auto-chart-bump")
 
 	bump := &Bump{
@@ -325,57 +392,6 @@ func checkUpstreamOptions(options *options.UpstreamOptions) error {
 	}
 
 	return nil
-}
-
-// BumpChart will execute a similar approach as the defined development workflow for chartowners.
-// The main difference is that between the steps: (make prepare and make patch) we will calculate the next version to release.
-func (b *Bump) BumpChart(ctx context.Context, versionOverride string, multiRCs, newChart, IsPrimeChart bool) error {
-	logger.Log(ctx, slog.LevelInfo, "start auto-chart-bump")
-
-	if err := b.prepare(ctx); err != nil {
-		return err
-	}
-
-	// Calculate the next version to release
-	if err := b.calculateNextVersion(ctx, versionOverride, newChart); err != nil {
-		return err
-	}
-
-	if !IsPrimeChart {
-		if err := b.icon(ctx); err != nil {
-			return err
-		}
-	}
-
-	if err := b.patch(ctx); err != nil {
-		return err
-	}
-
-	if err := b.clean(ctx); err != nil {
-		return err
-	}
-
-	if err := b.charts(ctx); err != nil {
-		return err
-	}
-
-	// check if should remove previous RCs versions
-	if !multiRCs && !newChart {
-		logger.Log(ctx, slog.LevelWarn, "removing existing RC's")
-		if err := b.checkMultiRC(ctx); err != nil {
-			return err
-		}
-	}
-
-	if err := b.updateReleaseYaml(ctx, b.target.additional, multiRCs); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while updating release.yaml", logger.Err(err))
-		return err
-	}
-
-	logger.Log(ctx, slog.LevelInfo, "bump version",
-		slog.String("bumpVersion", b.Pkg.AutoGeneratedBumpVersion.String()))
-
-	return b.writeBumpJSON(ctx, b.target.additional, b.Pkg.AutoGeneratedBumpVersion.String())
 }
 
 // prepare = && git status && git add . && git commit -m "make prepare"

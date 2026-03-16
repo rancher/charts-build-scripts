@@ -998,7 +998,9 @@ func chartBump(c *cli.Context) {
 	chartsScriptOptions := parseScriptOptions(ctx)
 
 	if err := auto.BumpChart(ctx,
-		MultiRC, NewChart, IsPrimeChart,
+		MultiRC,      /* multiRC support (doesn't delete previous RC version) */
+		NewChart,     /* newChart (net new chart, no previous versions) */
+		IsPrimeChart, /* isPrimeChart (used by rancher prime charts only) */
 		RepoRoot, CurrentPackage, Branch, OverrideVersion, chartsScriptOptions); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to bump: %w", err).Error())
 	}

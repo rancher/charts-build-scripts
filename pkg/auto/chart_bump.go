@@ -186,8 +186,7 @@ func BumpChart(ctx context.Context,
 	}
 
 	if err := b.updateReleaseYaml(ctx, b.target.additional, multiRCs); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while updating release.yaml", logger.Err(err))
-		return err
+		return fmt.Errorf("update release.yaml: %w", err)
 	}
 
 	logger.Log(ctx, slog.LevelInfo, "bump version",
@@ -217,7 +216,7 @@ func setupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string
 		return bump, err
 	}
 
-	//Initialize the lifecycle dependencies because of the versioning rules and the index.yaml mapping.
+	// Initialize the lifecycle dependencies because of the versioning rules and the index.yaml mapping.
 	dependencies, err := lifecycle.InitDependencies(ctx, filesystem.GetFilesystem(repoRoot), repoRoot, bump.target.branchLine, bump.target.main, newChart)
 	if err != nil {
 		err = fmt.Errorf("failure at SetupBump: %w ", err)
@@ -252,17 +251,17 @@ func setupBump(ctx context.Context, repoRoot, targetPackage, targetBranch string
 	}
 
 	// Check and parse upstream chart options
-	upstreamSubDir := ""
+	var upstreamSubDir string
 	if bump.Pkg.Upstream.GetOptions().Subdirectory != nil {
 		upstreamSubDir = *bump.Pkg.Upstream.GetOptions().Subdirectory
 	}
 
-	upstreamCommit := ""
+	var upstreamCommit string
 	if bump.Pkg.Upstream.GetOptions().Commit != nil {
 		upstreamCommit = *bump.Pkg.Upstream.GetOptions().Commit
 	}
 
-	upstreamChartBranch := ""
+	var upstreamChartBranch string
 	if bump.Pkg.Upstream.GetOptions().ChartRepoBranch != nil {
 		upstreamChartBranch = *bump.Pkg.Upstream.GetOptions().ChartRepoBranch
 	}
@@ -338,7 +337,7 @@ func (b *Bump) parsePackageYaml(packages []*charts.Package) error {
 
 	// package root level fields check
 	switch {
-	case b.Pkg.Auto == false:
+	case !b.Pkg.Auto:
 		return errFalseAuto
 	case b.Pkg.Name == "":
 		return errPackageName
@@ -346,7 +345,7 @@ func (b *Bump) parsePackageYaml(packages []*charts.Package) error {
 		return errPackageChartVersion
 	case b.Pkg.PackageVersion != nil:
 		return errPackageVersion
-	case b.Pkg.DoNotRelease == true:
+	case b.Pkg.DoNotRelease:
 		return errPackegeDoNotRelease
 	case b.Pkg.Chart.WorkingDir == "":
 		return errChartWorkDir
@@ -397,13 +396,11 @@ func checkUpstreamOptions(options *options.UpstreamOptions) error {
 // prepare = && git status && git add . && git commit -m "make prepare"
 func (b *Bump) prepare(ctx context.Context) error {
 	if err := b.Pkg.Prepare(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while preparing package", logger.Err(err))
-		return err
+		return fmt.Errorf("failed preparing package in auto-bump: %w", err)
 	}
 
 	if err := b.repo.Status(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
-		return err
+		return fmt.Errorf("failed to check git status in auto-bump prepare: %w", err)
 	}
 
 	// check if the version to bump does not already exists
@@ -413,12 +410,11 @@ func (b *Bump) prepare(ctx context.Context) error {
 	}
 	if alreadyExist {
 		b.repo.FullReset() // quitting the job regardless if this works or not
-		return errors.New("version to bump already exists: " + *b.Pkg.UpstreamChartVersion)
+		return fmt.Errorf("version to bump already exists: %s", *b.Pkg.UpstreamChartVersion)
 	}
 
 	if err := b.repo.AddAndCommit("make prepare"); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while adding and committing after make prepare", logger.Err(err))
-		return err
+		return fmt.Errorf("failed to add and commit after make prepare: %w", err)
 	}
 
 	return nil
@@ -426,8 +422,9 @@ func (b *Bump) prepare(ctx context.Context) error {
 
 // checkBumpAppVersion checks if the bumpAppVersion already exists in the repository
 func checkBumpAppVersion(ctx context.Context, bumpAppVersion *string, versions []lifecycle.Asset) (bool, error) {
+	// this will be used in a future refactor, TODO: use this
+	_ = ctx
 	if bumpAppVersion == nil {
-		logger.Log(ctx, slog.LevelError, "upstreamVersion is nil for chart, abnormal behavior")
 		return false, errors.New("upstreamVersion is nil for chart, abnormal behavior")
 	}
 
@@ -449,21 +446,18 @@ func (b *Bump) icon(ctx context.Context) error {
 	// Download logo at assets/logos
 	if !validate.IsIconException(b.target.main) {
 		if err := b.Pkg.DownloadIcon(ctx); err != nil {
-			logger.Log(ctx, slog.LevelError, "error while downloading icon", logger.Err(err))
-			return err
+			return fmt.Errorf("failed to download icon in auto-bump: %w", err)
 		}
 	}
 
 	if err := b.repo.Status(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
-		return err
+		return fmt.Errorf("failed to check git status in auto-bump icon download: %w", err)
 	}
 
 	if clean, _ := b.repo.StatusProcelain(ctx); !clean {
 		logger.Log(ctx, slog.LevelDebug, "git is not clean - icon downloaded")
 		if err := b.repo.AddAndCommit("make icon"); err != nil {
-			logger.Log(ctx, slog.LevelError, "error while git add && commit icon", logger.Err(err))
-			return err
+			return fmt.Errorf("add and commit icon: %w", err)
 		}
 	}
 
@@ -479,14 +473,12 @@ func (b *Bump) patch(ctx context.Context) error {
 	}
 
 	if err := b.repo.Status(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while checking git status after patch", logger.Err(err))
-		return err
+		return fmt.Errorf("git status after patch: %w", err)
 	}
 
 	if clean, _ := b.repo.StatusProcelain(ctx); !clean {
 		if err := b.repo.AddAndCommit("make patch"); err != nil {
-			logger.Log(ctx, slog.LevelError, "error while git add && commit after patch", logger.Err(err))
-			return err
+			return fmt.Errorf("add and commit after patch: %w", err)
 		}
 	}
 
@@ -496,13 +488,11 @@ func (b *Bump) patch(ctx context.Context) error {
 // clean = make clean && git status
 func (b *Bump) clean(ctx context.Context) error {
 	if err := b.Pkg.Clean(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while cleaning package", logger.Err(err))
-		return err
+		return fmt.Errorf("clean package: %w", err)
 	}
 
 	if err := b.repo.Status(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while checking git status after make clean", logger.Err(err))
-		return err
+		return fmt.Errorf("git status after clean: %w", err)
 	}
 
 	return nil
@@ -512,13 +502,11 @@ func (b *Bump) clean(ctx context.Context) error {
 func (b *Bump) charts(ctx context.Context) error {
 	//  generate new assets and charts overwriting logo
 	if err := b.Pkg.GenerateCharts(ctx, b.configOptions.OmitBuildMetadataOnExport); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while generating charts", logger.Err(err))
-		return err
+		return fmt.Errorf("generate charts: %w", err)
 	}
 
 	if err := b.repo.Status(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
-		return err
+		return fmt.Errorf("git status after generate charts: %w", err)
 	}
 
 	if clean, _ := b.repo.StatusProcelain(ctx); clean {
@@ -527,8 +515,7 @@ func (b *Bump) charts(ctx context.Context) error {
 	}
 
 	if err := b.repo.AddAndCommit("make chart"); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while adding and committing after make chart", logger.Err(err))
-		return err
+		return fmt.Errorf("add and commit after make chart: %w", err)
 	}
 
 	return nil
@@ -575,8 +562,7 @@ func (b *Bump) updateReleaseYaml(ctx context.Context, targetCharts []string, mul
 	}
 
 	if err := b.repo.Status(ctx); err != nil {
-		logger.Log(ctx, slog.LevelError, "error while checking git status", logger.Err(err))
-		return err
+		return fmt.Errorf("git status after update release.yaml: %w", err)
 	}
 
 	if clean, _ := b.repo.StatusProcelain(ctx); clean {

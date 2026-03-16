@@ -3,6 +3,7 @@ package auto
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"regexp"
 	"strconv"
@@ -78,8 +79,7 @@ func (b *Bump) calculateNextVersion(ctx context.Context, versionOverride string,
 			logger.Log(ctx, slog.LevelInfo, "checking current RC's")
 			currentRCs, err := getCurrentRCsFromIndex(b.assetsVersionsMap[b.target.main], b.versions.toReleaseRepoPrefix.txt)
 			if err != nil {
-				logger.Log(ctx, slog.LevelError, "failed checking RC's", logger.Err(err), slog.String("version", b.target.main))
-				return err
+				return fmt.Errorf("failed checking RC's for version: %s - %w", b.target.main, err)
 			}
 			if len(currentRCs) > 0 {
 				b.versions.currentRCs = currentRCs
@@ -153,7 +153,6 @@ func (b *Bump) loadVersions() error {
 		latestRepoPrefix:    &version{},
 		toRelease:           &version{},
 		toReleaseRepoPrefix: &version{},
-		currentRCs:          make([]rc, 0),
 	}
 
 	// Latest version might contain a repoPrefixVersion
@@ -232,7 +231,7 @@ func getCurrentRCsFromIndex(versions []lifecycle.Asset, toReleasePrefix string) 
 		return nil, nil
 	}
 
-	currentRCs := make([]rc, 0)
+	var currentRCs []rc
 	for _, v := range versions {
 		if !strings.Contains(v.Version, toReleasePrefix) {
 			break
@@ -249,9 +248,14 @@ func getCurrentRCsFromIndex(versions []lifecycle.Asset, toReleasePrefix string) 
 		}
 
 		currentRC.repoPrefix.txt = prefix
-		currentRC.repoPrefix.updateSemver()
+		if err := currentRC.repoPrefix.updateSemver(); err != nil {
+			return nil, err
+		}
+
 		currentRC.appVersion.txt = app
-		currentRC.appVersion.updateSemver()
+		if err := currentRC.appVersion.updateSemver(); err != nil {
+			return nil, err
+		}
 
 		currentRCs = append(currentRCs, currentRC)
 	}
@@ -340,13 +344,17 @@ func (b *Bump) applyVersionRules(versionOverride string) error {
 		}
 	case "patch":
 		b.versions.toReleaseRepoPrefix.txt = b.versions.latestRepoPrefix.txt
-		b.versions.toReleaseRepoPrefix.updateSemver()
+		if err := b.versions.toReleaseRepoPrefix.updateSemver(); err != nil {
+			return err
+		}
 		b.versions.toReleaseRepoPrefix.svr.Patch++
 		b.versions.toReleaseRepoPrefix.svr.Minor = 0
 		b.versions.toReleaseRepoPrefix.updateTxt()
 	case "minor":
 		b.versions.toReleaseRepoPrefix.txt = b.versions.latestRepoPrefix.txt
-		b.versions.toReleaseRepoPrefix.updateSemver()
+		if err := b.versions.toReleaseRepoPrefix.updateSemver(); err != nil {
+			return err
+		}
 		b.versions.toReleaseRepoPrefix.svr.Minor++
 		b.versions.toReleaseRepoPrefix.svr.Patch = 0
 		b.versions.toReleaseRepoPrefix.updateTxt()

@@ -7,13 +7,45 @@
 			"goimports",
 			"misspell",
 			"ineffassign",
-			"gofmt"
+			"gofmt",
+			"gocritic",
+			"staticcheck",
+			"errorlint"
+		]
+	},
+	"linters-settings": {
+		"gocritic": {
+			"enabled-checks": [
+				"unnecessaryBlock",
+				"unnecessaryDefer",
+				"paramTypeCombine",
+				"nestingReduce",
+				"emptyStringTest",
+				"boolExprSimplify",
+				"initClause"
+			]
+		},
+		"revive": {
+			"rules": [
+				{ "name": "error-naming" },
+				{ "name": "error-return" },
+				{ "name": "error-strings" },
+				{ "name": "exported" },
+				{ "name": "var-naming" },
+				{ "name": "unnecessary-stmt" },
+				{ "name": "early-return" },
+				{ "name": "unhandled-error" },
+				{ "name": "unused-parameter" },
+				{ "name": "superfluous-else" }
+			]
+		}
+	},
+	"issues": {
+		"exclude-files": [
+			"/zz_generated_"
 		]
 	},
 	"run": {
-		"skip-files": [
-			"/zz_generated_"
-		],
-		"deadline": "5m"
+		"timeout": "5m"
 	}
 }

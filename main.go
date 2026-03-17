@@ -994,34 +994,14 @@ func compareIndexFiles(c *cli.Context) {
 func chartBump(c *cli.Context) {
 	ctx := context.Background()
 
-	logger.Log(ctx, slog.LevelInfo, "received parameters")
-	logger.Log(ctx, slog.LevelInfo, "", slog.String("package", CurrentPackage))
-	logger.Log(ctx, slog.LevelInfo, "", slog.String("branch", Branch))
-	logger.Log(ctx, slog.LevelInfo, "", slog.String("overrideVersion", OverrideVersion))
-	logger.Log(ctx, slog.LevelInfo, "", slog.Bool("multi-RC", MultiRC))
-	logger.Log(ctx, slog.LevelInfo, "", slog.Bool("new-chart", NewChart))
-	logger.Log(ctx, slog.LevelInfo, "", slog.Bool("is-prime", IsPrimeChart))
-
-	if CurrentPackage == "" || Branch == "" || OverrideVersion == "" {
-		logger.Fatal(ctx, fmt.Sprintf("must provide values for CurrentPackage[%s], Branch[%s], and OverrideVersion[%s]",
-			CurrentPackage, Branch, OverrideVersion))
-	}
-
-	if OverrideVersion != "patch" && OverrideVersion != "minor" && OverrideVersion != "auto" {
-		if !auto.IsRancherChartVersion(OverrideVersion) {
-			logger.Fatal(ctx, "OverrideVersion must be set to either patch, minor, or auto")
-		}
-	}
-
 	ChartsScriptOptionsFile = path.ConfigurationYamlFile
 	chartsScriptOptions := parseScriptOptions(ctx)
 
-	bump, err := auto.SetupBump(ctx, RepoRoot, CurrentPackage, Branch, chartsScriptOptions, NewChart)
-	if err != nil {
-		logger.Fatal(ctx, fmt.Errorf("failed to setup: %w", err).Error())
-	}
-
-	if err := bump.BumpChart(ctx, OverrideVersion, MultiRC, NewChart, IsPrimeChart); err != nil {
+	if err := auto.BumpChart(ctx,
+		MultiRC,      /* multiRC support (doesn't delete previous RC version) */
+		NewChart,     /* newChart (net new chart, no previous versions) */
+		IsPrimeChart, /* isPrimeChart (used by rancher prime charts only) */
+		RepoRoot, CurrentPackage, Branch, OverrideVersion, chartsScriptOptions); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("failed to bump: %w", err).Error())
 	}
 }

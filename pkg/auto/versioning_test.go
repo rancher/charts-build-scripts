@@ -88,7 +88,7 @@ func Test_calculateNextVersion(t *testing.T) {
 	}
 
 	buildInputBump := func(latestVersion string, toReleaseVersion string, versions []string) *Bump {
-		var toReleaseVersionPtr *string = &toReleaseVersion
+		toReleaseVersionPtr := &toReleaseVersion
 
 		input := &Bump{
 			target:      target{main: "rancher-chart"},
@@ -101,7 +101,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			assetsVersionsMap: map[string][]lifecycle.Asset{"rancher-chart": {{Version: latestVersion}}},
 		}
 
-		input.assetsVersionsMap["rancher-chart"] = []lifecycle.Asset{}
+		input.assetsVersionsMap["rancher-chart"] = nil
 		input.assetsVersionsMap["rancher-chart"] = append(input.assetsVersionsMap["rancher-chart"], lifecycle.Asset{Version: latestVersion})
 
 		if len(versions) > 0 {
@@ -115,10 +115,10 @@ func Test_calculateNextVersion(t *testing.T) {
 	}
 
 	buildExpectedBump := func(latest, latestRepoPrefix, toRelease, toReleaseRepoPrefix string) *Bump {
+		toReleaseVersionPtr := &toRelease
 		var (
-			toReleaseVersionPtr *string = &toRelease
-			targetVersion       string
-			targetSemver        semver.Version
+			targetVersion string
+			targetSemver  semver.Version
 		)
 
 		if toReleaseRepoPrefix != "" {
@@ -146,7 +146,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			name: "#1 - must succeed",
 			input: &input{
 				// latest / toRelease
-				b:               buildInputBump("1.0.0", "2.0.0", []string{}),
+				b:               buildInputBump("1.0.0", "2.0.0", nil),
 				versionOverride: "auto",
 			},
 			expected: &expected{
@@ -159,7 +159,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			name: "#2 - must succeed",
 			input: &input{
 				// latest / toRelease
-				b:               buildInputBump("104.9.9+up1.0.0", "2.0.0", []string{}),
+				b:               buildInputBump("104.9.9+up1.0.0", "2.0.0", nil),
 				versionOverride: "auto",
 			},
 			expected: &expected{
@@ -172,7 +172,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			name: "#3 - must succeed",
 			input: &input{
 				// latest / toRelease
-				b:               buildInputBump("105.0.0+up1.0.0", "2.0.0", []string{}),
+				b:               buildInputBump("105.0.0+up1.0.0", "2.0.0", nil),
 				versionOverride: "auto",
 			},
 			expected: &expected{
@@ -185,7 +185,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			name: "#4 - must succeed",
 			input: &input{
 				// latest / toRelease
-				b:               buildInputBump("105.0.0+up1.0.0", "1.1.0", []string{}),
+				b:               buildInputBump("105.0.0+up1.0.0", "1.1.0", nil),
 				versionOverride: "auto",
 			},
 			expected: &expected{
@@ -198,7 +198,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			name: "#5 - must succeed",
 			input: &input{
 				// latest / toRelease
-				b:               buildInputBump("105.0.0+up1.0.0", "1.0.1", []string{}),
+				b:               buildInputBump("105.0.0+up1.0.0", "1.0.1", nil),
 				versionOverride: "auto",
 			},
 			expected: &expected{
@@ -211,7 +211,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			name: "#6 - must succeed",
 			input: &input{
 				// latest / toRelease
-				b:               buildInputBump("105.1.2+up1.1.1", "1.1.4", []string{}),
+				b:               buildInputBump("105.1.2+up1.1.1", "1.1.4", nil),
 				versionOverride: "auto",
 			},
 			expected: &expected{
@@ -224,7 +224,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			name: "#7 - must succeed",
 			input: &input{
 				// latest / toRelease
-				b:               buildInputBump("105.1.2+up1.1.1", "1.2.4", []string{}),
+				b:               buildInputBump("105.1.2+up1.1.1", "1.2.4", nil),
 				versionOverride: "auto",
 			},
 			expected: &expected{
@@ -237,7 +237,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			name: "#8 - must succeed",
 			input: &input{
 				// latest / toRelease
-				b:               buildInputBump("105.1.2+up1.1.1", "2.2.4", []string{}),
+				b:               buildInputBump("105.1.2+up1.1.1", "2.2.4", nil),
 				versionOverride: "auto",
 			},
 			expected: &expected{
@@ -250,7 +250,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			name: "#9 - must succeed",
 			input: &input{
 				// latest / toRelease
-				b:               buildInputBump("105.1.2+up1.1.1", "2.1.1", []string{}),
+				b:               buildInputBump("105.1.2+up1.1.1", "2.1.1", nil),
 				versionOverride: "",
 			},
 			expected: &expected{
@@ -263,7 +263,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			name: "#10 - must succeed",
 			input: &input{
 				// latest / toRelease
-				b:               buildInputBump("105.1.2+up1.1.1", "1.2.0", []string{}),
+				b:               buildInputBump("105.1.2+up1.1.1", "1.2.0", nil),
 				versionOverride: "",
 			},
 			expected: &expected{
@@ -305,7 +305,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			name: "#13 - must fail",
 			input: &input{
 				// latest / toRelease
-				b:               buildInputBump("", "2.0.0", []string{}),
+				b:               buildInputBump("", "2.0.0", nil),
 				versionOverride: "",
 			},
 			expected: &expected{
@@ -316,7 +316,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			name: "#14 - must fail",
 			input: &input{
 				// latest / toRelease
-				b:               buildInputBump("105.0.0+up1.0.0", "", []string{}),
+				b:               buildInputBump("105.0.0+up1.0.0", "", nil),
 				versionOverride: "",
 			},
 			expected: &expected{
@@ -327,7 +327,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			name: "#15 - must fail",
 			input: &input{
 				// latest / toRelease
-				b:               buildInputBump("105.0.0+up1.0.0", "105.1.1+up2.0.0", []string{}),
+				b:               buildInputBump("105.0.0+up1.0.0", "105.1.1+up2.0.0", nil),
 				versionOverride: "",
 			},
 			expected: &expected{
@@ -338,7 +338,7 @@ func Test_calculateNextVersion(t *testing.T) {
 			name: "#16 - must fail",
 			input: &input{
 				// latest / toRelease
-				b:               buildInputBump("105.0.0+up2.0.0", "1.0.0", []string{}),
+				b:               buildInputBump("105.0.0+up2.0.0", "1.0.0", nil),
 				versionOverride: "",
 			},
 			expected: &expected{
@@ -420,6 +420,207 @@ func Test_calculateNextVersion(t *testing.T) {
 				assert.Equal(t, tc.expected.b.versions.toReleaseRepoPrefix.txt, tc.input.b.versions.toReleaseRepoPrefix.txt)
 				assert.Equal(t, tc.expected.b.versions.toReleaseRepoPrefix.svr, tc.input.b.versions.toReleaseRepoPrefix.svr)
 			}
+		})
+	}
+}
+
+func Test_getLatestVersionRecursively(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []lifecycle.Asset
+		expected string
+	}{
+		{
+			name:     "#1 - empty slice returns empty string",
+			input:    nil,
+			expected: "",
+		},
+		{
+			name:     "#2 - single normal version returns it",
+			input:    []lifecycle.Asset{{Version: "105.0.0+up1.0.0"}},
+			expected: "105.0.0+up1.0.0",
+		},
+		{
+			name:     "#3 - rc as first entry is skipped",
+			input:    []lifecycle.Asset{{Version: "105.0.1+up1.0.1-rc.1"}, {Version: "105.0.0+up1.0.0"}},
+			expected: "105.0.0+up1.0.0",
+		},
+		{
+			name:     "#4 - alpha as first entry is skipped",
+			input:    []lifecycle.Asset{{Version: "105.0.1+up1.0.1-alpha.1"}, {Version: "105.0.0+up1.0.0"}},
+			expected: "105.0.0+up1.0.0",
+		},
+		{
+			name:     "#5 - beta as first entry is skipped",
+			input:    []lifecycle.Asset{{Version: "105.0.1+up1.0.1-beta.1"}, {Version: "105.0.0+up1.0.0"}},
+			expected: "105.0.0+up1.0.0",
+		},
+		{
+			name: "#6 - all pre-release entries returns empty string",
+			input: []lifecycle.Asset{
+				{Version: "105.0.2+up1.0.2-rc.2"},
+				{Version: "105.0.1+up1.0.1-alpha.1"},
+				{Version: "105.0.0+up1.0.0-beta.1"},
+			},
+			expected: "",
+		},
+		{
+			name: "#7 - multiple pre-release entries before a normal one",
+			input: []lifecycle.Asset{
+				{Version: "105.0.3+up1.0.3-rc.1"},
+				{Version: "105.0.2+up1.0.2-alpha.1"},
+				{Version: "105.0.1+up1.0.1-beta.1"},
+				{Version: "105.0.0+up1.0.0"},
+			},
+			expected: "105.0.0+up1.0.0",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := getLatestVersionRecursively(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func Test_applyVersionRules(t *testing.T) {
+	makeSemver := func(v string) *semver.Version {
+		sv := semver.MustParse(v)
+		return &sv
+	}
+
+	makeVersionRules := func(branchVersion, minVersion string) *lifecycle.VersionRules {
+		return &lifecycle.VersionRules{
+			Rules:         map[string]lifecycle.Version{branchVersion: {Min: minVersion}},
+			BranchVersion: branchVersion,
+		}
+	}
+
+	// buildBump constructs a Bump with the versions and rules needed for applyVersionRules.
+	// latestRepoPrefix may be "" to simulate a chart with no prior repo-prefix.
+	buildBump := func(latestTxt, latestRepoPrefixTxt, toReleaseTxt string, rules *lifecycle.VersionRules) *Bump {
+		b := &Bump{
+			versionRules: rules,
+			versions: &versions{
+				latest:              &version{txt: latestTxt},
+				latestRepoPrefix:    &version{txt: latestRepoPrefixTxt},
+				toRelease:           &version{txt: toReleaseTxt},
+				toReleaseRepoPrefix: &version{},
+			},
+		}
+		b.versions.latest.svr = makeSemver(latestTxt)
+		if latestRepoPrefixTxt != "" {
+			b.versions.latestRepoPrefix.svr = makeSemver(latestRepoPrefixTxt)
+		}
+		b.versions.toRelease.svr = makeSemver(toReleaseTxt)
+		return b
+	}
+
+	tests := []struct {
+		name                string
+		latestTxt           string
+		latestRepoPrefixTxt string
+		toReleaseTxt        string
+		versionRules        *lifecycle.VersionRules
+		versionOverride     string
+		expectedRepoPrefix  string
+		expectErr           bool
+	}{
+		{
+			name:                "#1 - branch transition: no prior repo prefix resets to rule floor",
+			latestTxt:           "1.0.0",
+			latestRepoPrefixTxt: "",
+			toReleaseTxt:        "2.0.0",
+			versionRules:        makeVersionRules("2.10", "105.0.0"),
+			versionOverride:     "auto",
+			expectedRepoPrefix:  "105.0.0",
+		},
+		{
+			name:                "#2 - branch transition: diff == 1 resets to rule floor",
+			latestTxt:           "1.0.0",
+			latestRepoPrefixTxt: "104.9.9",
+			toReleaseTxt:        "2.0.0",
+			versionRules:        makeVersionRules("2.10", "105.0.0"),
+			versionOverride:     "auto",
+			expectedRepoPrefix:  "105.0.0",
+		},
+		{
+			name:                "#3 - same branch, auto, patch bump increments repo patch",
+			latestTxt:           "1.0.0",
+			latestRepoPrefixTxt: "105.0.0",
+			toReleaseTxt:        "1.0.1",
+			versionRules:        makeVersionRules("2.10", "105.0.0"),
+			versionOverride:     "auto",
+			expectedRepoPrefix:  "105.0.1",
+		},
+		{
+			name:                "#4 - same branch, auto, minor bump increments repo minor and resets patch",
+			latestTxt:           "1.0.0",
+			latestRepoPrefixTxt: "105.0.2",
+			toReleaseTxt:        "1.1.0",
+			versionRules:        makeVersionRules("2.10", "105.0.0"),
+			versionOverride:     "auto",
+			expectedRepoPrefix:  "105.1.0",
+		},
+		{
+			name:                "#5 - same branch, auto, major bump increments repo minor and resets patch",
+			latestTxt:           "1.0.0",
+			latestRepoPrefixTxt: "105.1.2",
+			toReleaseTxt:        "2.0.0",
+			versionRules:        makeVersionRules("2.10", "105.0.0"),
+			versionOverride:     "auto",
+			expectedRepoPrefix:  "105.2.0",
+		},
+		{
+			// patch override: Patch++, Minor reset to 0 → 105.1.2 becomes 105.0.3
+			name:                "#6 - same branch, patch override",
+			latestTxt:           "1.0.0",
+			latestRepoPrefixTxt: "105.1.2",
+			toReleaseTxt:        "2.0.0",
+			versionRules:        makeVersionRules("2.10", "105.0.0"),
+			versionOverride:     "patch",
+			expectedRepoPrefix:  "105.0.3",
+		},
+		{
+			name:                "#7 - same branch, minor override",
+			latestTxt:           "1.0.0",
+			latestRepoPrefixTxt: "105.1.2",
+			toReleaseTxt:        "2.0.0",
+			versionRules:        makeVersionRules("2.10", "105.0.0"),
+			versionOverride:     "minor",
+			expectedRepoPrefix:  "105.2.0",
+		},
+		{
+			name:                "#8 - error: jump > 1 branch line (103 → 105)",
+			latestTxt:           "1.0.0",
+			latestRepoPrefixTxt: "103.0.0",
+			toReleaseTxt:        "2.0.0",
+			versionRules:        makeVersionRules("2.10", "105.0.0"),
+			versionOverride:     "auto",
+			expectErr:           true,
+		},
+		{
+			name:                "#9 - error: rule behind latest (rule=104, latest=105)",
+			latestTxt:           "1.0.0",
+			latestRepoPrefixTxt: "105.0.0",
+			toReleaseTxt:        "2.0.0",
+			versionRules:        makeVersionRules("2.9", "104.0.0"),
+			versionOverride:     "auto",
+			expectErr:           true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			b := buildBump(tc.latestTxt, tc.latestRepoPrefixTxt, tc.toReleaseTxt, tc.versionRules)
+			err := b.applyVersionRules(tc.versionOverride)
+			if tc.expectErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedRepoPrefix, b.versions.toReleaseRepoPrefix.txt)
 		})
 	}
 }

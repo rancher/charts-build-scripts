@@ -115,6 +115,8 @@ var (
 	OciUser string
 	// OciPassword represents the password of the OCI Registry
 	OciPassword string
+	// OciOverwrite indicates whether to overwrite existing chart versions in the OCI registry
+	OciOverwrite bool
 	// Skip indicates whether to skip execution
 	Skip = false
 	// SoftErrorMode indicates if certain non-fatal errors will be turned into warnings
@@ -294,6 +296,12 @@ func main() {
 		Required:    true,
 		Destination: &OciPassword,
 		EnvVar:      defaultOciPassword,
+	}
+	ociOverwrite := cli.BoolFlag{
+		Name:        "overwrite",
+		Required:    false,
+		Usage:       "Overwrite existing chart versions in the OCI registry",
+		Destination: &OciOverwrite,
 	}
 	branchFlag := cli.StringFlag{
 		Name: "branch,b",
@@ -563,7 +571,7 @@ func main() {
 			`,
 			Action: updateOCIRegistry,
 			Flags: []cli.Flag{
-				debugFlag, ociDNS, ociUser, ociPass, customOciPath,
+				debugFlag, ociDNS, ociUser, ociPass, customOciPath, ociOverwrite,
 			},
 		},
 		{
@@ -1011,7 +1019,7 @@ func updateOCIRegistry(c *cli.Context) {
 
 	getRepoRoot()
 	rootFs := filesystem.GetFilesystem(RepoRoot)
-	if err := registries.PushChartToOCI(ctx, rootFs, OciDNS, CustomOCIPAth, OciUser, OciPassword, DebugMode); err != nil {
+	if err := registries.PushChartToOCI(ctx, rootFs, OciDNS, CustomOCIPAth, OciUser, OciPassword, DebugMode, OciOverwrite); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }

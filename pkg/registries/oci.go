@@ -35,6 +35,7 @@ type oci struct {
 	user       string
 	password   string
 	debug      bool
+	overwrite  bool // when true, existing versions in the registry are overwritten
 	helmClient *registry.Client
 	loadAsset  loadAssetFunc
 	checkAsset checkAssetFunc
@@ -45,10 +46,13 @@ type oci struct {
 // It validates credentials, sets up an authenticated Helm registry client, then runs a
 // two-phase check-and-push: pre-flight validation first, then push of only the new assets.
 // Existing versions in the registry are skipped rather than overwritten.
-func PushChartToOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, customPath, ociUser, ociPass string, debug bool) error {
+func PushChartToOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, customPath, ociUser, ociPass string, debug, overwrite bool) error {
 	logger.Log(ctx, slog.LevelInfo, "Pushing Chart to OCI Registry")
 	if customPath != "" {
 		logger.Log(ctx, slog.LevelDebug, "custom override path", slog.String("path", customPath))
+	}
+	if overwrite {
+		logger.Log(ctx, slog.LevelWarn, "overwrite enabled - existing chart versions in the registry will be overwritten")
 	}
 
 	emptyUser := ociUser == ""
@@ -66,7 +70,7 @@ func PushChartToOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, custom
 		return err
 	}
 
-	oci, err := setupOCI(ctx, ociDNS, customPath, ociUser, ociPass, debug)
+	oci, err := setupOCI(ctx, ociDNS, customPath, ociUser, ociPass, debug, overwrite)
 	if err != nil {
 		return err
 	}
@@ -82,7 +86,7 @@ func PushChartToOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, custom
 
 // setupOCI constructs an oci instance with an authenticated Helm registry client
 // and wires the real loadAsset, checkAsset, and push implementations.
-func setupOCI(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, debug bool) (*oci, error) {
+func setupOCI(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, debug, overwrite bool) (*oci, error) {
 	logger.Log(ctx, slog.LevelInfo, "setup oci")
 	// Strip http:// or https:// scheme if present
 	ociDNS = strings.TrimPrefix(ociDNS, "https://")
@@ -94,6 +98,7 @@ func setupOCI(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, 
 		user:       ociUser,
 		password:   ociPass,
 		debug:      debug,
+		overwrite:  overwrite,
 	}
 
 	helmClient, err := setupHelm(ctx, o)
@@ -118,9 +123,7 @@ func setupHelm(ctx context.Context, o *oci) (*registry.Client, error) {
 	logger.Log(ctx, slog.LevelInfo, "setup helm")
 	settings := cli.New()
 	actionConfig := new(action.Configuration)
-	if err := actionConfig.Init(settings.RESTClientGetter(), settings.Namespace(), os.Getenv("HELM_DRIVER"), func(format string, v ...interface{}) {
-		fmt.Sprintf(format, v...)
-	}); err != nil {
+	if err := actionConfig.Init(settings.RESTClientGetter(), settings.Namespace(), os.Getenv("HELM_DRIVER"), func(string, ...any) {}); err != nil {
 		return nil, err
 	}
 
@@ -213,17 +216,18 @@ func (o *oci) checkAndPush(ctx context.Context, release *options.ReleaseOptions)
 				return pushedAssets, fmt.Errorf("load asset %s: %w", asset, err)
 			}
 
-			// Check if the asset version already exists in the OCI registry
-			// Never overwrite a previously released chart!
-			exists, err := o.checkAsset(ctx, o.helmClient, o.dns, o.customPath, chart, version)
-			if err != nil {
-				return pushedAssets, err
-			}
-			if exists {
-				// Skip existing charts instead of failing
-				logger.Log(ctx, slog.LevelWarn, "chart already exists in registry, will skip",
-					slog.String("asset", asset))
-				continue
+			// Check if the asset version already exists in the OCI registry.
+			// Skipped when overwrite=true — existing versions will be overwritten.
+			if !o.overwrite {
+				exists, err := o.checkAsset(ctx, o.helmClient, o.dns, o.customPath, chart, version)
+				if err != nil {
+					return pushedAssets, err
+				}
+				if exists {
+					logger.Log(ctx, slog.LevelWarn, "chart already exists in registry, will skip",
+						slog.String("asset", asset))
+					continue
+				}
 			}
 
 			logger.Log(ctx, slog.LevelDebug, "asset valid and doesn't exist in the registry already", slog.String("asset", asset))
@@ -316,8 +320,7 @@ func checkAsset(ctx context.Context, helmClient *registry.Client, ociDNS, custom
 			logger.Log(ctx, slog.LevelDebug, "asset does not exist at registry", slog.String("chart", chart))
 			return false, nil
 		}
-		logger.Log(ctx, slog.LevelError, "failed to check registry for asset", slog.String("asset", chart))
-		return false, err
+		return false, fmt.Errorf("check asset %s: %w", chart, err)
 	}
 
 	for _, existingVersion := range existingVersions {

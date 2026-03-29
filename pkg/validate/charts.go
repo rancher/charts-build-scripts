@@ -13,7 +13,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v3"
 )
 
 // ChartsRepository TODO

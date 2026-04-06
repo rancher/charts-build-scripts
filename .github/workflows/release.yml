@@ -18,6 +18,7 @@ jobs:
       - name: Setup goreleaser
         shell: bash
         run: |-
+          set -ex
           VERSION=v2.15.2
           GORELEASER_CHECKSUM_x86_64="5a0504a3be175fad742a5d00f77afb6281e4aa1edd3575005d6128a0f3445b92"
           OS="linux"

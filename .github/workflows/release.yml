@@ -44,9 +44,9 @@ jobs:
           tar -xf "${FILE}" goreleaser
 
           if sudo -l &> /dev/null; then
-            sudo install -m 755 slsactl /usr/local/bin/goreleaser
+            sudo install -m 755 goreleaser /usr/local/bin/goreleaser
           else
-            install -m 755 slsactl /usr/local/bin/goreleaser
+            install -m 755 goreleaser /usr/local/bin/goreleaser
           fi
           rm -f "${FILE}" goreleaser
       - name: Run goreleaser

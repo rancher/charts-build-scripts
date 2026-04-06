@@ -29,10 +29,10 @@ jobs:
           fi
 
           ARCH=$(uname -m)
-          if [[ $(uname -m) == "aarch64" ]]; then
+          if [[ "${ARCH}" == "aarch64" ]]; then
               ARCH=arm64
               CHECKSUM="${GORELEASER_CHECKSUM_arm64}"
-          elif [[ $(name -m) == "x86_64" ]]; then
+          elif [[ "${ARCH}" == "x86_64" ]]; then
               CHECKSUM="${GORELEASER_CHECKSUM_x86_64}"
           fi
 

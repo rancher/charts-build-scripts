@@ -1,13 +1,10 @@
 name: Make a Release
-
-on: 
+on:
   push:
     tags:
       - 'v*'
-
 permissions:
   contents: write
-
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
@@ -15,14 +12,45 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
-
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.22'
+      - name: Setup goreleaser
+        shell: bash
+        run: |-
+          set -ex
+          VERSION=v2.15.2
+          GORELEASER_CHECKSUM_x86_64="0ebdbf0353aba566b969dde746cc4e4806f96c27aa2f3971b229a9df7611fedc"
+          GORELEASER_CHECKSUM_arm64="5db66761a98f6693161e49e1a95d28d2673a892ba60cb4a5e16736cafd41c4c9"
+          OS="linux"
+          if [[ ${RUNNER_OS} != "Linux" ]]; then
+              echo "Unsupported OS: ${RUNNER_OS}"
+              exit 1
+          fi
 
+          ARCH=$(uname -m)
+          if [[ "${ARCH}" == "aarch64" ]]; then
+              ARCH=arm64
+              CHECKSUM="${GORELEASER_CHECKSUM_arm64}"
+          elif [[ "${ARCH}" == "x86_64" ]]; then
+              CHECKSUM="${GORELEASER_CHECKSUM_x86_64}"
+          fi
+
+          FILE="goreleaser_${OS}_${ARCH}.tar.gz"
+
+          echo "Installing ${FILE}"
+          curl -LO "https://github.com/goreleaser/goreleaser/releases/download/${VERSION}/${FILE}"
+          echo "${CHECKSUM} ${FILE}" | sha256sum -c
+          tar -xf "${FILE}" goreleaser
+
+          if sudo -l &> /dev/null; then
+            sudo install -m 755 goreleaser /usr/local/bin/goreleaser
+          else
+            install -m 755 goreleaser /usr/local/bin/goreleaser
+          fi
+          rm -f "${FILE}" goreleaser
       - name: Run goreleaser
-        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7
-        with:
-          args: release
+        shell: bash
+        run: goreleaser release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -48,8 +48,8 @@ jobs:
           fi
           rm -f "${FILE}" goreleaser
         shell: bash
-      - env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        name: Run goreleaser
-        run: goreleaser release
+      - name: Run goreleaser
         shell: bash
+        run: goreleaser release
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

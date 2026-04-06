@@ -22,7 +22,7 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/go-git/go-billy/v5 v5.8.0
-	github.com/go-git/go-git/v5 v5.17.0
+	github.com/go-git/go-git/v5 v5.17.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.21.3
 	github.com/google/go-github/v84 v84.0.0
@@ -106,7 +106,8 @@ require (
 	github.com/chai2010/gettext-go v1.0.3 // indirect
 	github.com/chrismellard/docker-credential-acr-env v0.0.0-20230304212654-82a0ddb27589 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
-	github.com/clipperhouse/uax29/v2 v2.6.0 // indirect
+	github.com/clipperhouse/stringish v0.1.1 // indirect
+	github.com/clipperhouse/uax29/v2 v2.5.0 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be // indirect

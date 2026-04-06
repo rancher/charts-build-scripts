@@ -40,7 +40,7 @@ jobs:
 
           echo "Installing ${FILE}"
           curl -LO "https://github.com/goreleaser/goreleaser/releases/download/${VERSION}/${FILE}"
-          echo "${FILE} ${CHECKSUM}" | sha256sum -c
+          echo "${CHECKSUM} ${FILE}" | sha256sum -c
           tar -xf "${FILE}" goreleaser
 
           if sudo -l &> /dev/null; then

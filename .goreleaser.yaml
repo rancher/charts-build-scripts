@@ -1,4 +1,4 @@
-version: 1
+version: 2
 
 project_name: charts-build-scripts
 
@@ -19,7 +19,7 @@ builds:
       - -X main.Version={{.Version}} -X main.GitCommit={{.ShortCommit}}
 
 archives:
-  - format: binary
+  - formats: ["binary"]
     name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}'
 
 checksum:

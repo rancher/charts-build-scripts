@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     container: registry.suse.com/bci/bci-base:15.7
     steps:
+      - name: setup path
+        shell: bash
+        run: echo "PATH=$PATH" >> $GITHUB_PATH
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0

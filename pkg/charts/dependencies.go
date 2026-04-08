@@ -18,7 +18,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	helmChart "helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
-	helmCli "helm.sh/helm/v3/pkg/cli"
+	helmCLI "helm.sh/helm/v3/pkg/cli"
 	helmGetter "helm.sh/helm/v3/pkg/getter"
 	helmRepo "helm.sh/helm/v3/pkg/repo"
 	"sigs.k8s.io/yaml"
@@ -217,7 +217,7 @@ func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChart
 			dependencyName,
 			dependency.Version,
 			"", "", "",
-			helmGetter.All(&helmCli.EnvSettings{}),
+			helmGetter.All(&helmCLI.EnvSettings{}),
 		)
 		helmRepoFetchMutex.Unlock()
 

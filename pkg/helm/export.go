@@ -16,7 +16,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	helmAction "helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart"
+	helmChart "helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
@@ -101,7 +101,7 @@ func removeOrigFiles(ctx context.Context, dir string) error {
 	return err
 }
 
-func loadHelmChart(fs billy.Filesystem, helmChartPath string) (*chart.Chart, error) {
+func loadHelmChart(fs billy.Filesystem, helmChartPath string) (*helmChart.Chart, error) {
 	// Try to load the chart to see if it can be exported
 	absHelmChartPath := filesystem.GetAbsPath(fs, helmChartPath)
 	chart, err := helmLoader.Load(absHelmChartPath)

@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
-	"helm.sh/helm/v3/pkg/chart"
+	helmChart "helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/chartutil"
+	helmChartUtil "helm.sh/helm/v3/pkg/chartutil"
 
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
@@ -52,7 +52,7 @@ func (p *Package) DownloadIcon(ctx context.Context) error {
 		}
 
 		chartYamlPath := fmt.Sprintf("%s/Chart.yaml", absHelmChartPath)
-		err = chartutil.SaveChartfile(chartYamlPath, chart.Metadata)
+		err = helmChartUtil.SaveChartfile(chartYamlPath, chart.Metadata)
 		if err != nil {
 			return fmt.Errorf("failed to save chart.yaml file: %w", err)
 		}
@@ -74,7 +74,7 @@ func (p *Package) DownloadIcon(ctx context.Context) error {
 // From the metadata, gets the icon and name of the chart.
 // It downloads the icon, infers the type using the content-type header from the response
 // and saves the file locally to path.RepositoryLogosDir using the name of the chart as the file name.
-func downloadIcon(ctx context.Context, rootFs billy.Filesystem, metadata *chart.Metadata) (string, error) {
+func downloadIcon(ctx context.Context, rootFs billy.Filesystem, metadata *helmChart.Metadata) (string, error) {
 	icon, err := http.Get(metadata.Icon)
 	if err != nil {
 		return "", fmt.Errorf("failed to download icon %s: %w", metadata.Icon, err)

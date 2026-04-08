@@ -14,7 +14,7 @@ import (
 
 	helmChart "helm.sh/helm/v3/pkg/chart"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
-	helmChartutil "helm.sh/helm/v3/pkg/chartutil"
+	helmChartUtil "helm.sh/helm/v3/pkg/chartutil"
 )
 
 // GetHelmMetadataVersion gets the version of a Helm chart as defined in its Chart.yaml
@@ -122,7 +122,7 @@ func ConvertToHelmChart(ctx context.Context, fs billy.Filesystem, dirPath string
 	}
 
 	logger.Log(ctx, slog.LevelInfo, "initializing helm chart", slog.String("path", chartYamlPath))
-	return helmChartutil.SaveChartfile(filesystem.GetAbsPath(fs, chartYamlPath), chartMetadata)
+	return helmChartUtil.SaveChartfile(filesystem.GetAbsPath(fs, chartYamlPath), chartMetadata)
 }
 
 // StandardizeChartYaml marshalls and unmarshalls the Chart.yaml to ensure that it is ordered as expected
@@ -131,12 +131,12 @@ func StandardizeChartYaml(ctx context.Context, fs billy.Filesystem, dirPath stri
 	absChartYamlPath := filesystem.GetAbsPath(fs, chartYamlPath)
 	logger.Log(ctx, slog.LevelInfo, "standardize helm chart", slog.String("path", absChartYamlPath))
 
-	chartMetadata, err := helmChartutil.LoadChartfile(absChartYamlPath)
+	chartMetadata, err := helmChartUtil.LoadChartfile(absChartYamlPath)
 	if err != nil {
 		return fmt.Errorf("could not load %s: %s", chartYamlPath, err)
 	}
 
-	if err := helmChartutil.SaveChartfile(absChartYamlPath, chartMetadata); err != nil {
+	if err := helmChartUtil.SaveChartfile(absChartYamlPath, chartMetadata); err != nil {
 		return fmt.Errorf("could not reformat Chart.yaml in %s: %s", chartYamlPath, err)
 	}
 

@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/stretchr/testify/assert"
-	helmchart "helm.sh/helm/v3/pkg/chart"
+	helmChart "helm.sh/helm/v3/pkg/chart"
 )
 
 func Test_downloadIcon(t *testing.T) {
@@ -69,7 +69,7 @@ func Test_downloadIcon(t *testing.T) {
 				t.Fatalf("failed to create logos dir: %v", err)
 			}
 
-			metadata := &helmchart.Metadata{
+			metadata := &helmChart.Metadata{
 				Name: "my-chart",
 				Icon: iconURL,
 			}

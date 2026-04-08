@@ -15,7 +15,21 @@ jobs:
         run: echo "PATH=$PATH" >> $GITHUB_PATH
       - name: install dependencies
         shell: bash
-        run: zypper --non-interactive install git
+        run: zypper --non-interactive install git jq
+      - name: install gh
+        shell: bash
+        env:
+          # renovate: datasource=github-release-attachments depName=cli/cli
+          GH_CLI_VERSION: v2.89.0
+          # renovate: datasource=github-release-attachments depName=cli/cli digestVersion=v2.89.0
+          GH_CLI_SUM_amd64: d0422caade520530e76c1c558da47daebaa8e1203d6b7ff10ad7d6faba3490d8
+        run: |
+          mkdir -p /tmp/gh
+          GH_VERSION=${GH_CLI_VERSION#v}
+          curl -fsL https://github.com/cli/cli/releases/download/${GH_CLI_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz -o /tmp/gh.tar.gz && \
+            echo "${GH_CLI_SUM_amd64}  /tmp/gh.tar.gz" | sha256sum -c - && \
+            tar -xf /tmp/gh.tar.gz --strip-components=1 -C /tmp/gh && \
+            install -m 755 /tmp/gh/bin/gh /usr/local/bin/gh
       - name: Git safe directory
         run: git config --global --add safe.directory "$PWD"
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -26,10 +40,11 @@ jobs:
           go-version: '1.22'
       - name: Setup goreleaser
         shell: bash
-        env:
-          GORELEASER_VERSION: v2.15.2
-          GORELEASER_CHECKSUM_x86_64: 0ebdbf0353aba566b969dde746cc4e4806f96c27aa2f3971b229a9df7611fedc
         run: |-
+          # renovate-local: goreleaser-x86_64
+          GORELEASER_VERSION="v2.15.2"
+          # renovate-local: goreleaser-x86_64=v2.15.2
+          GORELEASER_CHECKSUM_x86_64="0ebdbf0353aba566b969dde746cc4e4806f96c27aa2f3971b229a9df7611fedc"
           OS="Linux"
           if [[ ${RUNNER_OS} != "Linux" ]]; then
           	echo "Unsupported OS: ${RUNNER_OS}"
@@ -50,14 +65,26 @@ jobs:
           echo "${CHECKSUM} ${FILE}" | sha256sum -c
           tar -xf "${FILE}" goreleaser
 
-          if sudo -l &> /dev/null; then
-          	sudo install -m 755 goreleaser /usr/local/bin/goreleaser
-          else
-          	install -m 755 goreleaser /usr/local/bin/goreleaser
-          fi
+          install -m 755 goreleaser /usr/local/bin/goreleaser
           rm -f "${FILE}" goreleaser
       - name: Run goreleaser
+        id: goreleaser
         shell: bash
-        run: goreleaser release
+        run: |-
+          goreleaser release --draft
+          if [[ ! -f dist/metadata.json ]] || [[ ! -s dist/metadata.json ]]; then
+            echo "Missing required file: dist/metadata.json"
+            exit 1
+          fi
+          if [[ ! -f dist/artifacts.json ]] || [[ ! -s dist/artifacts.json ]]; then
+            echo "Missing required file: dist/artifacts.json"
+            exit 1
+          fi
+          echo "metadata=$(tr -d '\n\r' < dist/metadata.json)" >> "${GITHUB_OUTPUT}"
+          echo "artifacts=$(tr -d '\n\r' < dist/artifacts.json)" >> "${GITHUB_OUTPUT}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish Release
+        run: gh release edit "${GITHUB_REF_NAME}" --draft=false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -9,7 +9,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"helm.sh/helm/v3/pkg/getter"
+	helmGetter "helm.sh/helm/v3/pkg/getter"
 )
 
 // Registry holds the URL that represents the link to the chart registry including the chart version
@@ -21,7 +21,7 @@ type Registry struct {
 func (r Registry) Pull(ctx context.Context, rootFs, fs billy.Filesystem, path string) error {
 	logger.Log(ctx, slog.LevelInfo, "pulling from upstream", slog.String("URL", r.URL), slog.String("path", path))
 
-	getter, err := getter.NewOCIGetter()
+	getter, err := helmGetter.NewOCIGetter()
 	if err != nil {
 		return err
 	}

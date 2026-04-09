@@ -8,7 +8,7 @@ import (
 
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/stretchr/testify/assert"
-	"helm.sh/helm/v3/pkg/registry"
+	helmRegistry "helm.sh/helm/v3/pkg/registry"
 )
 
 func TestBuildPushURL(t *testing.T) {
@@ -101,14 +101,14 @@ func Test_checkAndPush(t *testing.T) {
 					dns:        "######",
 					user:       "######",
 					password:   "######",
-					helmClient: &registry.Client{},
-					loadAsset: func(chart, asset string) ([]byte, error) {
+					helmClient: &helmRegistry.Client{},
+					loadAsset: func(_, _ string) ([]byte, error) {
 						return []byte{}, nil
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
+					checkAsset: func(_ context.Context, _ *helmRegistry.Client, _, _, _, _ string) (bool, error) {
 						return false, nil
 					},
-					push: func(helmClient *registry.Client, data []byte, url string) error {
+					push: func(_ *helmRegistry.Client, _ []byte, _ string) error {
 						return nil
 					},
 				},
@@ -129,14 +129,14 @@ func Test_checkAndPush(t *testing.T) {
 					dns:        "######",
 					user:       "######",
 					password:   "######",
-					helmClient: &registry.Client{},
-					loadAsset: func(chart, asset string) ([]byte, error) {
+					helmClient: &helmRegistry.Client{},
+					loadAsset: func(_, _ string) ([]byte, error) {
 						return []byte{}, nil
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
+					checkAsset: func(_ context.Context, _ *helmRegistry.Client, _, _, _, _ string) (bool, error) {
 						return false, nil
 					},
-					push: func(helmClient *registry.Client, data []byte, url string) error {
+					push: func(_ *helmRegistry.Client, _ []byte, _ string) error {
 						return nil
 					},
 				},
@@ -163,14 +163,14 @@ func Test_checkAndPush(t *testing.T) {
 					dns:        "######",
 					user:       "######",
 					password:   "######",
-					helmClient: &registry.Client{},
-					loadAsset: func(chart, asset string) ([]byte, error) {
+					helmClient: &helmRegistry.Client{},
+					loadAsset: func(_, _ string) ([]byte, error) {
 						return []byte{}, errors.New("some-error")
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
+					checkAsset: func(_ context.Context, _ *helmRegistry.Client, _, _, _, _ string) (bool, error) {
 						return false, nil
 					},
-					push: func(helmClient *registry.Client, data []byte, url string) error {
+					push: func(_ *helmRegistry.Client, _ []byte, _ string) error {
 						return nil
 					},
 				},
@@ -191,14 +191,14 @@ func Test_checkAndPush(t *testing.T) {
 					dns:        "######",
 					user:       "######",
 					password:   "######",
-					helmClient: &registry.Client{},
-					loadAsset: func(chart, asset string) ([]byte, error) {
+					helmClient: &helmRegistry.Client{},
+					loadAsset: func(_, _ string) ([]byte, error) {
 						return []byte{}, nil
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
+					checkAsset: func(_ context.Context, _ *helmRegistry.Client, _, _, _, _ string) (bool, error) {
 						return false, errors.New("some-error")
 					},
-					push: func(helmClient *registry.Client, data []byte, url string) error {
+					push: func(_ *helmRegistry.Client, _ []byte, _ string) error {
 						return nil
 					},
 				},
@@ -219,14 +219,14 @@ func Test_checkAndPush(t *testing.T) {
 					dns:        "######",
 					user:       "######",
 					password:   "######",
-					helmClient: &registry.Client{},
-					loadAsset: func(chart, asset string) ([]byte, error) {
+					helmClient: &helmRegistry.Client{},
+					loadAsset: func(_, _ string) ([]byte, error) {
 						return []byte{}, nil
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
+					checkAsset: func(_ context.Context, _ *helmRegistry.Client, _, _, _, _ string) (bool, error) {
 						return true, nil
 					},
-					push: func(helmClient *registry.Client, data []byte, url string) error {
+					push: func(_ *helmRegistry.Client, _ []byte, _ string) error {
 						return nil
 					},
 				},
@@ -247,14 +247,14 @@ func Test_checkAndPush(t *testing.T) {
 					dns:        "######",
 					user:       "######",
 					password:   "######",
-					helmClient: &registry.Client{},
-					loadAsset: func(chart, asset string) ([]byte, error) {
+					helmClient: &helmRegistry.Client{},
+					loadAsset: func(_, _ string) ([]byte, error) {
 						return []byte{}, nil
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
+					checkAsset: func(_ context.Context, _ *helmRegistry.Client, _, _, _, _ string) (bool, error) {
 						return false, nil
 					},
-					push: func(helmClient *registry.Client, data []byte, url string) error {
+					push: func(_ *helmRegistry.Client, _ []byte, _ string) error {
 						err := errors.New("some assets failed, please fix and retry only these assets")
 						return err
 					},
@@ -276,14 +276,14 @@ func Test_checkAndPush(t *testing.T) {
 					dns:        "######",
 					user:       "######",
 					password:   "######",
-					helmClient: &registry.Client{},
-					loadAsset: func(chart, asset string) ([]byte, error) {
+					helmClient: &helmRegistry.Client{},
+					loadAsset: func(_, _ string) ([]byte, error) {
 						return []byte{}, nil
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
+					checkAsset: func(_ context.Context, _ *helmRegistry.Client, _, _, _, _ string) (bool, error) {
 						return false, nil
 					},
-					push: func(helmClient *registry.Client, data []byte, url string) error {
+					push: func(_ *helmRegistry.Client, _ []byte, _ string) error {
 						return nil
 					},
 				},
@@ -308,14 +308,14 @@ func Test_checkAndPush(t *testing.T) {
 					dns:        "######",
 					user:       "######",
 					password:   "######",
-					helmClient: &registry.Client{},
-					loadAsset: func(chart, asset string) ([]byte, error) {
+					helmClient: &helmRegistry.Client{},
+					loadAsset: func(_, _ string) ([]byte, error) {
 						return []byte{}, nil
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
+					checkAsset: func(_ context.Context, _ *helmRegistry.Client, _, _, chart, _ string) (bool, error) {
 						return chart == "chart2", nil
 					},
-					push: func(helmClient *registry.Client, data []byte, url string) error {
+					push: func(_ *helmRegistry.Client, _ []byte, _ string) error {
 						return nil
 					},
 				},
@@ -341,14 +341,14 @@ func Test_checkAndPush(t *testing.T) {
 					dns:        "######",
 					user:       "######",
 					password:   "######",
-					helmClient: &registry.Client{},
-					loadAsset: func(chart, asset string) ([]byte, error) {
+					helmClient: &helmRegistry.Client{},
+					loadAsset: func(_, _ string) ([]byte, error) {
 						return []byte{}, nil
 					},
-					checkAsset: func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
+					checkAsset: func(_ context.Context, _ *helmRegistry.Client, _, _, _, _ string) (bool, error) {
 						return false, nil
 					},
-					push: func(helmClient *registry.Client, data []byte, url string) error {
+					push: func(_ *helmRegistry.Client, _ []byte, url string) error {
 						if strings.Contains(url, "chart2") {
 							return errors.New("push failed")
 						}

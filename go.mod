@@ -16,7 +16,7 @@ replace github.com/Masterminds/semver/v3 => github.com/Masterminds/semver/v3 v3.
 // Our chart versioning: <version>+up<upstream> (e.g., 108.0.0+up0.25.0-rc.0)
 exclude helm.sh/helm/v4 v4.0.0
 
-require github.com/rancherlabs/slsactl v0.1.28
+require github.com/rancherlabs/slsactl v0.1.30
 
 require (
 	github.com/Masterminds/semver v1.5.0
@@ -45,6 +45,7 @@ require (
 	cuelabs.dev/go/oci/ociregistry v0.0.0-20250722084951-074d06050084 // indirect
 	cuelang.org/go v0.15.4 // indirect
 	dario.cat/mergo v1.0.2 // indirect
+	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/AliyunContainerService/ack-ram-tool/pkg/credentials/provider v0.14.0 // indirect
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
@@ -106,8 +107,7 @@ require (
 	github.com/chai2010/gettext-go v1.0.3 // indirect
 	github.com/chrismellard/docker-credential-acr-env v0.0.0-20230304212654-82a0ddb27589 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
-	github.com/clipperhouse/stringish v0.1.1 // indirect
-	github.com/clipperhouse/uax29/v2 v2.5.0 // indirect
+	github.com/clipperhouse/uax29/v2 v2.6.0 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be // indirect
@@ -119,6 +119,7 @@ require (
 	github.com/coreos/go-oidc/v3 v3.17.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.6.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
+	github.com/creack/pty v1.1.24 // indirect
 	github.com/cyberphone/json-canonicalization v0.0.0-20241213102144-19d51d7fe467 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -305,7 +306,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0 // indirect
 	go.opentelemetry.io/otel v1.40.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.38.0 // indirect
-	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.36.0 // indirect
+	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.39.0 // indirect
 	go.opentelemetry.io/otel/metric v1.40.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect

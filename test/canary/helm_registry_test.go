@@ -49,7 +49,7 @@ func TestHelmRegistryCompat(t *testing.T) {
 		}
 	})
 
-	t.Run("LoginOpt constructors are callable", func(t *testing.T) {
+	t.Run("LoginOpt constructors are callable", func(_ *testing.T) {
 		// pkg/registries/oci.go: LoginOptBasicAuth, LoginOptInsecure, LoginOptTLSClientConfig
 		// These return option funcs — calling them should not panic.
 		_ = helmRegistry.LoginOptBasicAuth("user", "pass")
@@ -58,7 +58,7 @@ func TestHelmRegistryCompat(t *testing.T) {
 		_ = helmRegistry.LoginOptTLSClientConfig("", "", "")
 	})
 
-	t.Run("PushOptStrictMode option is callable", func(t *testing.T) {
+	t.Run("PushOptStrictMode option is callable", func(_ *testing.T) {
 		// pkg/registries/oci.go: helmRegistry.PushOptStrictMode(true)
 		_ = helmRegistry.PushOptStrictMode(true)
 	})
@@ -70,7 +70,7 @@ func TestHelmRegistryCompat(t *testing.T) {
 //
 // Pins: Configuration struct (zero-value usable), Init() method signature.
 func TestHelmActionCompat(t *testing.T) {
-	t.Run("Configuration zero-value is constructible", func(t *testing.T) {
+	t.Run("Configuration zero-value is constructible", func(_ *testing.T) {
 		// pkg/registries/oci.go: actionConfig := new(helmAction.Configuration)
 		// Verifies the struct exists and is zero-value constructible via new().
 		_ = new(helmAction.Configuration)
@@ -100,7 +100,7 @@ func TestHelmCLICompat(t *testing.T) {
 		}
 	})
 
-	t.Run("EnvSettings.RegistryConfig field is accessible", func(t *testing.T) {
+	t.Run("EnvSettings.RegistryConfig field is accessible", func(_ *testing.T) {
 		// pkg/registries/oci.go: settings.RegistryConfig
 		settings := helmCLI.New()
 		// Field is a string path — just verify it's readable (empty is fine in test env).

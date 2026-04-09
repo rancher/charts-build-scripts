@@ -74,7 +74,7 @@ func (p *Package) DownloadIcon(ctx context.Context) error {
 // From the metadata, gets the icon and name of the chart.
 // It downloads the icon, infers the type using the content-type header from the response
 // and saves the file locally to path.RepositoryLogosDir using the name of the chart as the file name.
-func downloadIcon(ctx context.Context, rootFs billy.Filesystem, metadata *helmChart.Metadata) (string, error) {
+func downloadIcon(_ context.Context, rootFs billy.Filesystem, metadata *helmChart.Metadata) (string, error) {
 	icon, err := http.Get(metadata.Icon)
 	if err != nil {
 		return "", fmt.Errorf("failed to download icon %s: %w", metadata.Icon, err)

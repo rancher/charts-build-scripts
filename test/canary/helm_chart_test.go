@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	helmChart "helm.sh/helm/v3/pkg/chart"
-	helmChartUtil "helm.sh/helm/v3/pkg/chartutil"
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
+	helmChartUtil "helm.sh/helm/v3/pkg/chartutil"
 )
 
 // TestHelmChartCompat is a canary for helm.sh/helm/v3/pkg/chart.

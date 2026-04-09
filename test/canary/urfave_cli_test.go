@@ -108,10 +108,10 @@ func TestUrfaveCLICompat(t *testing.T) {
 		cmd := cli.Command{
 			Name:  "test",
 			Usage: "Test command",
-			Action: func(c *cli.Context) {
+			Action: func(_ *cli.Context) {
 				// Action function for canary test
 			},
-			Before: func(c *cli.Context) error {
+			Before: func(_ *cli.Context) error {
 				// Before function for canary test
 				return nil
 			},
@@ -166,7 +166,7 @@ func TestUrfaveCLICompat(t *testing.T) {
 		app.Commands = []cli.Command{
 			{
 				Name: "test-cmd",
-				Action: func(c *cli.Context) error {
+				Action: func(_ *cli.Context) error {
 					executed = true
 					return nil
 				},
@@ -258,7 +258,7 @@ func TestUrfaveCLICompat(t *testing.T) {
 				Destination: &stringDest,
 			},
 		}
-		app.Action = func(c *cli.Context) error {
+		app.Action = func(_ *cli.Context) error {
 			if !boolDest {
 				t.Error("BoolFlag Destination: got false, want true")
 			}

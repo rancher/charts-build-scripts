@@ -11,7 +11,7 @@ import (
 )
 
 // LoadChartYaml will load a given chart.yaml file for the target chart and version
-func LoadChartYaml(rootFs billy.Filesystem, chart string, chartVersion string) (*helmChart.Metadata, error) {
+func LoadChartYaml(rootFs billy.Filesystem, chart, chartVersion string) (*helmChart.Metadata, error) {
 	// Get Chart.yaml path and load it
 	chartYamlPath := path.RepositoryChartsDir + "/" + chart + "/" + chartVersion + "/Chart.yaml"
 	absChartPath := filesystem.GetAbsPath(rootFs, chartYamlPath)

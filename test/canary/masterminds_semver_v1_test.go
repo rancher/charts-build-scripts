@@ -12,7 +12,7 @@ import (
 // Masterminds/semver v1 is used in:
 //   - pkg/helm/helm.go:           NewVersion() for base version comparison in SortVersions
 //   - pkg/options/validate.go:    NewVersion() to sort release versions; Equal() + Metadata()
-//                                 to compare +up metadata separately when base versions match
+//     to compare +up metadata separately when base versions match
 //   - pkg/validate/pull_requests.go: NewVersion() + Minor()/Major()/Patch() for PR validation
 //
 // Critical behaviour: build metadata (the +up... part) is IGNORED by Equal(), LessThan(),

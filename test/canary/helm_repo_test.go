@@ -43,11 +43,11 @@ func TestHelmRepoCompat(t *testing.T) {
 				Version: "108.0.0+up0.9.0-rc.1",
 			},
 		}
-		if cv.Metadata.Name != "rancher-webhook" {
-			t.Errorf("Name: got %q, want %q", cv.Metadata.Name, "rancher-webhook")
+		if cv.Name != "rancher-webhook" {
+			t.Errorf("Name: got %q, want %q", cv.Name, "rancher-webhook")
 		}
-		if cv.Metadata.Version != "108.0.0+up0.9.0-rc.1" {
-			t.Errorf("Version: got %q, want %q", cv.Metadata.Version, "108.0.0+up0.9.0-rc.1")
+		if cv.Version != "108.0.0+up0.9.0-rc.1" {
+			t.Errorf("Version: got %q, want %q", cv.Version, "108.0.0+up0.9.0-rc.1")
 		}
 	})
 

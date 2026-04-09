@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/cli"
-	"helm.sh/helm/v3/pkg/registry"
+	helmAction "helm.sh/helm/v3/pkg/action"
+	helmCLI "helm.sh/helm/v3/pkg/cli"
+	helmRegistry "helm.sh/helm/v3/pkg/registry"
 
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
@@ -22,10 +22,10 @@ import (
 type loadAssetFunc func(chart, asset string) ([]byte, error)
 
 // checkAssetFunc reports whether a specific chart version already exists in the OCI registry.
-type checkAssetFunc func(ctx context.Context, regClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error)
+type checkAssetFunc func(ctx context.Context, regClient *helmRegistry.Client, ociDNS, customPath, chart, version string) (bool, error)
 
 // pushFunc uploads a packaged chart archive to the OCI registry at the given URL.
-type pushFunc func(helmClient *registry.Client, data []byte, url string) error
+type pushFunc func(helmClient *helmRegistry.Client, data []byte, url string) error
 
 // oci holds all state required for a single push session against an OCI registry.
 // The three function fields (loadAsset, checkAsset, push) are injectable for testing.
@@ -36,7 +36,7 @@ type oci struct {
 	password   string
 	debug      bool
 	overwrite  bool // when true, existing versions in the registry are overwritten
-	helmClient *registry.Client
+	helmClient *helmRegistry.Client
 	loadAsset  loadAssetFunc
 	checkAsset checkAssetFunc
 	push       pushFunc
@@ -119,10 +119,10 @@ func setupOCI(ctx context.Context, ociDNS, customPath, ociUser, ociPass string, 
 //   - debug + remote host: TLS client using CA from /etc/docker/certs.d/<dns>/ca.crt
 //   - debug + localhost:   plain HTTP client (insecure login, no TLS)
 //   - production (default): standard HTTPS client with basic auth
-func setupHelm(ctx context.Context, o *oci) (*registry.Client, error) {
+func setupHelm(ctx context.Context, o *oci) (*helmRegistry.Client, error) {
 	logger.Log(ctx, slog.LevelInfo, "setup helm")
-	settings := cli.New()
-	actionConfig := new(action.Configuration)
+	settings := helmCLI.New()
+	actionConfig := new(helmAction.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), settings.Namespace(), os.Getenv("HELM_DRIVER"), func(string, ...any) {}); err != nil {
 		return nil, err
 	}
@@ -134,15 +134,15 @@ func setupHelm(ctx context.Context, o *oci) (*registry.Client, error) {
 	case o.debug && !isLocalHost:
 		logger.Log(ctx, slog.LevelDebug, "debug mode", slog.Bool("localhost", isLocalHost))
 		caFile := "/etc/docker/certs.d/" + o.dns + "/ca.crt"
-		regClient, err := registry.NewRegistryClientWithTLS(os.Stdout, "", "", caFile, false, "", true)
+		regClient, err := helmRegistry.NewRegistryClientWithTLS(os.Stdout, "", "", caFile, false, "", true)
 		if err != nil {
 			return nil, fmt.Errorf("create TLS registry client for %s: %w", o.dns, err)
 		}
 		if err = regClient.Login(
 			o.dns,
-			registry.LoginOptInsecure(false),
-			registry.LoginOptTLSClientConfig("", "", caFile),
-			registry.LoginOptBasicAuth(o.user, o.password),
+			helmRegistry.LoginOptInsecure(false),
+			helmRegistry.LoginOptTLSClientConfig("", "", caFile),
+			helmRegistry.LoginOptBasicAuth(o.user, o.password),
 		); err != nil {
 			return nil, fmt.Errorf("login to TLS registry %s: %w", o.dns, err)
 		}
@@ -151,16 +151,16 @@ func setupHelm(ctx context.Context, o *oci) (*registry.Client, error) {
 	// Debug Mode at localhost without TLS
 	case o.debug && isLocalHost:
 		logger.Log(ctx, slog.LevelDebug, "debug mode", slog.Bool("localhost", isLocalHost))
-		regClient, err := registry.NewClient(
-			registry.ClientOptDebug(true),
-			registry.ClientOptPlainHTTP(),
+		regClient, err := helmRegistry.NewClient(
+			helmRegistry.ClientOptDebug(true),
+			helmRegistry.ClientOptPlainHTTP(),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("create plain HTTP registry client for %s: %w", o.dns, err)
 		}
 		if err = regClient.Login(o.dns,
-			registry.LoginOptInsecure(true), // true for localhost, false for production
-			registry.LoginOptBasicAuth(o.user, o.password)); err != nil {
+			helmRegistry.LoginOptInsecure(true), // true for localhost, false for production
+			helmRegistry.LoginOptBasicAuth(o.user, o.password)); err != nil {
 			return nil, fmt.Errorf("login to registry %s: %w", o.dns, err)
 		}
 		return regClient, nil
@@ -168,15 +168,15 @@ func setupHelm(ctx context.Context, o *oci) (*registry.Client, error) {
 	// Production code with Secure Mode and authentication
 	default:
 		logger.Log(ctx, slog.LevelInfo, "production mode")
-		regClient, err := registry.NewClient(
-			registry.ClientOptDebug(false),
+		regClient, err := helmRegistry.NewClient(
+			helmRegistry.ClientOptDebug(false),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("create registry client for %s: %w", o.dns, err)
 		}
 		if err = regClient.Login(o.dns,
-			registry.LoginOptInsecure(false),
-			registry.LoginOptBasicAuth(o.user, o.password)); err != nil {
+			helmRegistry.LoginOptInsecure(false),
+			helmRegistry.LoginOptBasicAuth(o.user, o.password)); err != nil {
 			return nil, fmt.Errorf("login to registry %s: %w", o.dns, err)
 		}
 		logger.Log(ctx, slog.LevelDebug, "creds", slog.String("u", o.user), slog.String("p", o.password))
@@ -276,8 +276,8 @@ func (o *oci) checkAndPush(ctx context.Context, release *options.ReleaseOptions)
 
 // push uploads a packaged chart archive to the OCI registry at the given URL.
 // StrictMode ensures the artifact is validated as a proper OCI Helm chart on arrival.
-func push(helmClient *registry.Client, data []byte, url string) error {
-	_, err := helmClient.Push(data, url, registry.PushOptStrictMode(true))
+func push(helmClient *helmRegistry.Client, data []byte, url string) error {
+	_, err := helmClient.Push(data, url, helmRegistry.PushOptStrictMode(true))
 	return err
 }
 
@@ -312,7 +312,7 @@ func buildTagsURL(ociDNS, customPath, chart string) string {
 //
 // NOTE: helmClient.Tags() is used as a workaround because direct tag existence checks
 // are not yet supported. Track: https://github.com/helm/helm/issues/13368
-func checkAsset(ctx context.Context, helmClient *registry.Client, ociDNS, customPath, chart, version string) (bool, error) {
+func checkAsset(ctx context.Context, helmClient *helmRegistry.Client, ociDNS, customPath, chart, version string) (bool, error) {
 	tagsURL := buildTagsURL(ociDNS, customPath, chart)
 	existingVersions, err := helmClient.Tags(tagsURL)
 	if err != nil {

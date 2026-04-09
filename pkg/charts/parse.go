@@ -14,7 +14,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/rancher/charts-build-scripts/pkg/puller"
-	"helm.sh/helm/v3/pkg/registry"
+	helmRegistry "helm.sh/helm/v3/pkg/registry"
 )
 
 // GetPackages returns all packages found within the repository. If there is a specific package provided, it will return just that Package in the list
@@ -237,7 +237,7 @@ func GetUpstream(ctx context.Context, opt options.UpstreamOptions) (puller.Pulle
 		}
 		return upstream, nil
 	}
-	if registry.IsOCI(opt.URL) {
+	if helmRegistry.IsOCI(opt.URL) {
 		upstream := puller.Registry{
 			URL: opt.URL,
 		}

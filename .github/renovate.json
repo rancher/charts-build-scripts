@@ -11,8 +11,29 @@
       "matchPackageNames": [
         "helm.sh/helm/v3"
       ],
-      "allowedVersions": "<=3.16.3",
-      "description": "Pin Helm to v3.16.3 - v4 breaks OCI tag validation for versions with '+' character (e.g., 108.0.0+up0.25.0-rc.0)"
+      "allowedVersions": "<4.0.0",
+      "description": "Pin Helm to v3.x - v4 breaks OCI tag validation for versions with '+' character (e.g., 108.0.0+up0.25.0-rc.0)"
+    },
+    {
+      "matchPackageNames": [
+        "github.com/Masterminds/semver/v3"
+      ],
+      "allowedVersions": "<=3.3.0",
+      "description": "Pin semver/v3 to v3.3.0 - v3.4.0+ changed prerelease constraint evaluation breaking chart version validation"
+    },
+    {
+      "matchPackageNames": [
+        "github.com/imdario/mergo"
+      ],
+      "allowedVersions": "<1.0.0",
+      "description": "Pin mergo to v0.x - transitive via sql-migrate, go.mod replace pins to v0.3.16. Module renamed to dario.cat/mergo at v1.0.0."
+    },
+    {
+      "matchPackageNames": [
+        "github.com/urfave/cli"
+      ],
+      "allowedVersions": "<2.0.0",
+      "description": "Pin urfave/cli to v1.x - v2+ is complete API rewrite with different module path requiring main.go rewrite"
     }
   ]
 }

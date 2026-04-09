@@ -20,6 +20,13 @@
       ],
       "allowedVersions": "<=3.3.0",
       "description": "Pin semver/v3 to v3.3.0 - v3.4.0+ changed prerelease constraint evaluation breaking chart version validation"
+    },
+    {
+      "matchPackageNames": [
+        "github.com/imdario/mergo"
+      ],
+      "allowedVersions": "<1.0.0",
+      "description": "Pin mergo to v0.x - transitive via sql-migrate, go.mod replace pins to v0.3.16. Module renamed to dario.cat/mergo at v1.0.0."
     }
   ]
 }

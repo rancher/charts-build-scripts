@@ -1,51 +1,92 @@
 {
-	"linters": {
-		"disable-all": true,
-		"enable": [
-			"govet",
-			"revive",
-			"goimports",
-			"misspell",
-			"ineffassign",
-			"gofmt",
-			"gocritic",
-			"staticcheck",
-			"errorlint"
-		]
-	},
-	"linters-settings": {
-		"gocritic": {
-			"enabled-checks": [
-				"unnecessaryBlock",
-				"unnecessaryDefer",
-				"paramTypeCombine",
-				"nestingReduce",
-				"emptyStringTest",
-				"boolExprSimplify",
-				"initClause"
-			]
-		},
-		"revive": {
-			"rules": [
-				{ "name": "error-naming" },
-				{ "name": "error-return" },
-				{ "name": "error-strings" },
-				{ "name": "exported" },
-				{ "name": "var-naming" },
-				{ "name": "unnecessary-stmt" },
-				{ "name": "early-return" },
-				{ "name": "unhandled-error" },
-				{ "name": "unused-parameter" },
-				{ "name": "superfluous-else" }
-			]
-		}
-	},
-	"issues": {
-		"exclude-files": [
-			"/zz_generated_"
-		]
-	},
-	"run": {
-		"timeout": "5m"
-	}
+  "formatters": {
+    "enable": [
+      "gofmt",
+      "goimports"
+    ],
+    "exclusions": {
+      "generated": "lax",
+      "paths": [
+        "/zz_generated_",
+        "third_party$",
+        "builtin$",
+        "examples$"
+      ]
+    }
+  },
+  "linters": {
+    "default": "none",
+    "enable": [
+      "errorlint",
+      "gocritic",
+      "govet",
+      "ineffassign",
+      "misspell",
+      "revive",
+      "staticcheck"
+    ],
+    "exclusions": {
+      "generated": "lax",
+      "paths": [
+        "/zz_generated_",
+        "third_party$",
+        "builtin$",
+        "examples$"
+      ],
+      "presets": [
+        "comments",
+        "common-false-positives",
+        "legacy",
+        "std-error-handling"
+      ]
+    },
+    "settings": {
+      "gocritic": {
+        "enabled-checks": [
+          "unnecessaryBlock",
+          "unnecessaryDefer",
+          "paramTypeCombine",
+          "nestingReduce",
+          "emptyStringTest",
+          "boolExprSimplify",
+          "initClause"
+        ]
+      },
+      "revive": {
+        "rules": [
+          {
+            "name": "error-naming"
+          },
+          {
+            "name": "error-return"
+          },
+          {
+            "name": "error-strings"
+          },
+          {
+            "name": "exported"
+          },
+          {
+            "name": "var-naming"
+          },
+          {
+            "name": "unnecessary-stmt"
+          },
+          {
+            "name": "early-return"
+          },
+          {
+            "name": "unhandled-error"
+          },
+          {
+            "name": "unused-parameter"
+          },
+          {
+            "name": "superfluous-else"
+          }
+        ]
+      }
+    }
+  },
+  "version": "2"
 }

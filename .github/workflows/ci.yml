@@ -13,7 +13,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Run unit tests
+      - name: Run Tests(unit, canary, integration)
         run: go test ./...
 
   lint:

@@ -27,6 +27,13 @@
       ],
       "allowedVersions": "<1.0.0",
       "description": "Pin mergo to v0.x - transitive via sql-migrate, go.mod replace pins to v0.3.16. Module renamed to dario.cat/mergo at v1.0.0."
+    },
+    {
+      "matchPackageNames": [
+        "github.com/urfave/cli"
+      ],
+      "allowedVersions": "<2.0.0",
+      "description": "Pin urfave/cli to v1.x - v2+ is complete API rewrite with different module path requiring main.go rewrite"
     }
   ]
 }

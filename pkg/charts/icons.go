@@ -25,6 +25,11 @@ import (
 func (p *Package) DownloadIcon(ctx context.Context) error {
 	logger.Log(ctx, slog.LevelInfo, "make icon")
 
+	if p.DoNotRelease {
+		logger.Log(ctx, slog.LevelInfo, "skipping package marked doNotRelease")
+		return nil
+	}
+
 	exists, err := filesystem.PathExists(ctx, p.fs, path.RepositoryChartsDir)
 	if err != nil {
 		return fmt.Errorf("failed to check for charts dir: %w", err)
@@ -44,9 +49,9 @@ func (p *Package) DownloadIcon(ctx context.Context) error {
 		logger.Log(ctx, slog.LevelDebug, "chart icon is pointing to a remote url", slog.String("url", chart.Metadata.Icon))
 
 		// download icon and change the icon property to point to it
-		p, err := downloadIcon(ctx, p.rootFs, chart.Metadata)
+		iconPath, err := downloadIcon(ctx, p.rootFs, chart.Metadata)
 		if err == nil { // managed to download the icon and save it locally
-			chart.Metadata.Icon = fmt.Sprintf("file://%s", p)
+			chart.Metadata.Icon = fmt.Sprintf("file://%s", iconPath)
 		} else {
 			logger.Log(ctx, slog.LevelError, "failed to download icon", logger.Err(err))
 		}

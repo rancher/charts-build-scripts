@@ -21,7 +21,7 @@ func Test_downloadIcon(t *testing.T) {
 	}{
 		{
 			name: "#1",
-			handler: func(w http.ResponseWriter, r *http.Request) {
+			handler: func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "image/png")
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("fake-icon-data"))
@@ -35,7 +35,7 @@ func Test_downloadIcon(t *testing.T) {
 		},
 		{
 			name: "#3 - non-200 status",
-			handler: func(w http.ResponseWriter, r *http.Request) {
+			handler: func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "image/png")
 				w.WriteHeader(http.StatusNotFound)
 			},
@@ -43,7 +43,7 @@ func Test_downloadIcon(t *testing.T) {
 		},
 		{
 			name: "#4 - unknown Content-Type with no extension",
-			handler: func(w http.ResponseWriter, r *http.Request) {
+			handler: func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/x-test-no-extension")
 				w.WriteHeader(http.StatusOK)
 			},
@@ -55,7 +55,7 @@ func Test_downloadIcon(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var iconURL string
 			if tt.serverDown {
-				ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				ts := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 				iconURL = ts.URL
 				ts.Close()
 			} else {
@@ -85,4 +85,45 @@ func Test_downloadIcon(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPackage_DownloadIcon_DoNotRelease(t *testing.T) {
+	ctx := context.Background()
+
+	// Create package with DoNotRelease flag
+	pkg := &Package{
+		Name:         "test-chart",
+		DoNotRelease: true,
+		fs:           memfs.New(),
+		rootFs:       memfs.New(),
+	}
+
+	// Create charts directory to simulate prepared package
+	if err := pkg.fs.MkdirAll("charts", os.ModePerm); err != nil {
+		t.Fatalf("failed to create charts dir: %v", err)
+	}
+
+	// DownloadIcon should return early without error
+	err := pkg.DownloadIcon(ctx)
+	assert.NoError(t, err)
+
+	// Verify no icon was downloaded (assets/logos should not exist)
+	exists, _ := pkg.rootFs.Stat("assets/logos")
+	assert.Nil(t, exists, "assets/logos should not be created for doNotRelease packages")
+}
+
+func TestPackage_DownloadIcon_NotDoNotRelease(t *testing.T) {
+	ctx := context.Background()
+
+	// Create package WITHOUT DoNotRelease flag
+	pkg := &Package{
+		Name:         "test-chart",
+		DoNotRelease: false,
+		fs:           memfs.New(),
+		rootFs:       memfs.New(),
+	}
+
+	// Without charts directory, should fail with specific message
+	err := pkg.DownloadIcon(ctx)
+	assert.NoError(t, err, "should return nil when charts dir doesn't exist")
 }

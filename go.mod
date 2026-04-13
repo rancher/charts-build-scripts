@@ -16,7 +16,10 @@ replace github.com/Masterminds/semver/v3 => github.com/Masterminds/semver/v3 v3.
 // Our chart versioning: <version>+up<upstream> (e.g., 108.0.0+up0.25.0-rc.0)
 exclude helm.sh/helm/v4 v4.0.0
 
-require github.com/rancherlabs/slsactl v0.1.30
+require (
+	github.com/Masterminds/semver/v3 v3.4.0
+	github.com/rancherlabs/slsactl v0.1.30
+)
 
 require (
 	github.com/Masterminds/semver v1.5.0
@@ -60,7 +63,6 @@ require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect

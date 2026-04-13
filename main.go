@@ -136,6 +136,14 @@ var (
 )
 
 func init() {
+	// Disable all logging in PORCELAIN mode
+	if os.Getenv(defaultPorcelainEnvironmentVariable) == "1" {
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.NewFile(0, os.DevNull), &slog.HandlerOptions{
+			Level: slog.Level(1000), // Set level extremely high to suppress all logs
+		})))
+		return
+	}
+
 	tintOptions := &tint.Options{
 		AddSource:  true,
 		TimeFormat: "15:04:05",
@@ -602,9 +610,8 @@ func listPackages(c *cli.Context) {
 		logger.Fatal(ctx, err.Error())
 	}
 	if PorcelainMode {
-		logger.Log(ctx, slog.LevelInfo, "", slog.String("packageList", strings.Join(packageList, " ")))
+		fmt.Println(strings.Join(packageList, " "))
 		return
-
 	}
 
 	logger.Log(ctx, slog.LevelInfo, "", slog.Any("packageList", packageList))

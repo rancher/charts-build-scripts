@@ -76,7 +76,11 @@
             "name": "early-return"
           },
           {
-            "name": "unhandled-error"
+            "name": "unhandled-error",
+            "arguments": [
+              "fmt.Println",
+              "fmt.Print"
+            ]
           },
           {
             "name": "unused-parameter"

@@ -233,15 +233,28 @@ func StatusExceptions(ctx context.Context, status git.Status) error {
 			return errors.New("repository must be clean to run validation")
 		}
 
+		logger.Log(ctx, slog.LevelDebug, "git is not clean but expected")
+
+		// Log which files will be reset
+		var changedFiles []string
+		for file := range status {
+			changedFiles = append(changedFiles, file)
+		}
+		logger.Log(ctx, slog.LevelInfo, "resetting exception files", slog.Any("files", changedFiles))
+
 		g, err := bashGit.OpenGitRepo(ctx, ".")
 		if err != nil {
 			return err
 		}
+
+		logger.Log(ctx, slog.LevelDebug, "executing full reset")
 		if err := g.FullReset(); err != nil {
 			return err
 		}
-	}
 
+		logger.Log(ctx, slog.LevelInfo, "successfully reset exception files")
+	}
+	logger.Log(ctx, slog.LevelInfo, "git is clean")
 	return nil
 }
 

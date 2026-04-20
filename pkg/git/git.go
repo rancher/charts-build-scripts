@@ -339,7 +339,7 @@ func (g *Git) HardHEADReset() error {
 
 // ForceClean = git clean -fdx
 func (g *Git) ForceClean() error {
-	return exec.Command("git", "-C", g.Dir, "clean", "-fdx").Run()
+	return exec.Command("git", "-C", g.Dir, "clean", "-fd").Run()
 }
 
 // Restore = git restore .

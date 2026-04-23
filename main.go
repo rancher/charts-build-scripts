@@ -485,27 +485,6 @@ func main() {
 			Flags:  []cli.Flag{packageFlag, configFlag},
 		},
 		{
-			Usage:  "Updates the current directory by applying the configuration.yaml on upstream Go templates to pull in the most up-to-date docs, scripts, etc.",
-			Name:   "template",
-			Action: createOrUpdateTemplate,
-			Flags: []cli.Flag{
-				// TODO: verify if this is the correct way to pass the variables
-				configFlag,
-				cli.StringFlag{
-					Name:        "repositoryUrl,r",
-					Required:    false,
-					Destination: &puller.ChartsBuildScriptsRepositoryURL,
-					Value:       "https://github.com/rancher/charts-build-scripts.git",
-				},
-				cli.StringFlag{
-					Name:        "branch,b",
-					Required:    false,
-					Destination: &puller.ChartsBuildScriptsRepositoryBranch,
-					Value:       "master",
-				},
-			},
-		},
-		{
 			Name:   "check-images",
 			Usage:  "Checks all container images used in the charts repository",
 			Action: checkImages,
@@ -761,19 +740,6 @@ func standardizeRepo(c *cli.Context) {
 	if err := helm.RestructureChartsAndAssets(ctx, repoFs); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
-}
-
-func createOrUpdateTemplate(c *cli.Context) {
-	ctx := context.Background()
-
-	getRepoRoot()
-	repoFs := filesystem.GetFilesystem(RepoRoot)
-	chartsScriptOptions := parseScriptOptions(ctx)
-	if err := puller.ApplyUpstreamTemplate(ctx, repoFs, *chartsScriptOptions); err != nil {
-		logger.Fatal(ctx, fmt.Errorf("failed to update repository based on upstream template: %w", err).Error())
-	}
-
-	logger.Log(ctx, slog.LevelInfo, "successfully updated repository based on upstream template")
 }
 
 func setupCache(c *cli.Context) error {

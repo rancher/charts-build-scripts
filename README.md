@@ -5,16 +5,6 @@ It is a crucial part of our release process for the built-in [Helm Charts reposi
 
 ## How to Use `charts-build-scripts`
 
-### Charts Repository Setup
-
-Checkout the Git branch that corresponds to your Staging or Live branch.
-
-Export BRANCH_ROLE as `staging`, `live`, or `custom`. Then run:
-
-```
-curl -s https://raw.githubusercontent.com/rancher/charts-build-scripts/master/init.sh > /dev/null | sh
-```
-
 ### Building
 
 `make`

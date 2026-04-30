@@ -15,7 +15,7 @@ func TestSortVersions(t *testing.T) {
 		expected []string // expected order of versions
 	}{
 		{
-			name: "stable versions only - should sort descending",
+			name: "1. stable versions only - should sort descending",
 			input: helmRepo.ChartVersions{
 				{Metadata: &helmChart.Metadata{Version: "108.0.0+up0.9.0"}},
 				{Metadata: &helmChart.Metadata{Version: "108.0.2+up0.9.2"}},
@@ -28,7 +28,7 @@ func TestSortVersions(t *testing.T) {
 			},
 		},
 		{
-			name: "stable + RCs with same base - stable first, then RCs descending",
+			name: "2. stable + RCs with same base - stable first, then RCs descending",
 			input: helmRepo.ChartVersions{
 				{Metadata: &helmChart.Metadata{Version: "108.0.0+up0.9.0-rc.1"}},
 				{Metadata: &helmChart.Metadata{Version: "108.0.0+up0.9.0"}},
@@ -41,7 +41,7 @@ func TestSortVersions(t *testing.T) {
 			},
 		},
 		{
-			name: "RCs only - should sort descending by RC number",
+			name: "3. RCs only - should sort descending by RC number",
 			input: helmRepo.ChartVersions{
 				{Metadata: &helmChart.Metadata{Version: "108.0.0+up0.9.0-rc.1"}},
 				{Metadata: &helmChart.Metadata{Version: "108.0.0+up0.9.0-rc.3"}},
@@ -54,7 +54,7 @@ func TestSortVersions(t *testing.T) {
 			},
 		},
 		{
-			name: "mixed base versions with RCs - sort by semver first",
+			name: "4. mixed base versions with RCs - sort by semver first",
 			input: helmRepo.ChartVersions{
 				{Metadata: &helmChart.Metadata{Version: "108.0.0+up0.9.0-rc.1"}},
 				{Metadata: &helmChart.Metadata{Version: "109.0.0+up0.10.0"}},
@@ -69,7 +69,7 @@ func TestSortVersions(t *testing.T) {
 			},
 		},
 		{
-			name: "alpha/beta/rc/stable - full prerelease hierarchy",
+			name: "5. alpha/beta/rc/stable - full prerelease hierarchy",
 			input: helmRepo.ChartVersions{
 				{Metadata: &helmChart.Metadata{Version: "108.0.0+up0.14.0-alpha.2"}},
 				{Metadata: &helmChart.Metadata{Version: "108.0.0+up0.14.0-rc.1"}},
@@ -91,6 +91,103 @@ func TestSortVersions(t *testing.T) {
 				"108.0.0+up0.14.0-alpha.3",
 				"108.0.0+up0.14.0-alpha.2",
 				"108.0.0+up0.14.0-alpha.1",
+			},
+		},
+		{
+			name: "6.same upstream version, different chart versions after +up",
+			input: helmRepo.ChartVersions{
+				{Metadata: &helmChart.Metadata{Version: "109.0.1+up0.10.1-rc.2"}},
+				{Metadata: &helmChart.Metadata{Version: "109.0.1+up0.10.4-rc.1"}},
+				{Metadata: &helmChart.Metadata{Version: "109.0.1+up0.10.1-rc.1"}},
+				{Metadata: &helmChart.Metadata{Version: "109.0.0+up0.10.0"}},
+			},
+			expected: []string{
+				"109.0.1+up0.10.4-rc.1", // 0.10.4 > 0.10.1, should be first
+				"109.0.1+up0.10.1-rc.2", // then 0.10.1-rc.2
+				"109.0.1+up0.10.1-rc.1", // then 0.10.1-rc.1
+				"109.0.0+up0.10.0",      // oldest upstream version last
+			},
+		},
+		{
+			name: "7. edge case - versions without +up format",
+			input: helmRepo.ChartVersions{
+				{Metadata: &helmChart.Metadata{Version: "1.0.0"}},
+				{Metadata: &helmChart.Metadata{Version: "1.2.0"}},
+				{Metadata: &helmChart.Metadata{Version: "1.1.0"}},
+			},
+			expected: []string{
+				"1.2.0",
+				"1.1.0",
+				"1.0.0",
+			},
+		},
+		{
+			name: "8. edge case - mix of +up and plain versions",
+			input: helmRepo.ChartVersions{
+				{Metadata: &helmChart.Metadata{Version: "109.0.1+up0.10.1"}},
+				{Metadata: &helmChart.Metadata{Version: "109.0.1"}},
+				{Metadata: &helmChart.Metadata{Version: "109.0.0+up0.10.0"}},
+				{Metadata: &helmChart.Metadata{Version: "109.0.0"}},
+			},
+			expected: []string{
+				"109.0.1+up0.10.1", // upstream 109.0.1 with chart version
+				"109.0.1",          // upstream 109.0.1 without chart version
+				"109.0.0+up0.10.0", // upstream 109.0.0 with chart version
+				"109.0.0",          // upstream 109.0.0 without chart version
+			},
+		},
+		{
+			name: "9. edge case - same upstream and chart, different prerelease types",
+			input: helmRepo.ChartVersions{
+				{Metadata: &helmChart.Metadata{Version: "109.0.1+up0.10.1-alpha.1"}},
+				{Metadata: &helmChart.Metadata{Version: "109.0.1+up0.10.1"}},
+				{Metadata: &helmChart.Metadata{Version: "109.0.1+up0.10.1-rc.1"}},
+				{Metadata: &helmChart.Metadata{Version: "109.0.1+up0.10.1-beta.1"}},
+			},
+			expected: []string{
+				"109.0.1+up0.10.1",         // stable first
+				"109.0.1+up0.10.1-rc.1",    // rc
+				"109.0.1+up0.10.1-beta.1",  // beta
+				"109.0.1+up0.10.1-alpha.1", // alpha last
+			},
+		},
+		{
+			name: "10. edge case - large version numbers",
+			input: helmRepo.ChartVersions{
+				{Metadata: &helmChart.Metadata{Version: "999.999.999+up999.999.999"}},
+				{Metadata: &helmChart.Metadata{Version: "999.999.998+up999.999.999"}},
+				{Metadata: &helmChart.Metadata{Version: "999.999.999+up999.999.998"}},
+			},
+			expected: []string{
+				"999.999.999+up999.999.999",
+				"999.999.999+up999.999.998",
+				"999.999.998+up999.999.999",
+			},
+		},
+		{
+			name: "11. edge case - zero versions",
+			input: helmRepo.ChartVersions{
+				{Metadata: &helmChart.Metadata{Version: "0.0.1+up0.0.1"}},
+				{Metadata: &helmChart.Metadata{Version: "0.0.0+up0.0.1"}},
+				{Metadata: &helmChart.Metadata{Version: "0.0.1+up0.0.0"}},
+			},
+			expected: []string{
+				"0.0.1+up0.0.1",
+				"0.0.1+up0.0.0",
+				"0.0.0+up0.0.1",
+			},
+		},
+		{
+			name: "12. edge case - chart version with major changes",
+			input: helmRepo.ChartVersions{
+				{Metadata: &helmChart.Metadata{Version: "109.0.1+up1.0.0"}},
+				{Metadata: &helmChart.Metadata{Version: "109.0.1+up2.0.0"}},
+				{Metadata: &helmChart.Metadata{Version: "109.0.1+up1.5.0"}},
+			},
+			expected: []string{
+				"109.0.1+up2.0.0", // chart version 2.0.0 is newest
+				"109.0.1+up1.5.0",
+				"109.0.1+up1.0.0",
 			},
 		},
 	}

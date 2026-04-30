@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -208,13 +207,14 @@ func SortVersions(index *helmRepo.IndexFile) {
 // Returns true if versionA should come before versionB (descending order)
 // Handles alpha, beta, rc, and stable versions
 func compareVersions(versionA, versionB string) bool {
-	// Parse both versions
-	baseA, typeA, numA, isPrereleaseA := parseVersionWithPrerelease(versionA)
-	baseB, typeB, numB, isPrereleaseB := parseVersionWithPrerelease(versionB)
+	// Split versions into upstream and chart parts
+	// Format: <upstream_version>+up<chart_version>
+	upstreamA, chartA := splitUpstreamChart(versionA)
+	upstreamB, chartB := splitUpstreamChart(versionB)
 
-	// Parse base versions using semver
-	semverA, errA := semver.NewVersion(baseA)
-	semverB, errB := semver.NewVersion(baseB)
+	// Parse upstream versions using semver
+	semverUpstreamA, errA := semver.NewVersion(upstreamA)
+	semverUpstreamB, errB := semver.NewVersion(upstreamB)
 
 	if errA != nil {
 		return false // push invalid to end
@@ -223,71 +223,41 @@ func compareVersions(versionA, versionB string) bool {
 		return true // push invalid to end
 	}
 
-	// If base versions are different, use semver comparison (descending)
-	if !semverA.Equal(semverB) {
-		return semverA.GreaterThan(semverB)
+	// If upstream versions are different, use semver comparison (descending)
+	if !semverUpstreamA.Equal(semverUpstreamB) {
+		return semverUpstreamA.GreaterThan(semverUpstreamB)
 	}
 
-	// Same base version - handle prerelease logic
-	// Compare prerelease types first (stable=4 > rc=3 > beta=2 > alpha=1)
-	if typeA != typeB {
-		return typeA > typeB // Higher type priority comes first
-	}
+	// Same upstream version - compare chart versions (the part after +up)
+	if chartA != "" && chartB != "" {
+		semverChartA, errA := semver.NewVersion(chartA)
+		semverChartB, errB := semver.NewVersion(chartB)
 
-	// Same prerelease type - compare numbers if both are prereleases
-	if isPrereleaseA && isPrereleaseB {
-		return numA > numB // Higher prerelease number comes first (descending)
-	}
+		if errA != nil {
+			return false // push invalid to end
+		}
+		if errB != nil {
+			return true // push invalid to end
+		}
 
-	// Both are stable with same base version - they're equal
-	return false
-}
-
-// parseVersionWithPrerelease extracts the base version, prerelease type, and prerelease number from a version string
-// Example: "108.0.0+up0.14.0-rc.1" returns ("108.0.0+up0.14.0", 3, 1, true)
-// Example: "108.0.0+up0.14.0-beta.2" returns ("108.0.0+up0.14.0", 2, 2, true)
-// Example: "108.0.0+up0.14.0-alpha.5" returns ("108.0.0+up0.14.0", 1, 5, true)
-// Example: "108.0.0+up0.14.0" returns ("108.0.0+up0.14.0", 4, 0, false) - stable version
-// Prerelease type priority: stable=4 > rc=3 > beta=2 > alpha=1
-func parseVersionWithPrerelease(version string) (baseVersion string, prereleaseType int, prereleaseNumber int, isPrerelease bool) {
-	// Split by '+' to separate version from build metadata
-	parts := strings.Split(version, "+")
-	if len(parts) != 2 {
-		// No build metadata, treat as stable
-		return version, 4, 0, false
-	}
-
-	baseVersionNum := parts[0]
-	buildMetadata := parts[1]
-
-	// Check for prerelease types in priority order: alpha, beta, rc
-	prereleaseTypes := []struct {
-		suffix   string
-		priority int
-	}{
-		{"-alpha.", 1},
-		{"-beta.", 2},
-		{"-rc.", 3},
-	}
-
-	for _, pt := range prereleaseTypes {
-		if strings.Contains(buildMetadata, pt.suffix) {
-			// Extract prerelease number
-			preParts := strings.Split(buildMetadata, pt.suffix)
-			if len(preParts) != 2 {
-				continue
-			}
-
-			preNum, err := strconv.Atoi(preParts[1])
-			if err != nil {
-				continue
-			}
-
-			// Return base version with the non-prerelease part of build metadata
-			return baseVersionNum + "+" + preParts[0], pt.priority, preNum, true
+		// Compare chart versions (descending)
+		// This automatically handles prereleases correctly per semver spec
+		if !semverChartA.Equal(semverChartB) {
+			return semverChartA.GreaterThan(semverChartB)
 		}
 	}
 
-	// No prerelease found, treat as stable
-	return version, 4, 0, false
+	// Versions are equal
+	return false
+}
+
+// splitUpstreamChart splits a version string into upstream and chart parts
+// Example: "109.0.1+up0.10.4-rc.1" returns ("109.0.1", "0.10.4-rc.1")
+// Example: "109.0.1" returns ("109.0.1", "")
+func splitUpstreamChart(version string) (upstream, chart string) {
+	parts := strings.Split(version, "+up")
+	if len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+	return version, ""
 }

@@ -353,17 +353,28 @@ func (g *Git) ResetHEAD() error {
 	return exec.Command("git", "-C", g.Dir, "reset", "HEAD").Run()
 }
 
+// normalizeGitURL removes .git suffix for flexible URL matching
+func normalizeGitURL(url string) string {
+	return strings.TrimSuffix(url, ".git")
+}
+
 func (g *Git) getUpstreamRemote() (string, error) {
-	upstreamRemote := g.Remotes["https://github.com/rancher/charts"]
-	if upstreamRemote == "" {
-		upstreamRemote = g.Remotes["git@github.com:rancher/charts.git"]
+	// Pattern matching for rancher/charts upstream (protocol-agnostic)
+	patterns := []string{
+		"github.com/rancher/charts",
+		"github.com:rancher/charts",
 	}
 
-	if upstreamRemote == "" {
-		return "", errors.New("upstream remote not configured")
+	for remoteURL, remoteName := range g.Remotes {
+		normalized := normalizeGitURL(remoteURL)
+		for _, pattern := range patterns {
+			if strings.Contains(normalized, pattern) {
+				return remoteName, nil
+			}
+		}
 	}
 
-	return upstreamRemote, nil
+	return "", errors.New("upstream remote not configured")
 }
 
 // Status prints the status of the git repository

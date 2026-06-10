@@ -9,10 +9,12 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/urfave/cli"
 )
 
@@ -20,6 +22,11 @@ import (
 func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, rootFs billy.Filesystem, csOptions *options.ChartsScriptOptions, skip, remoteMode, localMode bool, chart string) error {
 
 	if err := isGitClean(ctx, repoRoot, false); err != nil {
+		return err
+	}
+
+	// quickly validate release.yaml by loading it with safeDecode without ignoring format
+	if _, err := filesystem.LoadYamlFile[map[string][]string](ctx, filesystem.GetAbsPath(rootFs, path.RepositoryReleaseYaml), false); err != nil {
 		return err
 	}
 

@@ -184,7 +184,7 @@ func validateIndexYaml(ctx context.Context, rootFs billy.Filesystem) error {
 	// Check 1:
 	logger.Log(ctx, slog.LevelInfo, "every asset must have an index entry")
 	assetsPath := path.RepositoryAssetsDir
-	if err := filesystem.WalkDir(ctx, rootFs, assetsPath, func(ctx context.Context, fs billy.Filesystem, filePath string, isDir bool) error {
+	if err := filesystem.WalkDir(ctx, rootFs, assetsPath, func(_ context.Context, fs billy.Filesystem, filePath string, isDir bool) error {
 		if isDir || filepath.Ext(filePath) != ".tgz" {
 			return nil
 		}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"sync"
 
 	"github.com/go-git/go-billy/v5"
@@ -16,6 +17,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"github.com/urfave/cli"
+	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 )
 
 // ChartsRepository validates the charts repository by running a series of checks
@@ -28,7 +30,7 @@ import (
 //   - upstream/remote or local repository comparison
 //   - charts/ vs assets/ must match
 //   - helm index.yaml regeneration
-func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, rootFs billy.Filesystem, csOptions *options.ChartsScriptOptions, skip, remoteMode, localMode bool, chart string) error {
+func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, rootFs billy.Filesystem, csOptions *options.ChartsScriptOptions, skip, remoteModeOnly, localModeOnly bool, chart string) error {
 
 	if err := isGitClean(ctx, repoRoot, false); err != nil {
 		return err
@@ -49,10 +51,9 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 		}
 	}
 
-	// Only validate remotely
-	if remoteMode {
-		logger.Log(ctx, slog.LevelInfo, "remote validation only")
-	} else {
+	// Regenerate package.yaml charts
+	if !remoteModeOnly {
+		logger.Log(ctx, slog.LevelInfo, "local validation - regenerate package/<chart>/package.yaml")
 		logger.Log(ctx, slog.LevelInfo, "generating charts")
 		if err := generateChartsConcurrently(ctx, c, repoRoot, chart, csOptions, rootFs); err != nil {
 			return err
@@ -62,13 +63,11 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 			return err
 		}
 
-		logger.Log(ctx, slog.LevelInfo, "successfully validated that current charts and assets are up-to-date")
+		logger.Log(ctx, slog.LevelInfo, "successfully validated that current charts defined in the packages and assets are up-to-date")
 	}
 
 	if csOptions.ValidateOptions != nil {
-		if localMode {
-			logger.Log(ctx, slog.LevelInfo, "local validation only")
-		} else {
+		if !localModeOnly {
 			releaseOptions, err := options.LoadReleaseOptionsFromFile(ctx, rootFs, "release.yaml")
 			if err != nil {
 				return err
@@ -137,6 +136,10 @@ func isGitClean(ctx context.Context, repoRoot string, checkExceptions bool) erro
 	return StatusExceptions(ctx, status)
 }
 
+// validateReleaseYaml will check if:
+//
+//   - release.yaml is properly formatted without duplicate charts
+//   - release.yaml charts do not have duplicate versions
 func validateReleaseYaml(ctx context.Context, rootFs billy.Filesystem) error {
 	logger.Log(ctx, slog.LevelInfo, "validating release.yaml")
 

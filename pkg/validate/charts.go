@@ -25,8 +25,7 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 		return err
 	}
 
-	// quickly validate release.yaml by loading it with safeDecode without ignoring format
-	if _, err := filesystem.LoadYamlFile[map[string][]string](ctx, filesystem.GetAbsPath(rootFs, path.RepositoryReleaseYaml), false); err != nil {
+	if err := validateReleaseYaml(ctx, rootFs); err != nil {
 		return err
 	}
 
@@ -123,6 +122,34 @@ func isGitClean(ctx context.Context, repoRoot string, checkExceptions bool) erro
 	}
 
 	return StatusExceptions(ctx, status)
+}
+
+func validateReleaseYaml(ctx context.Context, rootFs billy.Filesystem) error {
+	logger.Log(ctx, slog.LevelInfo, "validating release.yaml")
+
+	// validate release.yaml format by loading it with safeDecode without ignoring format
+	releaseYaml, err := filesystem.LoadYamlFile[map[string][]string](ctx, filesystem.GetAbsPath(rootFs, path.RepositoryReleaseYaml), false)
+	if err != nil {
+		return err
+	}
+
+	// release.yaml is nil when it is empty
+	if releaseYaml == nil {
+		return nil
+	}
+
+	// validate duplicate versions inside each chart in the release.yaml
+	for chart, versions := range *releaseYaml {
+		seen := make(map[string]bool, len(versions))
+		for _, version := range versions {
+			if seen[version] {
+				return errors.New("duplicate version in release.yaml; " + chart + ":" + version)
+			}
+			seen[version] = true
+		}
+	}
+
+	return nil
 }
 
 func generateChartsConcurrently(ctx context.Context, c *cli.Context, repoRoot, chart string, csOptions *options.ChartsScriptOptions, rootFs billy.Filesystem) error {

@@ -18,7 +18,16 @@ import (
 	"github.com/urfave/cli"
 )
 
-// ChartsRepository TODO
+// ChartsRepository validates the charts repository by running a series of checks
+// to ensure charts, assets, index.yaml and release.yaml are in a valid work state
+//
+// Sequence:
+//   - Git working tree must be clean
+//   - release.yaml must be valid
+//   - icons must be present for particular charts
+//   - upstream/remote or local repository comparison
+//   - charts/ vs assets/ must match
+//   - helm index.yaml regeneration
 func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, rootFs billy.Filesystem, csOptions *options.ChartsScriptOptions, skip, remoteMode, localMode bool, chart string) error {
 
 	if err := isGitClean(ctx, repoRoot, false); err != nil {

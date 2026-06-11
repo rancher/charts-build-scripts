@@ -38,6 +38,10 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 		return err
 	}
 
+	if err := validateIndexYaml(ctx, rootFs); err != nil {
+		return err
+	}
+
 	// Only skip icon validations for forward-ports
 	if !skip {
 		if err := Icons(ctx, rootFs); err != nil {
@@ -157,6 +161,64 @@ func validateReleaseYaml(ctx context.Context, rootFs billy.Filesystem) error {
 			seen[version] = true
 		}
 	}
+
+	logger.Log(ctx, slog.LevelInfo, "release.yaml is valid")
+	return nil
+}
+
+// validateIndexYaml will check if:
+//
+//   - every genrated assets (.tgz) has its correspondent index.yaml entry with the proper version
+//   - every index entry has its correspondent (.tgz) file
+func validateIndexYaml(ctx context.Context, rootFs billy.Filesystem) error {
+	logger.Log(ctx, slog.LevelInfo, "validating index.yaml matches assets")
+
+	indexFile, err := helm.OpenIndexYaml(ctx, rootFs)
+	if err != nil {
+		return err
+	}
+
+	// Check 1:
+	logger.Log(ctx, slog.LevelInfo, "every asset must have an index entry")
+	assetsPath := path.RepositoryAssetsDir
+	if err := filesystem.WalkDir(ctx, rootFs, assetsPath, func(ctx context.Context, fs billy.Filesystem, filePath string, isDir bool) error {
+		if isDir || filepath.Ext(filePath) != ".tgz" {
+			return nil
+		}
+
+		chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, filePath))
+		if err != nil {
+			return errors.New("validating index.yaml check(1); failed to load chart: " + err.Error())
+		}
+
+		if !indexFile.Has(chart.Metadata.Name, chart.Metadata.Version) {
+			return errors.New("validating index.yaml check(1); missing entry: " +
+				chart.Metadata.Name + "-" + chart.Metadata.Version)
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+	logger.Log(ctx, slog.LevelInfo, "all assets have index entries")
+
+	// Check 2:
+	logger.Log(ctx, slog.LevelInfo, "every index entry must have an asset file")
+	for chartName, versions := range indexFile.Entries {
+		for _, version := range versions {
+			assetTgz := chartName + "-" + version.Version + ".tgz"
+			assetPath := path.RepositoryAssetsDir + "/" + chartName + "/" + assetTgz
+
+			exists, err := filesystem.PathExists(ctx, rootFs, assetPath)
+			if err != nil {
+				return errors.New("validating index.yaml check(2); failed to check path: " + err.Error())
+			}
+			if !exists {
+				return errors.New("validating index.yaml check(2); asset missing for index entry: " + assetTgz)
+			}
+		}
+	}
+	logger.Log(ctx, slog.LevelInfo, "all index entries have assets")
 
 	return nil
 }

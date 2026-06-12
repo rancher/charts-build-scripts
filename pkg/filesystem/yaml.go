@@ -40,7 +40,7 @@ func LoadYamlFile[YamlFields any](ctx context.Context, filepath string, ignoreFo
 
 	logger.Log(ctx, slog.LevelDebug, "decoding", slog.String("filepath", filepath))
 
-	if err := safeDecodeYaml(ctx, reader, &yamlFields, false); err != nil {
+	if err := safeDecodeYaml(ctx, reader, &yamlFields, ignoreFormat); err != nil {
 		return nil, err
 	}
 

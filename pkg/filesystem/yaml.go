@@ -40,7 +40,7 @@ func LoadYamlFile[YamlFields any](ctx context.Context, filepath string, ignoreFo
 
 	logger.Log(ctx, slog.LevelDebug, "decoding", slog.String("filepath", filepath))
 
-	if err := safeDecodeYaml(ctx, reader, &yamlFields, false); err != nil {
+	if err := safeDecodeYaml(ctx, reader, &yamlFields, ignoreFormat); err != nil {
 		return nil, err
 	}
 
@@ -155,5 +155,6 @@ func CreateAndOpenYamlFile(ctx context.Context, filePath string, truncate bool) 
 func UpdateYamlFile(file *os.File, imageTagMap map[string][]string) error {
 	encoder := yamlV3.NewEncoder(file)
 	encoder.SetIndent(2)
+	defer encoder.Close()
 	return encoder.Encode(imageTagMap)
 }

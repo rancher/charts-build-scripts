@@ -68,7 +68,7 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 
 	if csOptions.ValidateOptions != nil {
 		if !localModeOnly {
-			releaseOptions, err := options.LoadReleaseOptionsFromFile(ctx, rootFs, "release.yaml")
+			releaseOptions, err := options.LoadReleaseYaml(ctx, rootFs)
 			if err != nil {
 				return err
 			}

@@ -23,7 +23,6 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/lifecycle"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 )
 
 // owner and repo identify the GitHub repository used for pull request lookups.
@@ -107,7 +106,7 @@ func PullRequests(ctx context.Context,
 	}
 
 	// Checkpoint 0
-	releaseOpts, err := options.LoadReleaseOptionsFromFile(ctx, dep.RootFs, path.RepositoryReleaseYaml)
+	releaseOpts, err := options.LoadReleaseYaml(ctx, dep.RootFs)
 	if err != nil {
 		return err
 	}

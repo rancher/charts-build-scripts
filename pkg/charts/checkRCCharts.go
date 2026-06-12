@@ -14,7 +14,7 @@ func CheckRCCharts(ctx context.Context, repoRoot string) (map[string][]string, e
 	repoFs := filesystem.GetFilesystem(repoRoot)
 
 	// Load the release options from the release.yaml file
-	releaseOptions, err := options.LoadReleaseOptionsFromFile(ctx, repoFs, "release.yaml")
+	releaseOptions, err := options.LoadReleaseYaml(ctx, repoFs)
 	if err != nil {
 		return nil, err
 	}

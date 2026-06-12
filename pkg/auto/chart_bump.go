@@ -529,7 +529,7 @@ func (b *Bump) checkMultiRC(ctx context.Context) error {
 			removeMe := rcVersion.repoPrefix.txt + "+up" + rcVersion.appVersion.txt
 
 			logger.Log(ctx, slog.LevelDebug, "removing RC version", slog.Group("charts", b.target.main, removeMe))
-			if err := removeCharts(ctx, b.rootFs, b.target.additional, removeMe); err != nil {
+			if err := charts.Delete(ctx, b.rootFs, b.target.additional, removeMe); err != nil {
 				return err
 			}
 

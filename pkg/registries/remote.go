@@ -425,7 +425,7 @@ func getReleaseOptions(ctx context.Context, repoRoot string) options.ReleaseOpti
 	repoFs := filesystem.GetFilesystem(repoRoot)
 
 	// Load the release options from the release.yaml file
-	releaseOptions, err := options.LoadReleaseOptionsFromFile(ctx, repoFs, "release.yaml")
+	releaseOptions, err := options.LoadReleaseYaml(ctx, repoFs)
 	if err != nil {
 		logger.Fatal(ctx, fmt.Errorf("unable to unmarshall release.yaml: %s", err).Error())
 	}

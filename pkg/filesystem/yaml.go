@@ -155,5 +155,6 @@ func CreateAndOpenYamlFile(ctx context.Context, filePath string, truncate bool) 
 func UpdateYamlFile(file *os.File, imageTagMap map[string][]string) error {
 	encoder := yamlV3.NewEncoder(file)
 	encoder.SetIndent(2)
+	defer encoder.Close()
 	return encoder.Encode(imageTagMap)
 }

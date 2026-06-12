@@ -65,7 +65,7 @@ func PushChartToOCI(ctx context.Context, rootFs billy.Filesystem, ociDNS, custom
 		return errors.New("no credentials provided for pushing helm chart to OCI registry")
 	}
 
-	release, err := options.LoadReleaseOptionsFromFile(ctx, rootFs, path.RepositoryReleaseYaml)
+	release, err := options.LoadReleaseYaml(ctx, rootFs)
 	if err != nil {
 		return err
 	}

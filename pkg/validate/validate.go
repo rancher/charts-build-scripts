@@ -48,7 +48,7 @@ func (r CompareGeneratedAssetsResponse) LogDiscrepancies(ctx context.Context) {
 // DumpReleaseYaml takes the response collected by this CompareGeneratedAssetsResponse and automatically creates the appropriate release.yaml,
 // assuming that the user does indeed intend to add, delete, or modify all assets that were marked in this comparison
 func (r CompareGeneratedAssetsResponse) DumpReleaseYaml(ctx context.Context, repoFs billy.Filesystem) error {
-	releaseYaml, err := options.LoadReleaseOptionsFromFile(ctx, repoFs, path.RepositoryReleaseYaml)
+	releaseYaml, err := options.LoadReleaseYaml(ctx, repoFs)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func (r CompareGeneratedAssetsResponse) DumpReleaseYaml(ctx context.Context, rep
 	releaseYaml.Merge(r.RemovedPostRelease)
 	releaseYaml.Merge(r.ModifiedPostRelease)
 
-	return releaseYaml.WriteToFile(ctx, repoFs, path.RepositoryReleaseYaml)
+	return releaseYaml.Write(ctx, repoFs)
 }
 
 // CompareGeneratedAssets checks to see if current assets and charts match upstream, aside from those indicated in the release.yaml

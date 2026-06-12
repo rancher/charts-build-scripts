@@ -6,6 +6,27 @@ import (
 	"github.com/Masterminds/semver"
 )
 
+// SortUpstreamAppVersions compares 2 Rancher chart version strings for Descending sort.
+// Returns true if vA should come before vB (higher version first).
+//
+// Version format: <upstream_version>+up<chart_version>
+// Examples:
+//   - "109.0.1+up0.10.4-rc.1"
+//   - "109.0.1+up0.10.1"
+//   - "109.0.1"
+//
+// Comparison logic:
+//  1. Split on "+up" delimiter into upstream and chart parts
+//  2. Compare upstream versions using semver (descending)
+//  3. If upstream equal, compare chart versions using semver (descending)
+//  4. Semver automatically handles prereleases (rc, alpha, beta) per spec
+//  5. Invalid semver versions pushed to end of sort order
+//
+// Use with sort.Slice:
+//
+//	sort.Slice(versions, func(i, j int) bool {
+//	    return util.SortUpstreamAppVersions(versions[i], versions[j])
+//	})
 func SortUpstreamAppVersions(vA, vB string) bool {
 	// Split versions into upstream and chart parts
 	// Format: <upstream_version>+up<chart_version>

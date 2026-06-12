@@ -11,6 +11,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
+	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 
 	helmRepo "helm.sh/helm/v3/pkg/repo"
@@ -77,9 +78,14 @@ func DeleteVersion(ctx context.Context, rootFs billy.Filesystem, chart, version 
 	}
 	logger.Log(ctx, slog.LevelDebug, "removed index.yaml chart-version entry")
 
-	// TODO: update release.yaml
+	// update release.yaml
+	releaseYaml, err := options.LoadReleaseYaml(ctx, rootFs)
+	if err != nil {
+		return err
+	}
+	releaseYaml = releaseYaml.Append(chart, version) // Safe does not duplicate
 
-	return nil
+	return releaseYaml.Write(ctx, rootFs)
 }
 
 func removeDirFile(ctx context.Context, rootFs billy.Filesystem, target, parent string) error {

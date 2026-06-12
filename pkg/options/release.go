@@ -28,6 +28,7 @@ func (r ReleaseOptions) Contains(chart string, version string) bool {
 }
 
 // Append adds a chart and version to the ReleaseOptions and returns it
+//   - Duplicate-Safe
 func (r ReleaseOptions) Append(chart string, version string) ReleaseOptions {
 	versions, ok := r[chart]
 	if !ok {
@@ -45,6 +46,7 @@ func (r ReleaseOptions) Append(chart string, version string) ReleaseOptions {
 }
 
 // Merge merges two ReleaseOptions and returns the merged copy
+//   - Duplicate-Safe
 func (r ReleaseOptions) Merge(new ReleaseOptions) ReleaseOptions {
 	for chart, versions := range new {
 		for _, version := range versions {

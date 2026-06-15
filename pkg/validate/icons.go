@@ -11,18 +11,19 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
-	"github.com/rancher/charts-build-scripts/pkg/path"
 )
 
 // Icons checks that every chart listed in release.yaml has a local icon present
 // under a file:// path. Charts matching IsIconException are skipped.
 func Icons(ctx context.Context, rootFs billy.Filesystem) error {
-	releaseOpts, err := options.LoadReleaseOptionsFromFile(ctx, rootFs, path.RepositoryReleaseYaml)
+	releaseOpts, err := options.LoadReleaseYaml(ctx, rootFs)
 	if err != nil {
 		return err
 	}
 
-	releaseOpts.SortBySemver(ctx)
+	if err := releaseOpts.SortReleaseYaml(); err != nil {
+		return err
+	}
 
 	logger.Log(ctx, slog.LevelInfo, "checking if icons are present in the local filesystem")
 	for chart, versions := range releaseOpts {

@@ -573,6 +573,12 @@ func main() {
 			Action: syncRegistries,
 			Flags:  []cli.Flag{primeURLFlag, customOciPath},
 		},
+		{
+			Name:   "remove",
+			Usage:  "remove a chart/asset and also its index.yaml entry",
+			Action: removeAsset,
+			Flags:  []cli.Flag{chartFlag, chartVersionFlag},
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -1017,4 +1023,11 @@ func syncRegistries(c *cli.Context) {
 		logger.Fatal(ctx, err.Error())
 	}
 
+}
+
+func removeAsset(_ *cli.Context) {
+	ctx := context.Background()
+	if err := charts.DeleteVersion(ctx, filesystem.GetFilesystem(RepoRoot), CurrentChart, ChartVersion); err != nil {
+		logger.Fatal(ctx, err.Error())
+	}
 }

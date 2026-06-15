@@ -61,13 +61,13 @@ func DeleteVersion(ctx context.Context, rootFs billy.Filesystem, chart, version 
 	}
 
 	// remove charts version dir
-	if err := removeDirFile(ctx, rootFs, chartPath, filepath.Join(path.RepositoryChartsDir+"/"+chart)); err != nil {
+	if err := removeDirFile(ctx, rootFs, chartPath, filepath.Join(path.RepositoryChartsDir, chart)); err != nil {
 		return err
 	}
 	logger.Log(ctx, slog.LevelDebug, "removed", slog.String("chartPath", chartPath))
 
 	// remove asset version .tgz
-	if err := removeDirFile(ctx, rootFs, assetPath, filepath.Join(path.RepositoryAssetsDir+"/"+chart+"/")); err != nil {
+	if err := removeDirFile(ctx, rootFs, assetPath, filepath.Join(path.RepositoryAssetsDir, chart)); err != nil {
 		return err
 	}
 	logger.Log(ctx, slog.LevelDebug, "removed", slog.String("assetPath", assetPath))
@@ -119,7 +119,7 @@ func isDirEmpty(fs billy.Filesystem, dirPath string) (bool, error) {
 }
 
 // deleteIndexEntry seeks a chart at index.yaml and remove it's entry version
-func deleteIndexEntry(ctx context.Context, rootFs billy.Filesystem, chart string, version string) error {
+func deleteIndexEntry(ctx context.Context, rootFs billy.Filesystem, chart, version string) error {
 	index, err := helm.OpenIndexYaml(ctx, rootFs)
 	if err != nil {
 		return errors.New("deleting index entry; failed to open index.yaml: " + err.Error())
@@ -134,7 +134,7 @@ func deleteIndexEntry(ctx context.Context, rootFs billy.Filesystem, chart string
 	newEntry := make(map[string]helmRepo.ChartVersions, len(index.Entries[chart])-1)
 	found := false
 	for _, chartVersion := range index.Entries[chart] {
-		if chartVersion.Metadata.Version == version {
+		if chartVersion.Version == version {
 			found = true
 			continue
 		}

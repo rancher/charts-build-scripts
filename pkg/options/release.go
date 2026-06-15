@@ -19,7 +19,7 @@ import (
 type ReleaseOptions map[string][]string
 
 // Contains checks if a chart and version is tracked by the ReleaseOptions
-func (r ReleaseOptions) Contains(chart string, version string) bool {
+func (r ReleaseOptions) Contains(chart, version string) bool {
 	versions, ok := r[chart]
 	if !ok {
 		return false
@@ -29,7 +29,7 @@ func (r ReleaseOptions) Contains(chart string, version string) bool {
 
 // Append adds a chart and version to the ReleaseOptions and returns it
 //   - Duplicate-Safe
-func (r ReleaseOptions) Append(chart string, version string) ReleaseOptions {
+func (r ReleaseOptions) Append(chart, version string) ReleaseOptions {
 	versions, ok := r[chart]
 	if !ok {
 		versions = []string{}

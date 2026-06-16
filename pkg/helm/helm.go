@@ -89,7 +89,7 @@ func CreateOrUpdateHelmIndex(ctx context.Context, rootFs billy.Filesystem) error
 // Returns an error if any version contains an invalid prerelease identifier
 func CheckVersionStandards(ctx context.Context, new *helmRepo.IndexFile) error {
 	allowedPrereleases := []string{"-alpha.", "-beta.", "-rc", "-rancher", "-security"}
-	logger.Log(ctx, slog.LevelInfo, "checking version standars", slog.Any("allowed", allowedPrereleases))
+	logger.Log(ctx, slog.LevelInfo, "checking version standards", slog.Any("allowed", allowedPrereleases))
 
 	for chartName, chartVersions := range new.Entries {
 		for _, chartVersion := range chartVersions {

@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
@@ -63,14 +64,21 @@ func CreateOrUpdateHelmIndex(ctx context.Context, rootFs billy.Filesystem) error
 	SortVersions(newHelmIndexFile)
 
 	// Update index
-	helmIndexFile, upToDate := UpdateIndex(ctx, helmIndexFile, newHelmIndexFile)
+	mergedIndex := updateIndex(ctx, helmIndexFile, newHelmIndexFile)
 
-	if upToDate {
-		return nil
+	// Sort one last time for safety
+	SortVersions(mergedIndex)
+
+	// Apply blocklist annotations
+	if err := applyBlocklist(ctx, mergedIndex); err != nil {
+		return err
 	}
 
+	// Always write index.yaml to ensure blocklist annotations are persisted
+	// Trade-off: ~500ms overhead in concurrent validate runs for consistency
+
 	// Write new index to disk
-	err = helmIndexFile.WriteFile(absRepositoryHelmIndexFile, os.ModePerm)
+	err = mergedIndex.WriteFile(absRepositoryHelmIndexFile, os.ModePerm)
 	if err != nil {
 		return errors.New("encountered error while trying to write updated Helm index into index.yaml: " + err.Error())
 	}
@@ -84,7 +92,7 @@ func CreateOrUpdateHelmIndex(ctx context.Context, rootFs billy.Filesystem) error
 // Returns an error if any version contains an invalid prerelease identifier
 func CheckVersionStandards(ctx context.Context, new *helmRepo.IndexFile) error {
 	allowedPrereleases := []string{"-alpha.", "-beta.", "-rc", "-rancher", "-security"}
-	logger.Log(ctx, slog.LevelInfo, "checking version standars", slog.Any("allowed", allowedPrereleases))
+	logger.Log(ctx, slog.LevelInfo, "checking version standards", slog.Any("allowed", allowedPrereleases))
 
 	for chartName, chartVersions := range new.Entries {
 		for _, chartVersion := range chartVersions {
@@ -127,56 +135,86 @@ func CheckVersionStandards(ctx context.Context, new *helmRepo.IndexFile) error {
 	return nil
 }
 
-// UpdateIndex updates the original index with the new contents
-func UpdateIndex(ctx context.Context, original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) {
-
-	upToDate := true
+// updateIndex merges new index entries with original while preserving metadata
+// not stored in .tgz assets. Prevents git churn by keeping timestamps stable
+// when chart contents haven't changed.
+//
+// Preserves from original index:
+//   - Generated timestamp (index creation time)
+//   - Created timestamps for unchanged chart versions (digest match)
+//
+// Behavior:
+//   - New chart versions: use as-is from new index
+//   - Existing unchanged versions (same digest): preserve Created timestamp
+//   - Existing modified versions (different digest): use new Created timestamp
+//   - Removed versions: logged but not re-added to index
+func updateIndex(ctx context.Context, original, new *helmRepo.IndexFile) *helmRepo.IndexFile {
 	// Preserve generated timestamp
 	new.Generated = original.Generated
 
 	// Ensure newer version of chart is used if it has been updated
-	for chartName, chartVersions := range new.Entries {
-		for i, chartVersion := range chartVersions {
-			version := chartVersion.Version
-			if !original.Has(chartName, version) {
-				// Keep the newly generated chart version as-is
-				upToDate = false
-				logger.Log(ctx, slog.LevelDebug, "chart has introduced a new version", slog.String("chartName", chartName), slog.String("version", version))
-				continue
+	for chart, versions := range new.Entries {
+		for i, entry := range versions {
+			version := entry.Version
+			if !original.Has(chart, version) {
+				logger.Log(ctx, slog.LevelDebug, "chart was introduced", slog.String("chart", chart), slog.String("version", version))
+				continue // Keep the newly generated chart version as-is
 			}
 			// Get original chart version
-			var originalChartVersion *helmRepo.ChartVersion
-			for _, originalChartVersion = range original.Entries[chartName] {
-				if originalChartVersion.Version == chartVersion.Version {
-					// found originalChartVersion, which must exist since we checked that the original has it
-					break
+			var originalEntry *helmRepo.ChartVersion
+			for _, originalEntry = range original.Entries[chart] {
+				if originalEntry.Version == entry.Version {
+					break // found originalEntry, which must exist since we checked that the original has it
 				}
 			}
 			// Try to preserve it only if nothing has changed.
-			if originalChartVersion.Digest == chartVersion.Digest {
-				// Don't modify created timestamp
-				new.Entries[chartName][i].Created = originalChartVersion.Created
+			if originalEntry.Digest == entry.Digest {
+				new.Entries[chart][i].Created = originalEntry.Created // Don't modify created timestamp
 			} else {
-				upToDate = false
-				logger.Log(ctx, slog.LevelDebug, "chart has been modified", slog.String("chartName", chartName), slog.String("version", version))
+				logger.Log(ctx, slog.LevelDebug, "chart was modified", slog.String("chart", chart), slog.String("version", version))
 			}
 		}
 	}
 
-	for chartName, chartVersions := range original.Entries {
-		for _, chartVersion := range chartVersions {
-			if !new.Has(chartName, chartVersion.Version) {
-				// Chart was removed
-				upToDate = false
-				logger.Log(ctx, slog.LevelDebug, "chart has been removed", slog.String("chartName", chartName), slog.String("version", chartVersion.Version))
-				continue
+	for chart, versions := range original.Entries {
+		for _, entry := range versions {
+			if !new.Has(chart, entry.Version) {
+				logger.Log(ctx, slog.LevelDebug, "chart was removed", slog.String("chart", chart), slog.String("version", entry.Version))
+				continue // Chart was removed
 			}
 		}
 	}
 
-	// Sort one more time for safety
-	new.SortEntries()
-	return new, upToDate
+	return new
+}
+
+// applyBlocklist injects hidden annotation for blocklisted chart versions
+func applyBlocklist(ctx context.Context, index *helmRepo.IndexFile) error {
+	blocklist, err := config.LoadBlockList(ctx)
+	if err != nil {
+		return errors.New("failed to load blocklist: " + err.Error())
+	}
+
+	for chartName, chartVersions := range index.Entries {
+		for i, chartVersion := range chartVersions {
+			if blocklist.IsBlocked(chartName, chartVersion.Version) {
+				// Inject hidden annotation
+				if chartVersion.Annotations == nil {
+					chartVersion.Annotations = make(map[string]string)
+				}
+				chartVersion.Annotations["catalog.cattle.io/hidden"] = "true"
+
+				// Update entry in place
+				index.Entries[chartName][i] = chartVersion
+
+				logger.Log(ctx, slog.LevelInfo, "marked chart as hidden",
+					slog.String("chart", chartName),
+					slog.String("version", chartVersion.Version))
+			}
+		}
+	}
+
+	return nil
 }
 
 // OpenIndexYaml will check and open the index.yaml file in the local repository at the default file path

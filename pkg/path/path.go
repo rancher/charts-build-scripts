@@ -88,4 +88,10 @@ const (
 	DockerToPrimeSync = "config/dockerToPrime.yaml"
 	// StagingToPrimeSync file contains docker image/tags that will be synced from Staging registry
 	StagingToPrimeSync = "config/stagingToPrime.yaml"
+
+	// BlockList file tracks all charts versions that must be hidden
+	BlockList = "config/blocklist.yaml"
+
+	// AutoCoreBranch is the single canonical configuration source of truth
+	AutoCoreBranch = "automation-core"
 )

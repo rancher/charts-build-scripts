@@ -64,7 +64,7 @@ func CreateOrUpdateHelmIndex(ctx context.Context, rootFs billy.Filesystem) error
 	SortVersions(newHelmIndexFile)
 
 	// Update index
-	mergedIndex, _ := UpdateIndex(ctx, helmIndexFile, newHelmIndexFile)
+	mergedIndex := updateIndex(ctx, helmIndexFile, newHelmIndexFile)
 
 	// Apply blocklist annotations
 	if err := applyBlocklist(ctx, mergedIndex); err != nil {
@@ -132,10 +132,8 @@ func CheckVersionStandards(ctx context.Context, new *helmRepo.IndexFile) error {
 	return nil
 }
 
-// UpdateIndex updates the original index with the new contents
-func UpdateIndex(ctx context.Context, original, new *helmRepo.IndexFile) (*helmRepo.IndexFile, bool) {
-
-	upToDate := true
+// updateIndex updates the original index with the new contents
+func updateIndex(ctx context.Context, original, new *helmRepo.IndexFile) *helmRepo.IndexFile {
 	// Preserve generated timestamp
 	new.Generated = original.Generated
 
@@ -145,7 +143,7 @@ func UpdateIndex(ctx context.Context, original, new *helmRepo.IndexFile) (*helmR
 			version := chartVersion.Version
 			if !original.Has(chartName, version) {
 				// Keep the newly generated chart version as-is
-				upToDate = false
+
 				logger.Log(ctx, slog.LevelDebug, "chart has introduced a new version", slog.String("chartName", chartName), slog.String("version", version))
 				continue
 			}
@@ -162,7 +160,7 @@ func UpdateIndex(ctx context.Context, original, new *helmRepo.IndexFile) (*helmR
 				// Don't modify created timestamp
 				new.Entries[chartName][i].Created = originalChartVersion.Created
 			} else {
-				upToDate = false
+
 				logger.Log(ctx, slog.LevelDebug, "chart has been modified", slog.String("chartName", chartName), slog.String("version", version))
 			}
 		}
@@ -172,7 +170,6 @@ func UpdateIndex(ctx context.Context, original, new *helmRepo.IndexFile) (*helmR
 		for _, chartVersion := range chartVersions {
 			if !new.Has(chartName, chartVersion.Version) {
 				// Chart was removed
-				upToDate = false
 				logger.Log(ctx, slog.LevelDebug, "chart has been removed", slog.String("chartName", chartName), slog.String("version", chartVersion.Version))
 				continue
 			}
@@ -181,7 +178,7 @@ func UpdateIndex(ctx context.Context, original, new *helmRepo.IndexFile) (*helmR
 
 	// Sort one more time for safety
 	new.SortEntries()
-	return new, upToDate
+	return new
 }
 
 // applyBlocklist injects hidden annotation for blocklisted chart versions

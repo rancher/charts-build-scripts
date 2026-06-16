@@ -11,6 +11,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
+	"github.com/rancher/charts-build-scripts/pkg/path"
 )
 
 // Icons checks that every chart listed in release.yaml has a local icon present
@@ -64,6 +65,15 @@ func IsIconException(chart string) bool {
 // loadAndCheckIconPrefix loads Chart.yaml for the given chart version and verifies
 // that the icon field uses a local file:// path that actually exists on the filesystem.
 func loadAndCheckIconPrefix(ctx context.Context, rootFs billy.Filesystem, chart string, chartVersion string) error {
+	exists, err := filesystem.PathExists(ctx, rootFs, path.RepositoryChartsDir+"/"+chart+"/"+chartVersion+"/Chart.yaml")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		logger.Log(ctx, slog.LevelWarn, "chart was removed, skipping....", slog.String("chart", chart), slog.String("version", chartVersion))
+		return nil
+	}
+
 	metadata, err := helm.LoadChartYaml(rootFs, chart, chartVersion)
 	if err != nil {
 		return err

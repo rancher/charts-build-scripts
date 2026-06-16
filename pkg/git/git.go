@@ -388,6 +388,32 @@ func (g *Git) Status(ctx context.Context) error {
 	return cmd.Run()
 }
 
+// ShowFileFromRemoteBranch fetches file content from upstream remote branch
+// Equivalent to: git show <upstream>/<branch>:<filePath>
+func (g *Git) ShowFileFromRemoteBranch(ctx context.Context, branch, filePath string) ([]byte, error) {
+	upstreamRemote, err := g.getUpstreamRemote()
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Log(ctx, slog.LevelDebug, "fetching file from remote branch",
+		slog.String("remote", upstreamRemote),
+		slog.String("branch", branch),
+		slog.String("file", filePath))
+
+	target := fmt.Sprintf("%s/%s:%s", upstreamRemote, branch, filePath)
+
+	cmd := exec.CommandContext(ctx, "git", "-C", g.Dir, "show", target)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to show file %s from %s/%s: %w (output: %s)",
+			filePath, upstreamRemote, branch, err, string(output))
+	}
+
+	return output, nil
+}
+
 // SparseCloneSubdirectory performs a sparse Git clone of only a specific subdirectory
 // using Git CLI commands. This is significantly more efficient than cloning the entire
 // repository when only a small subdirectory is needed.

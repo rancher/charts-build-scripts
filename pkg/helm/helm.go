@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/go-git/go-billy/v5"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
@@ -63,14 +64,18 @@ func CreateOrUpdateHelmIndex(ctx context.Context, rootFs billy.Filesystem) error
 	SortVersions(newHelmIndexFile)
 
 	// Update index
-	helmIndexFile, upToDate := UpdateIndex(ctx, helmIndexFile, newHelmIndexFile)
+	mergedIndex, _ := UpdateIndex(ctx, helmIndexFile, newHelmIndexFile)
 
-	if upToDate {
-		return nil
+	// Apply blocklist annotations
+	if err := applyBlocklist(ctx, mergedIndex); err != nil {
+		return err
 	}
 
+	// Always write index.yaml to ensure blocklist annotations are persisted
+	// Trade-off: ~500ms overhead in concurrent validate runs for consistency
+
 	// Write new index to disk
-	err = helmIndexFile.WriteFile(absRepositoryHelmIndexFile, os.ModePerm)
+	err = mergedIndex.WriteFile(absRepositoryHelmIndexFile, os.ModePerm)
 	if err != nil {
 		return errors.New("encountered error while trying to write updated Helm index into index.yaml: " + err.Error())
 	}
@@ -177,6 +182,35 @@ func UpdateIndex(ctx context.Context, original, new *helmRepo.IndexFile) (*helmR
 	// Sort one more time for safety
 	new.SortEntries()
 	return new, upToDate
+}
+
+// applyBlocklist injects hidden annotation for blocklisted chart versions
+func applyBlocklist(ctx context.Context, index *helmRepo.IndexFile) error {
+	blocklist, err := config.LoadBlockList(ctx)
+	if err != nil {
+		return errors.New("failed to load blocklist: " + err.Error())
+	}
+
+	for chartName, chartVersions := range index.Entries {
+		for i, chartVersion := range chartVersions {
+			if blocklist.IsBlocked(chartName, chartVersion.Version) {
+				// Inject hidden annotation
+				if chartVersion.Annotations == nil {
+					chartVersion.Annotations = make(map[string]string)
+				}
+				chartVersion.Annotations["catalog.cattle.io/hidden"] = "true"
+
+				// Update entry in place
+				index.Entries[chartName][i] = chartVersion
+
+				logger.Log(ctx, slog.LevelInfo, "marked chart as hidden",
+					slog.String("chart", chartName),
+					slog.String("version", chartVersion.Version))
+			}
+		}
+	}
+
+	return nil
 }
 
 // OpenIndexYaml will check and open the index.yaml file in the local repository at the default file path

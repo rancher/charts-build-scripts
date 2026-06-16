@@ -28,11 +28,10 @@ require (
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.21.6
-	github.com/google/go-github/v85 v85.0.0
+	github.com/google/go-github/v88 v88.0.0
 	github.com/lmittmann/tint v1.1.3
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli v1.22.17
-	golang.org/x/exp v0.0.0-20260603202125-055de637280b
 	golang.org/x/oauth2 v0.36.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1

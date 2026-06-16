@@ -66,6 +66,9 @@ func CreateOrUpdateHelmIndex(ctx context.Context, rootFs billy.Filesystem) error
 	// Update index
 	mergedIndex := updateIndex(ctx, helmIndexFile, newHelmIndexFile)
 
+	// Sort one last time for safety
+	SortVersions(mergedIndex)
+
 	// Apply blocklist annotations
 	if err := applyBlocklist(ctx, mergedIndex); err != nil {
 		return err
@@ -176,8 +179,6 @@ func updateIndex(ctx context.Context, original, new *helmRepo.IndexFile) *helmRe
 		}
 	}
 
-	// Sort one more time for safety
-	new.SortEntries()
 	return new
 }
 

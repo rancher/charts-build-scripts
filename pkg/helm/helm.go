@@ -135,46 +135,52 @@ func CheckVersionStandards(ctx context.Context, new *helmRepo.IndexFile) error {
 	return nil
 }
 
-// updateIndex updates the original index with the new contents
+// updateIndex merges new index entries with original while preserving metadata
+// not stored in .tgz assets. Prevents git churn by keeping timestamps stable
+// when chart contents haven't changed.
+//
+// Preserves from original index:
+//   - Generated timestamp (index creation time)
+//   - Created timestamps for unchanged chart versions (digest match)
+//
+// Behavior:
+//   - New chart versions: use as-is from new index
+//   - Existing unchanged versions (same digest): preserve Created timestamp
+//   - Existing modified versions (different digest): use new Created timestamp
+//   - Removed versions: logged but not re-added to index
 func updateIndex(ctx context.Context, original, new *helmRepo.IndexFile) *helmRepo.IndexFile {
 	// Preserve generated timestamp
 	new.Generated = original.Generated
 
 	// Ensure newer version of chart is used if it has been updated
-	for chartName, chartVersions := range new.Entries {
-		for i, chartVersion := range chartVersions {
-			version := chartVersion.Version
-			if !original.Has(chartName, version) {
-				// Keep the newly generated chart version as-is
-
-				logger.Log(ctx, slog.LevelDebug, "chart has introduced a new version", slog.String("chartName", chartName), slog.String("version", version))
-				continue
+	for chart, versions := range new.Entries {
+		for i, entry := range versions {
+			version := entry.Version
+			if !original.Has(chart, version) {
+				logger.Log(ctx, slog.LevelDebug, "chart was introduced", slog.String("chart", chart), slog.String("version", version))
+				continue // Keep the newly generated chart version as-is
 			}
 			// Get original chart version
-			var originalChartVersion *helmRepo.ChartVersion
-			for _, originalChartVersion = range original.Entries[chartName] {
-				if originalChartVersion.Version == chartVersion.Version {
-					// found originalChartVersion, which must exist since we checked that the original has it
-					break
+			var originalEntry *helmRepo.ChartVersion
+			for _, originalEntry = range original.Entries[chart] {
+				if originalEntry.Version == entry.Version {
+					break // found originalEntry, which must exist since we checked that the original has it
 				}
 			}
 			// Try to preserve it only if nothing has changed.
-			if originalChartVersion.Digest == chartVersion.Digest {
-				// Don't modify created timestamp
-				new.Entries[chartName][i].Created = originalChartVersion.Created
+			if originalEntry.Digest == entry.Digest {
+				new.Entries[chart][i].Created = originalEntry.Created // Don't modify created timestamp
 			} else {
-
-				logger.Log(ctx, slog.LevelDebug, "chart has been modified", slog.String("chartName", chartName), slog.String("version", version))
+				logger.Log(ctx, slog.LevelDebug, "chart was modified", slog.String("chart", chart), slog.String("version", version))
 			}
 		}
 	}
 
-	for chartName, chartVersions := range original.Entries {
-		for _, chartVersion := range chartVersions {
-			if !new.Has(chartName, chartVersion.Version) {
-				// Chart was removed
-				logger.Log(ctx, slog.LevelDebug, "chart has been removed", slog.String("chartName", chartName), slog.String("version", chartVersion.Version))
-				continue
+	for chart, versions := range original.Entries {
+		for _, entry := range versions {
+			if !new.Has(chart, entry.Version) {
+				logger.Log(ctx, slog.LevelDebug, "chart was removed", slog.String("chart", chart), slog.String("version", entry.Version))
+				continue // Chart was removed
 			}
 		}
 	}

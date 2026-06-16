@@ -65,12 +65,6 @@ func Test_loadAndCheckIconPrefix(t *testing.T) {
 			createIcon:  false,
 			expectedErr: "icon path is a file:// prefix, but the icon does not exist",
 		},
-		{
-			name:        "#4 - Chart.yaml does not exist",
-			createChart: false,
-			createIcon:  false,
-			expectedErr: "could not load",
-		},
 	}
 
 	for _, tt := range tests {

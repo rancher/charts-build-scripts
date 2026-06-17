@@ -359,10 +359,12 @@ func normalizeGitURL(url string) string {
 }
 
 func (g *Git) getUpstreamRemote() (string, error) {
-	// Pattern matching for rancher/charts upstream (protocol-agnostic)
+	// Pattern matching for rancher/charts and rancher/prime-charts upstream (protocol-agnostic)
 	patterns := []string{
 		"github.com/rancher/charts",
 		"github.com:rancher/charts",
+		"github.com/rancher/prime-charts",
+		"github.com:rancher/prime-charts",
 	}
 
 	for remoteURL, remoteName := range g.Remotes {

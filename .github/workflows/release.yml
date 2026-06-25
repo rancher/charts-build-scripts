@@ -20,9 +20,9 @@ jobs:
         shell: bash
         env:
           # renovate: datasource=github-release-attachments depName=cli/cli
-          GH_CLI_VERSION: v2.93.0
-          # renovate: datasource=github-release-attachments depName=cli/cli digestVersion=v2.93.0
-          GH_CLI_SUM_amd64: 02d1290eba130e0b896f3709ffff22e1c75a51475ddb70476a85abc6b5807af0
+          GH_CLI_VERSION: v2.95.0
+          # renovate: datasource=github-release-attachments depName=cli/cli digestVersion=v2.95.0
+          GH_CLI_SUM_amd64: 25d1e4729e8808c9ed3d613e96ebd3f3e44446f2d368c89d878a71a36ddb3d8c
         run: |
           mkdir -p /tmp/gh
           GH_VERSION=${GH_CLI_VERSION#v}

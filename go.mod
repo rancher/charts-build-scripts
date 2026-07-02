@@ -18,7 +18,7 @@ exclude helm.sh/helm/v4 v4.0.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
-	github.com/rancherlabs/slsactl v0.1.33
+	github.com/rancherlabs/slsactl v0.1.35
 )
 
 require (

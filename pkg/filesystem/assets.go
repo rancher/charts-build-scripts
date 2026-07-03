@@ -118,6 +118,22 @@ func DecodeValueYamlInTgz(ctx context.Context, tgzPath string, fileNames []strin
 	}
 }
 
+// DecodeValuesYamlFile reads a values.yaml file from disk and returns a normalized map.
+// Keys are coerced to strings and numeric values are stringified for consistent lookups.
+func DecodeValuesYamlFile(ctx context.Context, filePath string) (map[string]interface{}, error) {
+	var values map[string]interface{}
+	reader := func() (io.ReadCloser, error) {
+		return os.Open(filePath)
+	}
+	if err := safeDecodeYaml(ctx, reader, &values, true); err != nil {
+		return nil, fmt.Errorf("decoding values file %q: %w", filePath, err)
+	}
+	if values == nil {
+		return map[string]interface{}{}, nil
+	}
+	return normalizeMapStructure(values).(map[string]interface{}), nil
+}
+
 // isTargetFile checks if the current file is a values.(yaml||yml) or not
 func isTargetFile(path string, fileNames []string) bool {
 	basename := filepath.Base(path)

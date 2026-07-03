@@ -94,4 +94,7 @@ const (
 
 	// AutoCoreBranch is the single canonical configuration source of truth
 	AutoCoreBranch = "automation-core"
+
+	// ImageVersionCheckFile is the file that contains the image version check configuration
+	ImageVersionCheckFile = "image-version-check.yaml"
 )

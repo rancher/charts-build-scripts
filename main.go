@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -133,6 +134,8 @@ var (
 	NewChart bool
 	// IsPrimeChart boolean option
 	IsPrimeChart bool
+	// ImageVersionCheckConfig is the path to the image version check config file
+	ImageVersionCheckConfig string
 )
 
 func init() {
@@ -414,6 +417,13 @@ func main() {
 		Destination: &IsPrimeChart,
 		EnvVar:      defaultIsPrimeChartVariable,
 	}
+	imageVersionConfigFlag := cli.StringFlag{
+		Name:        "image-version-config",
+		Usage:       "Path to the image version check configuration file",
+		TakesFile:   true,
+		Value:       path.ImageVersionCheckFile,
+		Destination: &ImageVersionCheckConfig,
+	}
 
 	// Commands
 	app.Commands = []cli.Command{
@@ -578,6 +588,12 @@ func main() {
 			Usage:  "remove a chart/asset and also its index.yaml entry",
 			Action: removeAsset,
 			Flags:  []cli.Flag{chartFlag, chartVersionFlag},
+		},
+		{
+			Name:   "validate-image-versions",
+			Usage:  "Check whether chart images are using the latest minor/patch version available",
+			Action: validateImageVersions,
+			Flags:  []cli.Flag{chartFlag, chartVersionFlag, imageVersionConfigFlag},
 		},
 	}
 
@@ -1029,5 +1045,17 @@ func removeAsset(_ *cli.Context) {
 	ctx := context.Background()
 	if err := charts.DeleteVersion(ctx, filesystem.GetFilesystem(RepoRoot), CurrentChart, ChartVersion); err != nil {
 		logger.Fatal(ctx, err.Error())
+	}
+}
+
+func validateImageVersions(_ *cli.Context) {
+	ctx := context.Background()
+	getRepoRoot()
+	report, err := registries.ValidateImageVersions(ctx, RepoRoot, CurrentChart, ChartVersion, ImageVersionCheckConfig)
+	if err != nil {
+		logger.Fatal(ctx, fmt.Errorf("validate-image-versions failed: %w", err).Error())
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
+		logger.Fatal(ctx, fmt.Errorf("encoding report: %w", err).Error())
 	}
 }

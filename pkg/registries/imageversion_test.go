@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -110,18 +111,21 @@ func TestLatestSameMajor(t *testing.T) {
 
 func TestValidateImageVersions(t *testing.T) {
 	ctx := context.Background()
-
+	LoadImageVersionList = func(_ context.Context) (*config.ImageVersionCheckOptions, error) {
+		return &config.ImageVersionCheckOptions{Images: []config.ImageVersionEntry{
+			{
+				Name:       "kuberlr",
+				Repository: "rancher/kuberlr-kubectl",
+			},
+		}}, nil
+	}
 	t.Run("image needs update", func(t *testing.T) {
 		repoRoot := t.TempDir()
 		writeValuesYaml(t, repoRoot, "monitoring", "102.0.0+up45.0.0", `
 prometheus:
   image:
-    repository: rancher/mirrored-prometheus-prometheus
+    repository: rancher/kuberlr-kubectl
     tag: v2.45.0
-`)
-		configPath := writeConfigFile(t, repoRoot, `images:
-  - name: prometheus
-    repository: rancher/mirrored-prometheus-prometheus
 `)
 
 		orig := fetchTagsFromRegistryRepo
@@ -130,11 +134,11 @@ prometheus:
 			return []string{"v2.45.0", "v2.46.0", "v2.47.0"}, nil
 		}
 
-		report, err := ValidateImageVersions(ctx, repoRoot, "monitoring", "102.0.0+up45.0.0", configPath)
+		report, err := ValidateImageVersions(ctx, repoRoot, "monitoring", "102.0.0+up45.0.0")
 		require.NoError(t, err)
 		assert.True(t, report.NeedsUpdate)
 		require.Len(t, report.Images, 1)
-		assert.Equal(t, "prometheus", report.Images[0].Name)
+		assert.Equal(t, "kuberlr", report.Images[0].Name)
 		assert.Equal(t, "v2.45.0", report.Images[0].CurrentTag)
 		assert.Equal(t, "v2.47.0", report.Images[0].LatestAvailable)
 		assert.True(t, report.Images[0].NeedsUpdate)
@@ -144,21 +148,16 @@ prometheus:
 		repoRoot := t.TempDir()
 		writeValuesYaml(t, repoRoot, "monitoring", "102.0.0", `
 image:
-  repository: rancher/mirrored-prometheus-prometheus
+  repository: rancher/kuberlr-kubectl
   tag: v2.47.0
 `)
-		configPath := writeConfigFile(t, repoRoot, `images:
-  - name: prometheus
-    repository: rancher/mirrored-prometheus-prometheus
-`)
-
 		orig := fetchTagsFromRegistryRepo
 		defer func() { fetchTagsFromRegistryRepo = orig }()
 		fetchTagsFromRegistryRepo = func(_ context.Context, _, _ string) ([]string, error) {
 			return []string{"v2.45.0", "v2.47.0"}, nil
 		}
 
-		report, err := ValidateImageVersions(ctx, repoRoot, "monitoring", "102.0.0", configPath)
+		report, err := ValidateImageVersions(ctx, repoRoot, "monitoring", "102.0.0")
 		require.NoError(t, err)
 		assert.False(t, report.NeedsUpdate)
 		require.Len(t, report.Images, 1)
@@ -172,10 +171,6 @@ image:
   repository: rancher/some-other-image
   tag: v1.0.0
 `)
-		configPath := writeConfigFile(t, repoRoot, `images:
-  - name: prometheus
-    repository: rancher/mirrored-prometheus-prometheus
-`)
 
 		orig := fetchTagsFromRegistryRepo
 		defer func() { fetchTagsFromRegistryRepo = orig }()
@@ -183,12 +178,12 @@ image:
 			return []string{}, nil
 		}
 
-		report, err := ValidateImageVersions(ctx, repoRoot, "monitoring", "102.0.0", configPath)
+		report, err := ValidateImageVersions(ctx, repoRoot, "monitoring", "102.0.0")
 		require.NoError(t, err)
 		assert.False(t, report.NeedsUpdate)
 		assert.Empty(t, report.Images)
 		require.Len(t, report.MissingFromChart, 1)
-		assert.Equal(t, "rancher/mirrored-prometheus-prometheus", report.MissingFromChart[0])
+		assert.Equal(t, "rancher/kuberlr-kubectl", report.MissingFromChart[0])
 	})
 }
 

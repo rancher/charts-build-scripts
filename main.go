@@ -1051,7 +1051,7 @@ func removeAsset(_ *cli.Context) {
 func validateImageVersions(_ *cli.Context) {
 	ctx := context.Background()
 	getRepoRoot()
-	report, err := registries.ValidateImageVersions(ctx, RepoRoot, CurrentChart, ChartVersion, ImageVersionCheckConfig)
+	report, err := registries.ValidateImageVersions(ctx, RepoRoot, CurrentChart, ChartVersion)
 	if err != nil {
 		logger.Fatal(ctx, fmt.Errorf("validate-image-versions failed: %w", err).Error())
 	}

@@ -96,5 +96,5 @@ const (
 	AutoCoreBranch = "automation-core"
 
 	// ImageVersionCheckFile is the file that contains the image version check configuration
-	ImageVersionCheckFile = "image-version-check.yaml"
+	ImageVersionCheckFile = "config/image-version-check.yaml"
 )

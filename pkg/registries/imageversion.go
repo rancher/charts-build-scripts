@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 
 	semver "github.com/Masterminds/semver/v3"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
-	"github.com/rancher/charts-build-scripts/pkg/options"
 )
 
 // ImageResult holds the version-check result for one image.
@@ -30,6 +30,8 @@ type Report struct {
 	MissingFromChart   []string      `json:"missingFromChart,omitempty"`
 	SkippedUnsupported []string      `json:"skippedUnsupported,omitempty"`
 }
+
+var LoadImageVersionList = config.LoadImageVersionList
 
 // latestSameMajor returns the highest available tag that shares the same major version
 // as current and has no pre-release suffix, along with whether an update is needed.
@@ -110,10 +112,10 @@ func walkValuesFiles(ctx context.Context, root string, repoTagMap map[string][]s
 
 // ValidateImageVersions checks whether the images listed in configPath are on their
 // latest minor/patch version within the chart at <repoRoot>/charts/<chart>/<version>.
-func ValidateImageVersions(ctx context.Context, repoRoot, chart, version, configPath string) (Report, error) {
+func ValidateImageVersions(ctx context.Context, repoRoot, chart, version string) (Report, error) {
 	report := Report{Chart: chart, Images: []ImageResult{}}
 
-	cfg, err := options.LoadImageVersionCheck(configPath)
+	cfg, err := LoadImageVersionList(ctx)
 	if err != nil {
 		return report, fmt.Errorf("loading config: %w", err)
 	}

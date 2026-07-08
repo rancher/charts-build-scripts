@@ -417,13 +417,6 @@ func main() {
 		Destination: &IsPrimeChart,
 		EnvVar:      defaultIsPrimeChartVariable,
 	}
-	imageVersionConfigFlag := cli.StringFlag{
-		Name:        "image-version-config",
-		Usage:       "Path to the image version check configuration file",
-		TakesFile:   true,
-		Value:       path.ImageVersionCheckFile,
-		Destination: &ImageVersionCheckConfig,
-	}
 
 	// Commands
 	app.Commands = []cli.Command{
@@ -593,7 +586,7 @@ func main() {
 			Name:   "validate-image-versions",
 			Usage:  "Check whether chart images are using the latest minor/patch version available",
 			Action: validateImageVersions,
-			Flags:  []cli.Flag{chartFlag, chartVersionFlag, imageVersionConfigFlag},
+			Flags:  []cli.Flag{chartFlag, chartVersionFlag},
 		},
 	}
 

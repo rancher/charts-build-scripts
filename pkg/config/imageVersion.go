@@ -10,14 +10,12 @@ import (
 )
 
 // ImageVersionCheckOptions holds the list of images to check for version updates.
-type ImageVersionCheckOptions struct {
-	Images []ImageVersionEntry `yaml:"images"`
-}
+type ImageVersionCheckOptions map[string]ImageConfig
 
-// ImageVersionEntry describes a single image to validate.
-type ImageVersionEntry struct {
-	Name       string `yaml:"name"`
+// ImageConfig describes a single image to validate.
+type ImageConfig struct {
 	Repository string `yaml:"repository"`
+	Tag        string `yaml:"tag,omitempty"` // optional
 }
 
 func LoadImageVersionList(ctx context.Context) (*ImageVersionCheckOptions, error) {

@@ -7,15 +7,14 @@ import (
 	"os"
 	"path/filepath"
 
-	semver "github.com/Masterminds/semver/v3"
 	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
+	"github.com/rancher/charts-build-scripts/pkg/util"
 )
 
 // ImageResult holds the version-check result for one image.
 type ImageResult struct {
-	Name            string `json:"name"`
 	Repository      string `json:"repository"`
 	CurrentTag      string `json:"currentTag"`
 	LatestAvailable string `json:"latestAvailable"`
@@ -33,42 +32,6 @@ type Report struct {
 
 var LoadImageVersionList = config.LoadImageVersionList
 
-// latestSameMajor returns the highest available tag that shares the same major version
-// as current and has no pre-release suffix, along with whether an update is needed.
-// Non-semver and pre-release tags in available are skipped.
-// Returns ("", false) when current cannot be parsed as semver.
-func latestSameMajor(current string, available []string) (string, bool) {
-	currentVer, err := semver.NewVersion(current)
-	if err != nil {
-		return "", false
-	}
-
-	var bestVer *semver.Version
-	var bestTag string
-
-	for _, tag := range available {
-		v, err := semver.NewVersion(tag)
-		if err != nil {
-			continue
-		}
-		if v.Prerelease() != "" {
-			continue
-		}
-		if v.Major() != currentVer.Major() {
-			continue
-		}
-		if bestVer == nil || v.GreaterThan(bestVer) {
-			bestVer = v
-			bestTag = tag
-		}
-	}
-
-	if bestVer == nil {
-		return "", false
-	}
-	return bestTag, bestVer.GreaterThan(currentVer)
-}
-
 // collectChartImages walks the unpacked chart source under <repoRoot>/charts/<chart>/<version>
 // and returns a map of repository → []tags found in any values.yaml or values.yml.
 func collectChartImages(ctx context.Context, repoRoot, chart, version string) (map[string][]string, error) {
@@ -80,16 +43,7 @@ func collectChartImages(ctx context.Context, repoRoot, chart, version string) (m
 	versionDir := filepath.Join(chartsBase, version)
 
 	repoTagMap := make(map[string][]string)
-	if err := walkValuesFiles(ctx, versionDir, repoTagMap); err != nil {
-		return nil, err
-	}
-	return repoTagMap, nil
-}
-
-// walkValuesFiles walks a chart directory tree looking for values.yaml / values.yml files
-// (including nested charts/ subcharts) and feeds each into traverseRepoTags.
-func walkValuesFiles(ctx context.Context, root string, repoTagMap map[string][]string) error {
-	return filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(versionDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -108,6 +62,11 @@ func walkValuesFiles(ctx context.Context, root string, repoTagMap map[string][]s
 		traverseRepoTags(ctx, data, repoTagMap, "")
 		return nil
 	})
+
+	if err != nil {
+		return nil, err
+	}
+	return repoTagMap, nil
 }
 
 // ValidateImageVersions checks whether the images listed in configPath are on their
@@ -125,7 +84,7 @@ func ValidateImageVersions(ctx context.Context, repoRoot, chart, version string)
 		return report, fmt.Errorf("collecting chart images: %w", err)
 	}
 
-	for _, entry := range cfg.Images {
+	for _, entry := range *cfg {
 		currentTags, found := chartImages[entry.Repository]
 		// check if the chart uses the image
 		if !found || len(currentTags) == 0 {
@@ -143,9 +102,8 @@ func ValidateImageVersions(ctx context.Context, repoRoot, chart, version string)
 
 		// There may be multiple current tags; check each.
 		for _, currentTag := range currentTags {
-			latestTag, needsUpdate := latestSameMajor(currentTag, availableTags)
+			latestTag, needsUpdate := util.LatestSameMajor(currentTag, availableTags)
 			result := ImageResult{
-				Name:            entry.Name,
 				Repository:      entry.Repository,
 				CurrentTag:      currentTag,
 				LatestAvailable: latestTag,

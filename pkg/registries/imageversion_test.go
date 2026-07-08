@@ -14,11 +14,11 @@ import (
 func TestValidateImageVersions(t *testing.T) {
 	ctx := context.Background()
 	LoadImageVersionList = func(_ context.Context) (*config.ImageVersionCheckOptions, error) {
-		return &config.ImageVersionCheckOptions{Images: []config.ImageConfig{
-			{
+		return &config.ImageVersionCheckOptions{
+			"kuberlr": {
 				Repository: "rancher/kuberlr-kubectl",
 			},
-		}}, nil
+		}, nil
 	}
 	t.Run("image needs update", func(t *testing.T) {
 		repoRoot := t.TempDir()

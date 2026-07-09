@@ -35,15 +35,16 @@ var LoadImageVersionList = config.LoadImageVersionList
 // collectChartImages walks the unpacked chart source under <repoRoot>/charts/<chart>/<version>
 // and returns a map of repository → []tags found in any values.yaml or values.yml.
 func collectChartImages(ctx context.Context, repoRoot, chart, version string) (map[string][]string, error) {
-	chartsBase := filepath.Join(repoRoot, "charts", chart)
-	if _, err := os.Stat(chartsBase); os.IsNotExist(err) {
+	chartsBase := filepath.Join("charts", chart)
+	exists, err := filesystem.PathExists(ctx, filesystem.GetFilesystem(repoRoot), filepath.Join("charts", chart))
+	if err != nil || !exists {
 		return nil, fmt.Errorf("chart directory not found: %s", chartsBase)
 	}
 
-	versionDir := filepath.Join(chartsBase, version)
+	versionDir := filepath.Join(repoRoot, chartsBase, version)
 
 	repoTagMap := make(map[string][]string)
-	err := filepath.WalkDir(versionDir, func(path string, d os.DirEntry, err error) error {
+	err = filepath.WalkDir(versionDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

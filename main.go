@@ -134,8 +134,6 @@ var (
 	NewChart bool
 	// IsPrimeChart boolean option
 	IsPrimeChart bool
-	// ImageVersionCheckConfig is the path to the image version check config file
-	ImageVersionCheckConfig string
 )
 
 func init() {

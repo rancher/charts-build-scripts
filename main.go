@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -579,6 +580,12 @@ func main() {
 			Action: removeAsset,
 			Flags:  []cli.Flag{chartFlag, chartVersionFlag},
 		},
+		{
+			Name:   "validate-image-versions",
+			Usage:  "Check whether chart images are using the latest minor/patch version available",
+			Action: validateImageVersions,
+			Flags:  []cli.Flag{chartFlag, chartVersionFlag},
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -1029,5 +1036,17 @@ func removeAsset(_ *cli.Context) {
 	ctx := context.Background()
 	if err := charts.DeleteVersion(ctx, filesystem.GetFilesystem(RepoRoot), CurrentChart, ChartVersion); err != nil {
 		logger.Fatal(ctx, err.Error())
+	}
+}
+
+func validateImageVersions(_ *cli.Context) {
+	ctx := context.Background()
+	getRepoRoot()
+	report, err := registries.ValidateImageVersions(ctx, RepoRoot, CurrentChart, ChartVersion)
+	if err != nil {
+		logger.Fatal(ctx, fmt.Errorf("validate-image-versions failed: %w", err).Error())
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
+		logger.Fatal(ctx, fmt.Errorf("encoding report: %w", err).Error())
 	}
 }

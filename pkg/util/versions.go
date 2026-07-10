@@ -82,3 +82,39 @@ func splitUpstreamChart(version string) (upstream, chart string) {
 	}
 	return version, ""
 }
+
+// LatestSameMajor returns the highest available tag that shares the same major version
+// as current and has no pre-release suffix, along with whether an update is needed.
+// Non-semver and pre-release tags in available are skipped.
+// Returns ("", false) when current cannot be parsed as semver.
+func LatestSameMajor(current string, available []string) (string, bool) {
+	currentVer, err := semver.NewVersion(current)
+	if err != nil {
+		return "", false
+	}
+
+	var bestVer *semver.Version
+	var bestTag string
+
+	for _, tag := range available {
+		v, err := semver.NewVersion(tag)
+		if err != nil {
+			continue
+		}
+		if v.Prerelease() != "" {
+			continue
+		}
+		if v.Major() != currentVer.Major() {
+			continue
+		}
+		if bestVer == nil || v.GreaterThan(bestVer) {
+			bestVer = v
+			bestTag = tag
+		}
+	}
+
+	if bestVer == nil {
+		return "", false
+	}
+	return bestTag, bestVer.GreaterThan(currentVer)
+}

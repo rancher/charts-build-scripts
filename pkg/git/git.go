@@ -15,6 +15,10 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
+// ErrNoUpstreamRemote is returned when the repository doesn't have a configured
+// upstream remote matching rancher/charts or rancher/prime-charts patterns
+var ErrNoUpstreamRemote = errors.New("upstream remote not configured")
+
 // Git struct holds necessary data to work with the current git repository
 type Git struct {
 	Dir     string
@@ -376,7 +380,7 @@ func (g *Git) getUpstreamRemote() (string, error) {
 		}
 	}
 
-	return "", errors.New("upstream remote not configured")
+	return "", ErrNoUpstreamRemote
 }
 
 // Status prints the status of the git repository

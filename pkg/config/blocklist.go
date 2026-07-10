@@ -3,9 +3,11 @@ package config
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"slices"
 
 	"github.com/rancher/charts-build-scripts/pkg/git"
+	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 	"gopkg.in/yaml.v3"
 )
@@ -23,6 +25,12 @@ func LoadBlockList(ctx context.Context) (*Blocklist, error) {
 
 	// Fetch latest automation-core branch
 	if err := repo.FetchBranch(path.AutoCoreBranch); err != nil {
+		// If this repo doesn't have a rancher/charts upstream remote, return empty blocklist
+		if errors.Is(err, git.ErrNoUpstreamRemote) {
+			logger.Log(ctx, slog.LevelWarn, "blocklist unavailable in non-rancher/charts repo, using empty blocklist",
+				slog.String("branch", path.AutoCoreBranch))
+			return &Blocklist{Charts: make(map[string][]string)}, nil
+		}
 		return nil, errors.New("load blocklist fetch branch: " + err.Error())
 	}
 

@@ -57,6 +57,28 @@ func CheckChartCVEs(ctx context.Context, repoRoot, chart, version string) (CVERe
 	}
 	report.CVECounts = counts
 	report.Images = images
+
+	previousVersion, found, err := findPreviousSameMajorVersion(ctx, repoRoot, chart, version)
+	if err != nil {
+		return report, fmt.Errorf("finding previous version: %w", err)
+	}
+	if !found {
+		return report, nil
+	}
+	report.PreviousVersion = previousVersion
+
+	previousCounts, _, err := scanChartVersion(ctx, repoRoot, chart, previousVersion)
+	if err != nil {
+		return report, fmt.Errorf("scanning %s:%s: %w", chart, previousVersion, err)
+	}
+	report.Delta = &SeverityCounts{
+		Critical: counts.Critical - previousCounts.Critical,
+		High:     counts.High - previousCounts.High,
+		Medium:   counts.Medium - previousCounts.Medium,
+		Low:      counts.Low - previousCounts.Low,
+		Unknown:  counts.Unknown - previousCounts.Unknown,
+	}
+
 	return report, nil
 }
 

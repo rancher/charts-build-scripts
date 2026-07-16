@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+
+	"github.com/Masterminds/semver"
+	"github.com/rancher/charts-build-scripts/pkg/filesystem"
+	"github.com/rancher/charts-build-scripts/pkg/helm"
 )
 
 // SeverityCounts holds the number of CVEs found for each severity level.
@@ -53,7 +57,6 @@ func CheckChartCVEs(ctx context.Context, repoRoot, chart, version string) (CVERe
 	}
 	report.CVECounts = counts
 	report.Images = images
-
 	return report, nil
 }
 
@@ -61,7 +64,7 @@ func CheckChartCVEs(ctx context.Context, repoRoot, chart, version string) (CVERe
 // returning the aggregated severity counts and the per-image breakdown.
 func scanChartVersion(ctx context.Context, repoRoot, chart, version string) (SeverityCounts, []ImageCVEResult, error) {
 	var total SeverityCounts
-	images := []ImageCVEResult{}
+	var images []ImageCVEResult
 
 	chartImages, err := collectChartImages(ctx, repoRoot, chart, version)
 	if err != nil {
@@ -84,6 +87,34 @@ func scanChartVersion(ctx context.Context, repoRoot, chart, version string) (Sev
 	}
 
 	return total, images, nil
+}
+
+// findPreviousSameMajorVersion returns the highest released version of chart that is lower
+// than version and shares its major version, if any.
+// Helm's LoadIndexFile sorts the index.yaml in descending order.
+func findPreviousSameMajorVersion(ctx context.Context, repoRoot, chart, version string) (string, bool, error) {
+	index, err := helm.OpenIndexYaml(ctx, filesystem.GetFilesystem(repoRoot))
+	if err != nil {
+		return "", false, fmt.Errorf("opening index.yaml: %w", err)
+	}
+
+	currentVer, err := semver.NewVersion(version)
+	if err != nil {
+		return "", false, nil
+	}
+
+	for _, chartVersion := range index.Entries[chart] {
+		v, err := semver.NewVersion(chartVersion.Version)
+		if err != nil || v.Prerelease() != "" || !v.LessThan(currentVer) {
+			continue
+		}
+		if v.Major() != currentVer.Major() {
+			return "", false, nil
+		}
+		return chartVersion.Version, true, nil
+	}
+
+	return "", false, nil
 }
 
 // scanImage runs trivy against repository:tag and returns its CVE counts by severity.

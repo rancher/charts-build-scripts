@@ -1060,6 +1060,7 @@ func validateImageVersions(_ *cli.Context) {
 func checkChartCVEs(_ *cli.Context) {
 	ctx := context.Background()
 	getRepoRoot()
+	RepoRoot = "/Users/dsouza/dev/diogo-fork-charts/charts"
 	report, err := registries.CheckChartCVEs(ctx, RepoRoot, CurrentChart, ChartVersion)
 	if err != nil {
 		logger.Fatal(ctx, fmt.Errorf("check-chart-cves failed: %w", err).Error())

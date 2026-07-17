@@ -22,16 +22,16 @@ type SeverityCounts struct {
 
 // ImageCVEResult holds the CVE counts found for a single image:tag.
 type ImageCVEResult struct {
-	Repository string `json:"repository"`
-	Tag        string `json:"tag"`
-	CVECounts  SeverityCounts
+	Repository string         `json:"repository"`
+	Tag        string         `json:"tag"`
+	CVECounts  SeverityCounts `json:"CVEs"`
 }
 
 // CVEReport is the top-level output of CheckChartCVEs.
 type CVEReport struct {
-	Chart           string `json:"chart"`
-	Version         string `json:"version"`
-	CVECounts       SeverityCounts
+	Chart           string           `json:"chart"`
+	Version         string           `json:"version"`
+	CVECounts       SeverityCounts   `json:"CVEs"`
 	Images          []ImageCVEResult `json:"images"`
 	PreviousVersion string           `json:"previousVersion,omitempty"`
 	Delta           *SeverityCounts  `json:"delta,omitempty"`

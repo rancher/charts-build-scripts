@@ -3,9 +3,11 @@ package registries
 import (
 	"context"
 	"log/slog"
+	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
@@ -27,6 +29,15 @@ var createAssetValuesRepoTagMap = func(ctx context.Context) (map[string][]string
 	if err != nil {
 		return nil, err
 	}
+
+	// load blocklist to skip checking images for blocklisted chart versions
+	blocklist, err := config.LoadBlockList(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// filter out blocklisted chart versions
+	assetsTgzs = filterBlocklistedAssets(ctx, assetsTgzs, blocklist)
 
 	// decode .tgz values.yaml files into-memory
 	logger.Log(ctx, slog.LevelInfo, "decoding .tgz(values.yaml) in-memory")
@@ -63,6 +74,43 @@ var createAssetValuesRepoTagMap = func(ctx context.Context) (map[string][]string
 	}
 
 	return repoTagMap, nil
+}
+
+// filterBlocklistedAssets removes blocklisted chart versions from tgz list.
+// Expected tgz path format: assets/{chart}/{chart}-{version}.tgz
+func filterBlocklistedAssets(ctx context.Context, tgzPaths []string, blocklist *config.Blocklist) []string {
+	filtered := make([]string, 0, len(tgzPaths))
+
+	for _, tgzPath := range tgzPaths {
+		// extract chart name and version from path
+		// assets/rancher-monitoring/rancher-monitoring-109.0.1+up80.9.1.tgz
+		base := filepath.Base(tgzPath)
+		chartDir := filepath.Base(filepath.Dir(tgzPath))
+
+		// remove .tgz extension
+		nameVersion := strings.TrimSuffix(base, ".tgz")
+
+		// remove chart name prefix to get version
+		// rancher-monitoring-109.0.1+up80.9.1 -> 109.0.1+up80.9.1
+		version := strings.TrimPrefix(nameVersion, chartDir+"-")
+
+		if blocklist.IsBlocked(chartDir, version) {
+			logger.Log(ctx, slog.LevelWarn, "skipping blocklisted chart version",
+				slog.String("chart", chartDir),
+				slog.String("version", version),
+				slog.String("path", tgzPath))
+			continue
+		}
+
+		filtered = append(filtered, tgzPath)
+	}
+
+	logger.Log(ctx, slog.LevelInfo, "filtered blocklisted assets",
+		slog.Int("total", len(tgzPaths)),
+		slog.Int("filtered", len(filtered)),
+		slog.Int("skipped", len(tgzPaths)-len(filtered)))
+
+	return filtered
 }
 
 // traverseRepoTags will traverse across 'data' whihc should be nesteds map[string]interface and []interface.

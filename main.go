@@ -586,6 +586,12 @@ func main() {
 			Action: validateImageVersions,
 			Flags:  []cli.Flag{chartFlag, chartVersionFlag},
 		},
+		{
+			Name:   "check-chart-cves",
+			Usage:  "Check all chart images for CVEs and compare it with the last version with the same major",
+			Action: checkChartCVEs,
+			Flags:  []cli.Flag{chartFlag, chartVersionFlag},
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -808,6 +814,7 @@ func getRepoRoot() {
 	RepoRoot = os.Getenv("DEV_REPO_ROOT")
 	if RepoRoot != "" {
 		logger.Log(ctx, slog.LevelDebug, "using customized repo root: ", slog.String("repoRoot", RepoRoot))
+		return
 	}
 
 	repoRoot, err := os.Getwd()
@@ -1045,6 +1052,18 @@ func validateImageVersions(_ *cli.Context) {
 	report, err := registries.ValidateImageVersions(ctx, RepoRoot, CurrentChart, ChartVersion)
 	if err != nil {
 		logger.Fatal(ctx, fmt.Errorf("validate-image-versions failed: %w", err).Error())
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
+		logger.Fatal(ctx, fmt.Errorf("encoding report: %w", err).Error())
+	}
+}
+
+func checkChartCVEs(_ *cli.Context) {
+	ctx := context.Background()
+	getRepoRoot()
+	report, err := registries.CheckChartCVEs(ctx, RepoRoot, CurrentChart, ChartVersion)
+	if err != nil {
+		logger.Fatal(ctx, fmt.Errorf("check-chart-cves failed: %w", err).Error())
 	}
 	if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
 		logger.Fatal(ctx, fmt.Errorf("encoding report: %w", err).Error())

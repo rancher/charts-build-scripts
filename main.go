@@ -814,6 +814,7 @@ func getRepoRoot() {
 	RepoRoot = os.Getenv("DEV_REPO_ROOT")
 	if RepoRoot != "" {
 		logger.Log(ctx, slog.LevelDebug, "using customized repo root: ", slog.String("repoRoot", RepoRoot))
+		return
 	}
 
 	repoRoot, err := os.Getwd()
@@ -1060,7 +1061,6 @@ func validateImageVersions(_ *cli.Context) {
 func checkChartCVEs(_ *cli.Context) {
 	ctx := context.Background()
 	getRepoRoot()
-	RepoRoot = "/Users/dsouza/dev/diogo-fork-charts/charts"
 	report, err := registries.CheckChartCVEs(ctx, RepoRoot, CurrentChart, ChartVersion)
 	if err != nil {
 		logger.Fatal(ctx, fmt.Errorf("check-chart-cves failed: %w", err).Error())

@@ -1,10 +1,12 @@
 package registries
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
@@ -148,13 +150,19 @@ var scanImage = func(ctx context.Context, repository, tag string) (SeverityCount
 	return parseTrivyReport(output)
 }
 
+// trivyBinary is the trivy executable to invoke; overridden in tests.
+var trivyBinary = "trivy"
+
 // runTrivy shells out to the trivy CLI and returns its raw JSON report for repository:tag.
 func runTrivy(ctx context.Context, repository, tag string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "trivy", "image", "--format", "json", "--quiet", fmt.Sprintf("%s:%s", repository, tag))
+	cmd := exec.CommandContext(ctx, trivyBinary, "image", "--format", "json", "--quiet", fmt.Sprintf("%s:%s", repository, tag))
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("running trivy on %s:%s: %w", repository, tag, err)
+		return nil, fmt.Errorf("running trivy on %s:%s: %w: %s", repository, tag, err, strings.TrimSpace(stderr.String()))
 	}
 
 	return output, nil

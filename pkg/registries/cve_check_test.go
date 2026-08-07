@@ -136,6 +136,38 @@ func TestFindPreviousSameMajorVersion(t *testing.T) {
 	}
 }
 
+func TestRunTrivy(t *testing.T) {
+	t.Run("surfaces stderr on failure", func(t *testing.T) {
+		fakeTrivy(t, "echo 'unable to pull image: unauthorized' >&2\nexit 1\n")
+
+		_, err := runTrivy(context.Background(), "repo", "tag")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unable to pull image: unauthorized")
+	})
+
+	t.Run("returns stdout on success", func(t *testing.T) {
+		fakeTrivy(t, `echo '{"Results": [{"Vulnerabilities": [{"Severity": "HIGH"}]}]}'`+"\n")
+
+		output, err := runTrivy(context.Background(), "repo", "tag")
+		require.NoError(t, err)
+
+		counts, err := parseTrivyReport(output)
+		require.NoError(t, err)
+		assert.Equal(t, SeverityCounts{High: 1}, counts)
+	})
+}
+
+func fakeTrivy(t *testing.T, script string) {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "trivy")
+	require.NoError(t, os.WriteFile(path, []byte("#!/bin/sh\n"+script), 0755))
+
+	orig := trivyBinary
+	trivyBinary = path
+	t.Cleanup(func() { trivyBinary = orig })
+}
+
 func TestParseTrivyReport(t *testing.T) {
 	tests := []struct {
 		name    string

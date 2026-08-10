@@ -30,14 +30,14 @@ image:
 
 		orig := scanImage
 		defer func() { scanImage = orig }()
-		scanImage = func(_ context.Context, repository, tag string) (SeverityCounts, error) {
+		scanImage = func(_ context.Context, repository, tag string) (SeverityCounts, bool, error) {
 			switch fmt.Sprintf("%s:%s", repository, tag) {
 			case "rancher/prometheus:v2.47.0":
-				return SeverityCounts{Critical: 1, High: 2, Medium: 3, Low: 4, Unknown: 1}, nil
+				return SeverityCounts{Critical: 1, High: 2, Medium: 3, Low: 4, Unknown: 1}, false, nil
 			case "rancher/prometheus:v2.46.0":
-				return SeverityCounts{Critical: 3, High: 1, Medium: 3, Low: 2, Unknown: 2}, nil
+				return SeverityCounts{Critical: 3, High: 1, Medium: 3, Low: 2, Unknown: 2}, false, nil
 			}
-			return SeverityCounts{}, fmt.Errorf("unexpected image %s:%s", repository, tag)
+			return SeverityCounts{}, false, fmt.Errorf("unexpected image %s:%s", repository, tag)
 		}
 
 		report, err := CheckChartCVEs(ctx, repoRoot, "monitoring", "103.1.0+up45.0.1")
@@ -64,8 +64,8 @@ image:
 
 		orig := scanImage
 		defer func() { scanImage = orig }()
-		scanImage = func(_ context.Context, _, _ string) (SeverityCounts, error) {
-			return SeverityCounts{Critical: 1}, nil
+		scanImage = func(_ context.Context, _, _ string) (SeverityCounts, bool, error) {
+			return SeverityCounts{Critical: 1}, false, nil
 		}
 
 		report, err := CheckChartCVEs(ctx, repoRoot, "monitoring", "103.0.0+up45.0.0")
@@ -74,6 +74,30 @@ image:
 		assert.Equal(t, SeverityCounts{Critical: 1}, report.CVECounts)
 		assert.Empty(t, report.PreviousVersion)
 		assert.Nil(t, report.Delta)
+	})
+
+	t.Run("skips images that does not support a platform", func(t *testing.T) {
+		repoRoot := t.TempDir()
+		writeValuesYaml(t, repoRoot, "monitoring", "103.0.0+up45.0.0", `
+image:
+  repository: rancher/mirrored-prometheus-windows-exporter
+  tag: 0.31.2
+`)
+		writeIndexYaml(t, repoRoot, "monitoring", "103.0.0+up45.0.0")
+
+		orig := scanImage
+		defer func() { scanImage = orig }()
+		scanImage = func(_ context.Context, _, _ string) (SeverityCounts, bool, error) {
+			return SeverityCounts{}, true, nil
+		}
+
+		report, err := CheckChartCVEs(ctx, repoRoot, "monitoring", "103.0.0+up45.0.0")
+		require.NoError(t, err)
+
+		assert.Equal(t, SeverityCounts{}, report.CVECounts)
+		require.Len(t, report.Images, 1)
+		assert.True(t, report.Images[0].Skipped)
+		assert.NotEmpty(t, report.Images[0].SkipReason)
 	})
 }
 
@@ -140,20 +164,69 @@ func TestRunTrivy(t *testing.T) {
 	t.Run("surfaces stderr on failure", func(t *testing.T) {
 		fakeTrivy(t, "echo 'unable to pull image: unauthorized' >&2\nexit 1\n")
 
-		_, err := runTrivy(context.Background(), "repo", "tag")
+		_, err := runTrivy(context.Background(), "repo", "tag", "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unable to pull image: unauthorized")
 	})
 
-	t.Run("returns stdout on success", func(t *testing.T) {
-		fakeTrivy(t, `echo '{"Results": [{"Vulnerabilities": [{"Severity": "HIGH"}]}]}'`+"\n")
+	t.Run("reports errUnsupportedPlatform when image does not support the platform", func(t *testing.T) {
+		fakeTrivy(t, "echo 'FATAL run error: image scan error: scan error: unable to initialize a scan service: unable to initialize artifact: unable to initialize container image: unable to find the specified image \"rancher/mirrored-prometheus-windows-exporter:0.31.2\": remote error: no child with platform linux/amd64 in index rancher/mirrored-prometheus-windows-exporter:0.31.2' >&2\nexit 1\n")
 
-		output, err := runTrivy(context.Background(), "repo", "tag")
+		_, err := runTrivy(context.Background(), "repo", "tag", "")
+		require.ErrorIs(t, err, errUnsupportedPlatform)
+	})
+
+	t.Run("uses --platform when given", func(t *testing.T) {
+		fakeTrivy(t, `
+case "$*" in
+  *"--platform windows/amd64"*) ;;
+  *) echo "expected --platform windows/amd64, got: $*" >&2; exit 1 ;;
+esac
+echo '{"Results": [{"Vulnerabilities": [{"Severity": "HIGH"}]}]}'
+`)
+
+		output, err := runTrivy(context.Background(), "repo", "tag", "windows/amd64")
 		require.NoError(t, err)
 
 		counts, err := parseTrivyReport(output)
 		require.NoError(t, err)
 		assert.Equal(t, SeverityCounts{High: 1}, counts)
+	})
+
+	t.Run("returns stdout on success", func(t *testing.T) {
+		fakeTrivy(t, `echo '{"Results": [{"Vulnerabilities": [{"Severity": "HIGH"}]}]}'`+"\n")
+
+		output, err := runTrivy(context.Background(), "repo", "tag", "")
+		require.NoError(t, err)
+
+		counts, err := parseTrivyReport(output)
+		require.NoError(t, err)
+		assert.Equal(t, SeverityCounts{High: 1}, counts)
+	})
+}
+
+func TestScanImage(t *testing.T) {
+	t.Run("retries with fallback platform and succeeds", func(t *testing.T) {
+		fakeTrivy(t, `
+case "$*" in
+  *"--platform windows/amd64"*) echo '{"Results": [{"Vulnerabilities": [{"Severity": "HIGH"}]}]}' ;;
+  *) echo 'remote error: no child with platform linux/amd64 in index repo:tag' >&2; exit 1 ;;
+esac
+`)
+
+		counts, skipped, err := scanImage(context.Background(), "repo", "tag")
+		require.NoError(t, err)
+		assert.False(t, skipped)
+		assert.Equal(t, SeverityCounts{High: 1}, counts)
+	})
+
+	t.Run("skips when neither the default nor the fallback platform has a variant", func(t *testing.T) {
+		fakeTrivy(t, "echo 'remote error: no child with platform linux/amd64 in index repo:tag' >&2\nexit 1\n")
+
+		counts, skipped, err := scanImage(context.Background(), "repo", "tag")
+		require.NoError(t, err)
+		assert.True(t, skipped)
+		assert.Equal(t, SeverityCounts{}, counts)
 	})
 }
 

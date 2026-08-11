@@ -20,6 +20,7 @@ import (
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 	helmCLI "helm.sh/helm/v3/pkg/cli"
 	helmGetter "helm.sh/helm/v3/pkg/getter"
+	helmRegistry "helm.sh/helm/v3/pkg/registry"
 	helmRepo "helm.sh/helm/v3/pkg/repo"
 	"sigs.k8s.io/yaml"
 )
@@ -113,6 +114,30 @@ func PrepareDependencies(ctx context.Context, rootFs, pkgFs billy.Filesystem, ma
 	}
 
 	return UpdateHelmMetadataWithDependencies(ctx, pkgFs, mainHelmChartPath, dependencyMap)
+}
+
+// resolveDependencyURL resolves the download URL for a single chart dependency listed in Chart.lock.
+//
+// OCI-based chart repositories do not serve an index.yaml the way classic HTTP(S) chart repositories
+// do, so helmRepo.FindChartInRepoURL cannot be used to resolve them. For OCI repositories we instead
+// build the fully-qualified "oci://host/path/chart:version" reference directly;
+// GetUpstream/puller.Registry already knows how to pull that.
+func resolveDependencyURL(repository, name, version string) (string, error) {
+	if helmRegistry.IsOCI(repository) {
+		return fmt.Sprintf("%s/%s:%s", strings.TrimSuffix(repository, "/"), name, version), nil
+	}
+
+	// Acquire mutex to serialize Helm repository queries and prevent rate limiting
+	helmRepoFetchMutex.Lock()
+	defer helmRepoFetchMutex.Unlock()
+
+	return helmRepo.FindChartInRepoURL(
+		repository,
+		name,
+		version,
+		"", "", "",
+		helmGetter.All(&helmCLI.EnvSettings{}),
+	)
 }
 
 func getMainChartUpstreamOptions(ctx context.Context, pkgFs billy.Filesystem, gcRootDir string) (*options.UpstreamOptions, error) {
@@ -210,17 +235,7 @@ func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChart
 
 		logger.Log(ctx, slog.LevelDebug, "looking for dependency", slog.String("dependencyName", dependencyName), slog.String("repository", dependency.Repository))
 
-		// Acquire mutex to serialize Helm repository queries and prevent rate limiting
-		helmRepoFetchMutex.Lock()
-		dependencyURL, err := helmRepo.FindChartInRepoURL(
-			dependency.Repository,
-			dependencyName,
-			dependency.Version,
-			"", "", "",
-			helmGetter.All(&helmCLI.EnvSettings{}),
-		)
-		helmRepoFetchMutex.Unlock()
-
+		dependencyURL, err := resolveDependencyURL(dependency.Repository, dependencyName, dependency.Version)
 		if err != nil {
 			return fmt.Errorf("encountered error while trying to find the repository for dependency %s: %s", dependency.Name, err)
 		}

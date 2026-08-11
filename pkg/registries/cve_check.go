@@ -15,7 +15,7 @@ import (
 )
 
 // errUnsupportedPlatform indicates trivy could not find an image for the runner's platform (Linux).
-var errUnsupportedPlatform = errors.New("image doesn't support Linux/amd64")
+var errUnsupportedPlatform = errors.New("image doesn't support the runner's platform")
 
 // fallbackPlatform is retried when the image does not support runner's default platform
 const fallbackPlatform = "windows/amd64"

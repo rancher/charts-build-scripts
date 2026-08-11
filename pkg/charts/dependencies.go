@@ -185,9 +185,21 @@ func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChart
 			numChartsRemoved++
 		}
 	}
-	// Handle local chart archives first since version numbers don't make a difference
+	// Handle local chart archives first since version numbers don't make a difference.
+	// This covers two cases: dependencies whose repository is explicitly a "file://"
+	// path, and dependencies with an empty repository field.
+	//
+	// An empty repository means the chart isn't fetched from anywhere at all: it is
+	// expected to already live at charts/<name> within the parent chart itself
+	// (see https://helm.sh/docs/helm/helm_dependency/ - "local directory dependency")
 	for _, dependency := range mainChart.Metadata.Dependencies {
-		if !strings.HasPrefix(dependency.Repository, "file://") {
+		var relativeDependencyPath string
+		switch {
+		case strings.HasPrefix(dependency.Repository, "file://"):
+			relativeDependencyPath = strings.TrimPrefix(dependency.Repository, "file://")
+		case dependency.Repository == "":
+			relativeDependencyPath = filepath.Join("charts", dependency.Name)
+		default:
 			continue
 		}
 		dependencyName := dependency.Name
@@ -200,7 +212,7 @@ func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChart
 			logger.Log(ctx, slog.LevelInfo, "skipping dependency", slog.String("dependencyName", dependencyName))
 			continue
 		}
-		subdirectory := filepath.Join(filepath.Dir(strings.TrimPrefix(dependency.Repository, "file://")), dependencyName)
+		subdirectory := filepath.Join(filepath.Dir(relativeDependencyPath), dependencyName)
 		if mainChartUpstreamOpts.Subdirectory != nil {
 			subdirectory = filepath.Join(*mainChartUpstreamOpts.Subdirectory, subdirectory)
 		}
@@ -221,6 +233,11 @@ func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChart
 		return nil
 	}
 	for _, dependency := range mainChart.Lock.Dependencies {
+		if dependency.Repository == "" {
+			// An empty repository means this dependency is vendored locally under charts/<name> rather than fetched from a chart repository.
+			continue
+		}
+
 		dependencyName := dependency.Name
 		dependencyOptionsPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir, dependencyName, path.DependencyOptionsFile)
 		// Check if dependency already exists

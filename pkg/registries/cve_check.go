@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -12,6 +13,12 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
 )
+
+// errUnsupportedPlatform indicates trivy could not find an image for the runner's platform (Linux).
+var errUnsupportedPlatform = errors.New("image doesn't support the runner's platform")
+
+// fallbackPlatform is retried when the image does not support runner's default platform
+const fallbackPlatform = "windows/amd64"
 
 // SeverityCounts holds the number of CVEs found for each severity level.
 type SeverityCounts struct {
@@ -27,6 +34,8 @@ type ImageCVEResult struct {
 	Repository string         `json:"repository"`
 	Tag        string         `json:"tag"`
 	CVECounts  SeverityCounts `json:"CVEs"`
+	Skipped    bool           `json:"skipped,omitempty"`
+	SkipReason string         `json:"skipReason,omitempty"`
 }
 
 // CVEReport is the top-level output of CheckChartCVEs.
@@ -97,11 +106,20 @@ func scanChartVersion(ctx context.Context, repoRoot, chart, version string) (Sev
 
 	for repository, tags := range chartImages {
 		for _, tag := range tags {
-			counts, err := scanImage(ctx, repository, tag)
+			counts, skipped, err := scanImage(ctx, repository, tag)
 			if err != nil {
 				return total, nil, fmt.Errorf("scanning %s:%s: %w", repository, tag, err)
 			}
-			images = append(images, ImageCVEResult{Repository: repository, Tag: tag, CVECounts: counts})
+
+			result := ImageCVEResult{Repository: repository, Tag: tag, CVECounts: counts}
+			if skipped {
+				result.Skipped = true
+				result.SkipReason = fmt.Sprintf("image does not support the default platform or %s", fallbackPlatform)
+				images = append(images, result)
+				continue
+			}
+
+			images = append(images, result)
 			total.Critical += counts.Critical
 			total.High += counts.High
 			total.Medium += counts.Medium
@@ -142,26 +160,45 @@ func findPreviousSameMajorVersion(ctx context.Context, repoRoot, chart, version 
 }
 
 // scanImage runs trivy against repository:tag and returns its CVE counts by severity.
-var scanImage = func(ctx context.Context, repository, tag string) (SeverityCounts, error) {
-	output, err := runTrivy(ctx, repository, tag)
-	if err != nil {
-		return SeverityCounts{}, err
+// If the image does not support the default platform, it retries against fallbackPlatform.
+// If neither platform is supported, it returns skipped=true instead of an error.
+var scanImage = func(ctx context.Context, repository, tag string) (counts SeverityCounts, skipped bool, err error) {
+	output, err := runTrivy(ctx, repository, tag, "")
+	if errors.Is(err, errUnsupportedPlatform) {
+		output, err = runTrivy(ctx, repository, tag, fallbackPlatform)
+		if errors.Is(err, errUnsupportedPlatform) {
+			return SeverityCounts{}, true, nil
+		}
 	}
-	return parseTrivyReport(output)
+	if err != nil {
+		return SeverityCounts{}, false, err
+	}
+	counts, err = parseTrivyReport(output)
+	return counts, false, err
 }
 
 // trivyBinary is the trivy executable to invoke; overridden in tests.
 var trivyBinary = "trivy"
 
 // runTrivy shells out to the trivy CLI and returns its raw JSON report for repository:tag.
-func runTrivy(ctx context.Context, repository, tag string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, trivyBinary, "image", "--format", "json", "--quiet", fmt.Sprintf("%s:%s", repository, tag))
+// If platform is non-empty, it is passed to trivy's --platform flag.
+func runTrivy(ctx context.Context, repository, tag, platform string) ([]byte, error) {
+	args := []string{"image", "--format", "json", "--quiet"}
+	if platform != "" {
+		args = append(args, "--platform", platform)
+	}
+	args = append(args, fmt.Sprintf("%s:%s", repository, tag))
+
+	cmd := exec.CommandContext(ctx, trivyBinary, args...)
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
 	output, err := cmd.Output()
 	if err != nil {
+		if strings.Contains(stderr.String(), "no child with platform") {
+			return nil, errUnsupportedPlatform
+		}
 		return nil, fmt.Errorf("running trivy on %s:%s: %w: %s", repository, tag, err, strings.TrimSpace(stderr.String()))
 	}
 

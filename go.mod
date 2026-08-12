@@ -24,7 +24,7 @@ require (
 require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/go-git/go-billy/v5 v5.9.0
+	github.com/go-git/go-billy/v5 v5.9.1
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.21.7
@@ -310,9 +310,8 @@ require (
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/term v0.44.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/text v0.39.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	golang.org/x/tools v0.46.0 // indirect
 	google.golang.org/api v0.271.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260203192932-546029d2fa20 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect

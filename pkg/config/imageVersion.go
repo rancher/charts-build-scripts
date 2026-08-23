@@ -6,7 +6,7 @@ import (
 
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 // ImageVersionCheckOptions holds the list of images to check for version updates.

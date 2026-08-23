@@ -24,7 +24,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/registries"
 	"github.com/rancher/charts-build-scripts/pkg/validate"
 	"github.com/urfave/cli"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 const (

@@ -195,6 +195,9 @@ func applyBlocklist(ctx context.Context, index *helmRepo.IndexFile) error {
 	for chartName, chartVersions := range index.Entries {
 		for i, chartVersion := range chartVersions {
 			if blocklist.IsBlocked(chartName, chartVersion.Version) {
+				if chartVersion.Annotations != nil && chartVersion.Annotations["catalog.cattle.io/hidden"] == "true" {
+					continue // Already marked, skip
+				}
 				// Inject hidden annotation
 				if chartVersion.Annotations == nil {
 					chartVersion.Annotations = make(map[string]string)
@@ -203,10 +206,6 @@ func applyBlocklist(ctx context.Context, index *helmRepo.IndexFile) error {
 
 				// Update entry in place
 				index.Entries[chartName][i] = chartVersion
-
-				logger.Log(ctx, slog.LevelInfo, "marked chart as hidden",
-					slog.String("chart", chartName),
-					slog.String("version", chartVersion.Version))
 			}
 		}
 	}

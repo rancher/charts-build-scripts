@@ -266,7 +266,6 @@ func (g *Git) IsClean(ctx context.Context) error {
 // StatusProcelain checks if the git repository is clean and,
 // returns true if it is clean, false otherwise
 func (g *Git) StatusProcelain(ctx context.Context) (bool, error) {
-	logger.Log(ctx, slog.LevelDebug, "check if git is clean")
 
 	cmd := exec.Command("git", "-C", g.Dir, "status", "--porcelain")
 

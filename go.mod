@@ -20,7 +20,7 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/go-git/go-billy/v5 v5.9.0
+	github.com/go-git/go-billy/v5 v5.9.1
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.21.9

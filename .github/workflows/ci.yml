@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
 
@@ -16,20 +16,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
         with:
-          version: latest
-          install-mode: goinstall
+          version: v2.13.1
           only-new-issues: true
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
       - name: Setup goreleaser
@@ -42,9 +41,9 @@ jobs:
           fi
 
           # renovate-local: goreleaser-x86_64
-          GORELEASER_VERSION="v2.16.0"
-          # renovate-local: goreleaser-x86_64=v2.16.0
-          GORELEASER_CHECKSUM_x86_64="eaae05b5eba07533bd0f06846b68c808399504784df00c62eb219541fc04e5e2"
+          GORELEASER_VERSION="v2.17.1"
+          # renovate-local: goreleaser-x86_64=v2.17.1
+          GORELEASER_CHECKSUM_x86_64="a99bbc7ae0d8d897b07c4c497a9b62f222558804715ef219d1af05a7e417bc80"
 
           ARCH=$(uname -m)
           CHECKSUM="${GORELEASER_CHECKSUM_x86_64}"

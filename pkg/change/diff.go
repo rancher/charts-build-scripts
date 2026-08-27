@@ -76,7 +76,6 @@ func GeneratePatchDiff(ctx context.Context, fs billy.Filesystem, patchPath, srcP
 
 // ApplyPatchDiff applies a patch file located at patchPath to the destDir on the filesystem
 func ApplyPatchDiff(ctx context.Context, fs billy.Filesystem, patchPath, destDir string) error {
-	logger.Log(ctx, slog.LevelInfo, "applying patches", slog.String("patchPath", patchPath), slog.String("destDir", destDir))
 
 	// TODO(aiyengar2): find a better library to actually generate and apply patches
 	// There doesn't seem to be any existing library at the moment that can work with unified patches
@@ -92,7 +91,7 @@ func ApplyPatchDiff(ctx context.Context, fs billy.Filesystem, patchPath, destDir
 	var buf bytes.Buffer
 	patchFile, err := fs.Open(patchPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not open %s - error: %w", patchPath, err)
 	}
 	defer patchFile.Close()
 

@@ -3,12 +3,10 @@ package puller
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/rancher/charts-build-scripts/pkg/logger"
 )
 
 // RootCache is the cache at the root of the repository
@@ -20,7 +18,6 @@ func InitRootCache(ctx context.Context, repoRoot string, cacheMode bool, path st
 		return nil
 	}
 
-	logger.Log(ctx, slog.LevelInfo, "setting up cache", slog.String("path", path))
 	// Get repository filesystem
 	rootFs := filesystem.GetFilesystem(repoRoot)
 

@@ -1,6 +1,6 @@
 module github.com/rancher/charts-build-scripts
 
-go 1.25.8
+go 1.27.0
 
 // Needed to resolve issue on Darwin machines
 // https://github.com/ory/dockertest/issues/208#issuecomment-686820414
@@ -17,12 +17,8 @@ replace github.com/Masterminds/semver/v3 => github.com/Masterminds/semver/v3 v3.
 exclude helm.sh/helm/v4 v4.0.0
 
 require (
-	github.com/Masterminds/semver/v3 v3.4.0
-	github.com/rancherlabs/slsactl v0.1.33
-)
-
-require (
 	github.com/Masterminds/semver v1.5.0
+	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/go-git/go-billy/v5 v5.9.0
 	github.com/go-git/go-git/v5 v5.19.1
@@ -31,12 +27,12 @@ require (
 	github.com/google/go-github/v85 v85.0.0
 	github.com/lmittmann/tint v1.1.3
 	github.com/stretchr/testify v1.12.1
+	github.com/rancherlabs/slsactl v0.1.33
 	github.com/urfave/cli v1.22.17
 	golang.org/x/oauth2 v0.36.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.19.3 // Upgraded for oras-go v2 compatibility, semver v3.3.0 pinned below
-	sigs.k8s.io/release-utils v0.12.4 // indirect
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -337,5 +333,6 @@ require (
 	sigs.k8s.io/kustomize/api v0.20.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.20.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
+	sigs.k8s.io/release-utils v0.12.4 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )

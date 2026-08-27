@@ -19,7 +19,6 @@ const (
 
 // GenerateChanges generates the change between fromDir and toDir and places it in the appropriate directories within gcDir
 func GenerateChanges(ctx context.Context, fs billy.Filesystem, fromDir, toDir, gcRootDir string, replacePaths []string) error {
-	logger.Log(ctx, slog.LevelInfo, "generating changes", slog.String("GeneratedChangesDir", path.GeneratedChangesDir))
 
 	// gcRootDir should always end with path.GeneratedChangesDir
 	if !strings.HasSuffix(gcRootDir, path.GeneratedChangesDir) {
@@ -44,7 +43,6 @@ func GenerateChanges(ctx context.Context, fs billy.Filesystem, fromDir, toDir, g
 			return err
 		}
 
-		logger.Log(ctx, slog.LevelInfo, "overlay", slog.String("toPath", toPath))
 		return nil
 	}
 	generateExcludeFile := func(ctx context.Context, fs billy.Filesystem, fromPath string, isDir bool) error {
@@ -59,7 +57,6 @@ func GenerateChanges(ctx context.Context, fs billy.Filesystem, fromDir, toDir, g
 			return err
 		}
 
-		logger.Log(ctx, slog.LevelInfo, "exclude", slog.String("fromPath", fromPath))
 		return nil
 	}
 	generatePatchFile := func(ctx context.Context, fs billy.Filesystem, fromPath, toPath string, isDir bool) error {

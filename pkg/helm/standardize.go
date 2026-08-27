@@ -48,20 +48,16 @@ func standardizeAssetsFromCharts(ctx context.Context, repoFs billy.Filesystem) e
 		}
 		return nil
 	}
-	// Collect all charts from charts directory
-	logger.Log(ctx, slog.LevelInfo, "collecting valid charts", slog.String("RepositoryChartsDir", path.RepositoryChartsDir))
 
 	if err := filesystem.WalkDir(ctx, repoFs, path.RepositoryChartsDir, collectAllValidCharts); err != nil {
 		return fmt.Errorf("encountered error while trying to find Helm charts in repository: %s", err)
 	}
 	// Ensure you do not collect subcharts defined within charts
-	logger.Log(ctx, slog.LevelInfo, "removing collected subcharts")
 	for chartPath := range targetChartPaths {
 		chartPathDir := chartPath
 		for {
 			chartPathDir = filepath.Dir(chartPathDir)
 			if chartPathDir == "." {
-				logger.Log(ctx, slog.LevelDebug, "identified chart", slog.String("chartPath", chartPath))
 				break
 			}
 			_, ok := targetChartPaths[chartPathDir]
@@ -73,7 +69,6 @@ func standardizeAssetsFromCharts(ctx context.Context, repoFs billy.Filesystem) e
 		}
 	}
 	// Ensure that charts names + versions are unique
-	logger.Log(ctx, slog.LevelInfo, "ensuring chart versions are unique")
 	targetChartsVersions := make(map[string]string)
 	for chartPath, chart := range targetChartPaths {
 		chartVersion := fmt.Sprintf("%s-%s", chart.Metadata.Name, chart.Metadata.Version)

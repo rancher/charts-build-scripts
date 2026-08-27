@@ -89,7 +89,6 @@ func (r GithubRepository) GetSSHURL() string {
 func (r GithubRepository) Pull(ctx context.Context, rootFs, fs billy.Filesystem, path string) error {
 	cloneURL := r.GetHTTPSURL()
 	isCacheable := r.IsCacheable()
-	logger.Log(ctx, slog.LevelInfo, "pulling from upstream", slog.String("url", cloneURL), slog.Bool("isCacheable", isCacheable))
 
 	if isCacheable {
 		pulledFromCache, err := RootCache.Get(ctx, r.CacheKey(), fs, path)
@@ -97,7 +96,6 @@ func (r GithubRepository) Pull(ctx context.Context, rootFs, fs billy.Filesystem,
 			return err
 		}
 		if pulledFromCache {
-			logger.Log(ctx, slog.LevelInfo, "pulled from cache", slog.String("repo", r.name), slog.String("path", path))
 			return nil
 		}
 	}

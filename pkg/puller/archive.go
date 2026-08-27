@@ -3,12 +3,10 @@ package puller
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 )
 
@@ -24,7 +22,6 @@ type Archive struct {
 
 // Pull grabs the archive
 func (u Archive) Pull(ctx context.Context, rootFs, fs billy.Filesystem, path string) error {
-	logger.Log(ctx, slog.LevelInfo, "pulling from upstream", slog.String("URL", u.URL), slog.String("path", path))
 
 	if err := filesystem.GetChartArchive(fs, u.URL, chartArchiveFilepath); err != nil {
 		return err

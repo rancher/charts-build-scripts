@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/path"
@@ -18,7 +19,20 @@ type ImageConfig struct {
 	Tag        string `yaml:"tag,omitempty"` // optional
 }
 
+var (
+	cachedImageVersionList *ImageVersionCheckOptions
+	imageVersionOnce       sync.Once
+	imageVersionErr        error
+)
+
 func LoadImageVersionList(ctx context.Context) (*ImageVersionCheckOptions, error) {
+	imageVersionOnce.Do(func() {
+		cachedImageVersionList, imageVersionErr = fetchImageVersionListFromRemote(ctx)
+	})
+	return cachedImageVersionList, imageVersionErr
+}
+
+func fetchImageVersionListFromRemote(ctx context.Context) (*ImageVersionCheckOptions, error) {
 	// Open git repo
 	repo, err := git.OpenGitRepo(ctx, ".")
 	if err != nil {

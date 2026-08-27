@@ -20,9 +20,9 @@ jobs:
         shell: bash
         env:
           # renovate: datasource=github-release-attachments depName=cli/cli
-          GH_CLI_VERSION: v2.96.0
-          # renovate: datasource=github-release-attachments depName=cli/cli digestVersion=v2.96.0
-          GH_CLI_SUM_amd64: 83d5c2ccad5498f58bf6368acb1ab32588cf43ab3a4b1c301bf36328b1c8bd60
+          GH_CLI_VERSION: v2.97.0
+          # renovate: datasource=github-release-attachments depName=cli/cli digestVersion=v2.97.0
+          GH_CLI_SUM_amd64: a2c9b8497e1f85b1ad0dfcb78b5a622e098801b8e461e459e88e1ee12f018112
         run: |
           mkdir -p /tmp/gh
           GH_VERSION=${GH_CLI_VERSION#v}
@@ -35,16 +35,16 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version: '1.26'
       - name: Setup goreleaser
         shell: bash
         run: |-
           # renovate-local: goreleaser-x86_64
-          GORELEASER_VERSION="v2.16.0"
-          # renovate-local: goreleaser-x86_64=v2.16.0
-          GORELEASER_CHECKSUM_x86_64="eaae05b5eba07533bd0f06846b68c808399504784df00c62eb219541fc04e5e2"
+          GORELEASER_VERSION="v2.17.1"
+          # renovate-local: goreleaser-x86_64=v2.17.1
+          GORELEASER_CHECKSUM_x86_64="a99bbc7ae0d8d897b07c4c497a9b62f222558804715ef219d1af05a7e417bc80"
           OS="Linux"
           if [[ ${RUNNER_OS} != "Linux" ]]; then
           	echo "Unsupported OS: ${RUNNER_OS}"

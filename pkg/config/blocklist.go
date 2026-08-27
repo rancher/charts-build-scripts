@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"slices"
+	"sync"
 
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
@@ -16,7 +17,20 @@ type Blocklist struct {
 	Charts map[string][]string
 }
 
+var (
+	cachedBlocklist *Blocklist
+	blocklistOnce   sync.Once
+	blocklistErr    error
+)
+
 func LoadBlockList(ctx context.Context) (*Blocklist, error) {
+	blocklistOnce.Do(func() {
+		cachedBlocklist, blocklistErr = fetchBlocklistFromRemote(ctx)
+	})
+	return cachedBlocklist, blocklistErr
+}
+
+func fetchBlocklistFromRemote(ctx context.Context) (*Blocklist, error) {
 	// Open git repo
 	repo, err := git.OpenGitRepo(ctx, ".")
 	if err != nil {

@@ -2,14 +2,13 @@ package helm
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"sigs.k8s.io/yaml"
 
 	helmChart "helm.sh/helm/v3/pkg/chart"
@@ -19,23 +18,20 @@ import (
 
 // GetHelmMetadataVersion gets the version of a Helm chart as defined in its Chart.yaml
 func GetHelmMetadataVersion(ctx context.Context, fs billy.Filesystem, mainHelmChartPath string) (string, error) {
-	logger.Log(ctx, slog.LevelInfo, "get helm metadata version")
 	chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, mainHelmChartPath))
 	if err != nil {
-		return "", err
+		return "", errors.New("failed to load helm metadata: " + err.Error())
 	}
 
-	logger.Log(ctx, slog.LevelDebug, "metadata", slog.String("version", chart.Metadata.Version))
 	return chart.Metadata.Version, nil
 }
 
 // UpdateHelmMetadataWithName updates the name of the chart in the metadata
 func UpdateHelmMetadataWithName(ctx context.Context, fs billy.Filesystem, mainHelmChartPath string, name string) error {
-	logger.Log(ctx, slog.LevelInfo, "update helm metadata with name", slog.String("name", name))
 	// Check if Helm chart is valid
 	chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, mainHelmChartPath))
 	if err != nil {
-		return err
+		return errors.New("helm chart not valid: " + err.Error())
 	}
 	chart.Metadata.Name = name
 	// Write to either the Chart.yaml or the requirements.yaml, depending on the version
@@ -59,7 +55,6 @@ func UpdateHelmMetadataWithName(ctx context.Context, fs billy.Filesystem, mainHe
 // ConvertToHelmChart converts a given path to a Helm chart.
 // It does so by moving all YAML files to templates and creating a dummy Chart.yaml and values.yaml
 func ConvertToHelmChart(ctx context.Context, fs billy.Filesystem, dirPath string) error {
-	logger.Log(ctx, slog.LevelInfo, "convert helm chart")
 
 	// Check if the Chart.yaml already exists, indicating this is a Helm chart already
 	chartYamlPath := filepath.Join(dirPath, "Chart.yaml")
@@ -83,7 +78,6 @@ func ConvertToHelmChart(ctx context.Context, fs billy.Filesystem, dirPath string
 
 	// Move all .yaml files to templates directory
 	moveYamlToTemplates := func(ctx context.Context, fs billy.Filesystem, path string, isDir bool) error {
-		logger.Log(ctx, slog.LevelDebug, "moving YAML files to templates", slog.String("path", path))
 
 		if isDir {
 			// skip creating directories since we will create them when we copy the file anyways
@@ -96,14 +90,13 @@ func ConvertToHelmChart(ctx context.Context, fs billy.Filesystem, dirPath string
 		// destPath should be the path to chart + templates + whatever path the original path of the file was within the chart
 		dirPathWithinChart, err := filesystem.MovePath(ctx, filepath.Dir(path), dirPath, "")
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to move path at %s with error: %w", dirPath, err)
 		}
 		destPath, err := filesystem.MovePath(ctx, path, dirPath, filepath.Join(dirPath, "templates", dirPathWithinChart))
 		if err != nil {
-			return err
+			return errors.New("failed to move path for templates with error: " + err.Error())
 		}
 
-		logger.Log(ctx, slog.LevelDebug, "moving", slog.String("from", path), slog.String("to", destPath))
 		return fs.Rename(path, destPath)
 	}
 
@@ -121,7 +114,6 @@ func ConvertToHelmChart(ctx context.Context, fs billy.Filesystem, dirPath string
 		APIVersion:  helmChart.APIVersionV2,
 	}
 
-	logger.Log(ctx, slog.LevelInfo, "initializing helm chart", slog.String("path", chartYamlPath))
 	return helmChartUtil.SaveChartfile(filesystem.GetAbsPath(fs, chartYamlPath), chartMetadata)
 }
 
@@ -129,7 +121,6 @@ func ConvertToHelmChart(ctx context.Context, fs billy.Filesystem, dirPath string
 func StandardizeChartYaml(ctx context.Context, fs billy.Filesystem, dirPath string) error {
 	chartYamlPath := filepath.Join(dirPath, "Chart.yaml")
 	absChartYamlPath := filesystem.GetAbsPath(fs, chartYamlPath)
-	logger.Log(ctx, slog.LevelInfo, "standardize helm chart", slog.String("path", absChartYamlPath))
 
 	chartMetadata, err := helmChartUtil.LoadChartfile(absChartYamlPath)
 	if err != nil {

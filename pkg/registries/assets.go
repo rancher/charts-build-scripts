@@ -19,8 +19,6 @@ import (
 //
 // this function is mocked for unit-testing
 var createAssetValuesRepoTagMap = func(ctx context.Context) (map[string][]string, error) {
-	logger.Log(ctx, slog.LevelInfo, "map all repository and tags from all values.yaml files on assets/<*>/<*>.tgz files")
-
 	repoTagMap := make(map[string][]string)
 
 	// iterate all folders inside assets/ dir
@@ -40,13 +38,10 @@ var createAssetValuesRepoTagMap = func(ctx context.Context) (map[string][]string
 	assetsTgzs = filterBlocklistedAssets(ctx, assetsTgzs, blocklist)
 
 	// decode .tgz values.yaml files into-memory
-	logger.Log(ctx, slog.LevelInfo, "decoding .tgz(values.yaml) in-memory")
 	valuesYamlsMap, err := filesystem.DecodeTgzValuesYamlMap(ctx, assetsTgzs)
 	if err != nil {
 		return nil, err
 	}
-
-	logger.Log(ctx, slog.LevelInfo, "", slog.Any("chartsToIgnoreTags", chartsToIgnoreTags))
 
 	// iterate through each values.yaml file and traverse through all fields looking for
 	// every value of a 'repository' and 'tag' field.

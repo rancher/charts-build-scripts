@@ -3,13 +3,11 @@ package helm
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"path/filepath"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
 
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
@@ -87,15 +85,12 @@ func DumpAssets(ctx context.Context, repoRoot string, specificAsset string) erro
 			}
 		}
 
-		// Unarchive Tgz file
-		logger.Log(ctx, slog.LevelInfo, "unarchiving", slog.String("tgzPath", tgzPath))
-
 		// Get path to unarchive tgz to
 		foundAsset = true
 		absAssetPath := filesystem.GetAbsPath(fs, tgzPath)
 		chart, err := helmLoader.Load(absAssetPath)
 		if err != nil {
-			return fmt.Errorf("could not load Helm chart: %s", err)
+			return fmt.Errorf("could not load Helm chart:%s error: %w", tgzPath, err)
 		}
 		// Unarchive tgz
 		chartChartsDirpath := filepath.Join(path.RepositoryChartsDir, chart.Metadata.Name, chart.Metadata.Version)
@@ -109,7 +104,6 @@ func DumpAssets(ctx context.Context, repoRoot string, specificAsset string) erro
 			return err
 		}
 
-		logger.Log(ctx, slog.LevelInfo, "generated chart", slog.String("chartChartsDirpath", chartChartsDirpath))
 		return nil
 	}
 

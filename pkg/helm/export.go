@@ -79,7 +79,6 @@ func ExportHelmChart(ctx context.Context, rootFs, fs billy.Filesystem, helmChart
 		return err
 	}
 
-	logger.Log(ctx, slog.LevelInfo, "exported chart", slog.String("chartChartsDirPath", chartChartsDirpath), slog.String("tgzPath", tgzPath))
 	return nil
 }
 
@@ -209,9 +208,7 @@ func GenerateArchive(ctx context.Context, rootFs, fs billy.Filesystem, helmChart
 	}
 	if shouldUpdateArchive {
 		filesystem.CopyFile(ctx, rootFs, tempTgzPath, tgzPath)
-		logger.Log(ctx, slog.LevelInfo, "generated archive", slog.String("tgzPath", tgzPath))
-	} else {
-		logger.Log(ctx, slog.LevelInfo, "archive is up-to-date", slog.String("tgzPath", tgzPath))
 	}
+
 	return tgzPath, nil
 }

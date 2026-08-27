@@ -2,12 +2,10 @@ package puller
 
 import (
 	"context"
-	"log/slog"
 	"os"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
-	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	helmGetter "helm.sh/helm/v3/pkg/getter"
 )
@@ -19,7 +17,6 @@ type Registry struct {
 
 // Pull pulls the chart from the registry into the filesystem
 func (r Registry) Pull(ctx context.Context, rootFs, fs billy.Filesystem, path string) error {
-	logger.Log(ctx, slog.LevelInfo, "pulling from upstream", slog.String("URL", r.URL), slog.String("path", path))
 
 	getter, err := helmGetter.NewOCIGetter()
 	if err != nil {

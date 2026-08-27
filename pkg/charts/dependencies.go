@@ -31,7 +31,6 @@ var helmRepoFetchMutex sync.Mutex
 
 // PrepareDependencies prepares all of the dependencies of a given chart and regenerates the requirements.yaml or Chart.yaml
 func PrepareDependencies(ctx context.Context, rootFs, pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDir string, ignoreDependencies []string) error {
-	logger.Log(ctx, slog.LevelInfo, "loading dependencies")
 
 	ignoreDependencyMap := make(map[string]bool)
 	for _, dep := range ignoreDependencies {
@@ -275,7 +274,6 @@ func GetDependencyMap(ctx context.Context, pkgFs billy.Filesystem, gcRootDir str
 // UpdateHelmMetadataWithDependencies updates either the requirements.yaml or Chart.yaml for the dependencies provided
 // For each dependency in dependencies, it will replace the entry in the requirements.yaml / Chart.yaml with a URL pointing to the local chart archive
 func UpdateHelmMetadataWithDependencies(ctx context.Context, fs billy.Filesystem, mainHelmChartPath string, dependencyMap map[string]*Chart) error {
-	logger.Log(ctx, slog.LevelInfo, "updating chart metadata with dependencies")
 
 	// Check if Helm chart is valid
 	chart, err := helmLoader.Load(filesystem.GetAbsPath(fs, mainHelmChartPath))

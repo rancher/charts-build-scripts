@@ -463,8 +463,6 @@ func compareTars(ctx context.Context, leftFile, rightFile io.Reader) (bool, erro
 			identical = false
 		default:
 			// Deep compare tars
-			logger.Log(ctx, slog.LevelDebug, "deep compare contents of tar file", slog.String("filename", filename))
-
 			matches, err := compareTars(ctx, tars[0], tars[1])
 			if err != nil {
 				return false, fmt.Errorf("could not compare contents of %s: %s", filename, err)
@@ -492,8 +490,6 @@ func compareTars(ctx context.Context, leftFile, rightFile io.Reader) (bool, erro
 			identical = false
 		default:
 			// Deep compare tars
-			logger.Log(ctx, slog.LevelDebug, "deep compare contents of tgz file", slog.String("filename", filename))
-
 			matches, err := compareTgzs(ctx, tgzs[0], tgzs[1])
 			if err != nil {
 				return false, fmt.Errorf("could not compare contents of %s: %s", filename, err)

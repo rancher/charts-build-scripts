@@ -340,8 +340,8 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 )
 
-replace k8s.io/api => k8s.io/api v0.34.0
+replace k8s.io/api => k8s.io/api v0.37.0
 
-replace k8s.io/apimachinery => k8s.io/apimachinery v0.34.0
+replace k8s.io/apimachinery => k8s.io/apimachinery v0.37.0
 
-replace k8s.io/client-go => k8s.io/client-go v0.34.0
+replace k8s.io/client-go => k8s.io/client-go v0.37.0

@@ -190,7 +190,7 @@ spec:
 		for {
 			var crd k8sCRD
 			err := decoder.Decode(&crd)
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			if err != nil {

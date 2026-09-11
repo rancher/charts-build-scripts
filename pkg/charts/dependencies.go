@@ -20,6 +20,7 @@ import (
 	helmLoader "helm.sh/helm/v3/pkg/chart/loader"
 	helmCLI "helm.sh/helm/v3/pkg/cli"
 	helmGetter "helm.sh/helm/v3/pkg/getter"
+	helmRegistry "helm.sh/helm/v3/pkg/registry"
 	helmRepo "helm.sh/helm/v3/pkg/repo"
 	"sigs.k8s.io/yaml"
 )
@@ -114,6 +115,30 @@ func PrepareDependencies(ctx context.Context, rootFs, pkgFs billy.Filesystem, ma
 	return UpdateHelmMetadataWithDependencies(ctx, pkgFs, mainHelmChartPath, dependencyMap)
 }
 
+// resolveDependencyURL resolves the download URL for a single chart dependency listed in Chart.lock.
+//
+// OCI-based chart repositories do not serve an index.yaml the way classic HTTP(S) chart repositories
+// do, so helmRepo.FindChartInRepoURL cannot be used to resolve them. For OCI repositories we instead
+// build the fully-qualified "oci://host/path/chart:version" reference directly;
+// GetUpstream/puller.Registry already knows how to pull that.
+func resolveDependencyURL(repository, name, version string) (string, error) {
+	if helmRegistry.IsOCI(repository) {
+		return fmt.Sprintf("%s/%s:%s", strings.TrimSuffix(repository, "/"), name, version), nil
+	}
+
+	// Acquire mutex to serialize Helm repository queries and prevent rate limiting
+	helmRepoFetchMutex.Lock()
+	defer helmRepoFetchMutex.Unlock()
+
+	return helmRepo.FindChartInRepoURL(
+		repository,
+		name,
+		version,
+		"", "", "",
+		helmGetter.All(&helmCLI.EnvSettings{}),
+	)
+}
+
 func getMainChartUpstreamOptions(ctx context.Context, pkgFs billy.Filesystem, gcRootDir string) (*options.UpstreamOptions, error) {
 	packageOpts, err := options.LoadPackageOptionsFromFile(ctx, pkgFs, path.PackageOptionsFile)
 	if err != nil {
@@ -159,9 +184,21 @@ func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChart
 			numChartsRemoved++
 		}
 	}
-	// Handle local chart archives first since version numbers don't make a difference
+	// Handle local chart archives first since version numbers don't make a difference.
+	// This covers two cases: dependencies whose repository is explicitly a "file://"
+	// path, and dependencies with an empty repository field.
+	//
+	// An empty repository means the chart isn't fetched from anywhere at all: it is
+	// expected to already live at charts/<name> within the parent chart itself
+	// (see https://helm.sh/docs/helm/helm_dependency/ - "local directory dependency")
 	for _, dependency := range mainChart.Metadata.Dependencies {
-		if !strings.HasPrefix(dependency.Repository, "file://") {
+		var relativeDependencyPath string
+		switch {
+		case strings.HasPrefix(dependency.Repository, "file://"):
+			relativeDependencyPath = strings.TrimPrefix(dependency.Repository, "file://")
+		case dependency.Repository == "":
+			relativeDependencyPath = filepath.Join("charts", dependency.Name)
+		default:
 			continue
 		}
 		dependencyName := dependency.Name
@@ -174,7 +211,7 @@ func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChart
 			logger.Log(ctx, slog.LevelInfo, "skipping dependency", slog.String("dependencyName", dependencyName))
 			continue
 		}
-		subdirectory := filepath.Join(filepath.Dir(strings.TrimPrefix(dependency.Repository, "file://")), dependencyName)
+		subdirectory := filepath.Join(filepath.Dir(relativeDependencyPath), dependencyName)
 		if mainChartUpstreamOpts.Subdirectory != nil {
 			subdirectory = filepath.Join(*mainChartUpstreamOpts.Subdirectory, subdirectory)
 		}
@@ -195,6 +232,11 @@ func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChart
 		return nil
 	}
 	for _, dependency := range mainChart.Lock.Dependencies {
+		if dependency.Repository == "" {
+			// An empty repository means this dependency is vendored locally under charts/<name> rather than fetched from a chart repository.
+			continue
+		}
+
 		dependencyName := dependency.Name
 		dependencyOptionsPath := filepath.Join(gcRootDir, path.GeneratedChangesDependenciesDir, dependencyName, path.DependencyOptionsFile)
 		// Check if dependency already exists
@@ -209,17 +251,7 @@ func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChart
 
 		logger.Log(ctx, slog.LevelDebug, "looking for dependency", slog.String("dependencyName", dependencyName), slog.String("repository", dependency.Repository))
 
-		// Acquire mutex to serialize Helm repository queries and prevent rate limiting
-		helmRepoFetchMutex.Lock()
-		dependencyURL, err := helmRepo.FindChartInRepoURL(
-			dependency.Repository,
-			dependencyName,
-			dependency.Version,
-			"", "", "",
-			helmGetter.All(&helmCLI.EnvSettings{}),
-		)
-		helmRepoFetchMutex.Unlock()
-
+		dependencyURL, err := resolveDependencyURL(dependency.Repository, dependencyName, dependency.Version)
 		if err != nil {
 			return fmt.Errorf("encountered error while trying to find the repository for dependency %s: %s", dependency.Name, err)
 		}

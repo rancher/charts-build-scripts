@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	yamlV2 "gopkg.in/yaml.v2"
-	yamlV3 "gopkg.in/yaml.v3"
+	yamlV2 "go.yaml.in/yaml/v2"
+	yamlV3 "go.yaml.in/yaml/v3"
 )
 
 // TestYamlV3Compat is a canary for gopkg.in/yaml.v3.

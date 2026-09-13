@@ -14,7 +14,7 @@ import (
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	"github.com/rancher/charts-build-scripts/pkg/path"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 )
 
 // ValidateInstallCRDContentsFmt is the format for the contents of ChartValidateInstallCRDFile

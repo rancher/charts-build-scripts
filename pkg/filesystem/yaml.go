@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/rancher/charts-build-scripts/pkg/logger"
-	yamlV2 "go.yaml.in/yaml/v2"
+	yamlV2 "go.yaml.in/yaml/v3"
 	yamlV3 "go.yaml.in/yaml/v3"
 )
 

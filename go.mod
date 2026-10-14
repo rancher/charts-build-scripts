@@ -1,6 +1,6 @@
 module github.com/rancher/charts-build-scripts
 
-go 1.27.0
+go 1.27.2
 
 // Needed to resolve issue on Darwin machines
 // https://github.com/ory/dockertest/issues/208#issuecomment-686820414

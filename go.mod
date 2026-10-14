@@ -25,7 +25,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.22.1
 	github.com/google/go-github/v85 v85.0.0
-	github.com/lmittmann/tint v1.2.0
+	github.com/lmittmann/tint v1.2.1
 	github.com/rancherlabs/slsactl v0.1.41
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli v1.22.17

@@ -21,11 +21,18 @@ var (
 	cachedBlocklist *Blocklist
 	blocklistOnce   sync.Once
 	blocklistErr    error
+
+	// EnforceBlocklist makes LoadBlockList return an error instead of an empty blocklist.
+	// It must be set before the first LoadBlockList call, the result is cached.
+	EnforceBlocklist bool
 )
 
 func LoadBlockList(ctx context.Context) (*Blocklist, error) {
 	blocklistOnce.Do(func() {
 		cachedBlocklist, blocklistErr = fetchBlocklistFromRemote(ctx)
+		if blocklistErr == nil && EnforceBlocklist && len(cachedBlocklist.Charts) == 0 {
+			cachedBlocklist, blocklistErr = nil, errors.New("blocklist is enforced but it is empty")
+		}
 	})
 	return cachedBlocklist, blocklistErr
 }

@@ -76,7 +76,6 @@ func CompareGeneratedAssets(ctx context.Context, repoRoot string, repoFs billy.F
 	// Initialize lifecycle package for validating with assets lifecycle rules
 	lifeCycleDep, err := lifecycle.InitDependencies(ctx, repoFs, repoRoot, lifecycle.ExtractBranchVersion(branch), "", false)
 	if err != nil {
-		logger.Log(ctx, slog.LevelError, "failed to initialize lifecycle dependencies", logger.Err(err))
 		return response, err
 	}
 
@@ -125,7 +124,10 @@ func CompareGeneratedAssets(ctx context.Context, repoRoot string, repoFs billy.F
 			return nil
 		}
 		// Chart exists in local and is not tracked by release.yaml
-		logger.Log(ctx, slog.LevelWarn, "chart is untracked", slog.String("name", chart.Metadata.Name), slog.String("version", chart.Metadata.Version))
+		logger.Log(ctx, slog.LevelWarn, "chart in local but not tracked by release.yaml",
+			slog.String("name", chart.Metadata.Name),
+			slog.String("version", chart.Metadata.Version))
+
 		// If the chart exists in local and not on the upstream it may have been removed by the lifecycle rules
 		isVersionInLifecycle := lifeCycleDep.VR.CheckChartVersionForLifecycle(chart.Metadata.Version)
 		if isVersionInLifecycle {
@@ -156,7 +158,10 @@ func CompareGeneratedAssets(ctx context.Context, repoRoot string, repoFs billy.F
 			return nil
 		}
 		// Chart was removed from local and is not tracked by release.yaml
-		logger.Log(ctx, slog.LevelWarn, "chart was removed", slog.String("name", chart.Metadata.Name), slog.String("version", chart.Metadata.Version))
+		logger.Log(ctx, slog.LevelWarn,
+			"chart removed from local and not tracked by release.yaml",
+			slog.String("name", chart.Metadata.Name),
+			slog.String("version", chart.Metadata.Version))
 
 		response.RemovedPostRelease = response.RemovedPostRelease.Append(chart.Metadata.Name, chart.Metadata.Version)
 		// Found asset that only exists in upstream and is not tracked by release.yaml
@@ -196,7 +201,10 @@ func CompareGeneratedAssets(ctx context.Context, repoRoot string, repoFs billy.F
 			return nil
 		}
 		// Chart was modified in local and is not tracked by release.yaml
-		logger.Log(ctx, slog.LevelWarn, "chart was modified", slog.String("name", chart.Metadata.Name), slog.String("version", chart.Metadata.Version))
+		logger.Log(ctx, slog.LevelWarn,
+			"chart locally modified and not tracked by release.yaml",
+			slog.String("name", chart.Metadata.Name),
+			slog.String("version", chart.Metadata.Version))
 
 		response.ModifiedPostRelease = response.ModifiedPostRelease.Append(chart.Metadata.Name, chart.Metadata.Version)
 		return copyAndUnzip(ctx, repoFs, upstreamPath, localPath)
@@ -228,8 +236,6 @@ func copyAndUnzip(ctx context.Context, repoFs billy.Filesystem, upstreamPath, lo
 func StatusExceptions(ctx context.Context, status git.Status) error {
 	if !status.IsClean() {
 		if err := validateExceptions(status); err != nil {
-			logger.Log(ctx, slog.LevelError, "git is not clean", slog.String("status", status.String()))
-			logger.Log(ctx, slog.LevelError, "error", logger.Err(err))
 			return errors.New("repository must be clean to run validation")
 		}
 
@@ -240,7 +246,6 @@ func StatusExceptions(ctx context.Context, status git.Status) error {
 		for file := range status {
 			changedFiles = append(changedFiles, file)
 		}
-		logger.Log(ctx, slog.LevelInfo, "resetting exception files", slog.Any("files", changedFiles))
 
 		g, err := bashGit.OpenGitRepo(ctx, ".")
 		if err != nil {
@@ -251,8 +256,6 @@ func StatusExceptions(ctx context.Context, status git.Status) error {
 		if err := g.FullReset(); err != nil {
 			return err
 		}
-
-		logger.Log(ctx, slog.LevelInfo, "successfully reset exception files")
 	}
 	logger.Log(ctx, slog.LevelInfo, "git is clean")
 	return nil

@@ -165,7 +165,6 @@ func (p *Package) Clean(ctx context.Context) error {
 		chartPathsToClean = append(chartPathsToClean, additionalChart.OriginalDir(), additionalChart.WorkingDir)
 	}
 	for _, chartPath := range chartPathsToClean {
-		logger.Log(ctx, slog.LevelDebug, "cleaning", slog.String("chartPath", chartPath))
 		if err := filesystem.RemoveAll(p.fs, chartPath); err != nil {
 			return fmt.Errorf("encountered error while trying to remove %s from package %s: %s", chartPath, p.Name, err)
 		}

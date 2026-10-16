@@ -34,7 +34,6 @@ func Icons(ctx context.Context, rootFs billy.Filesystem) error {
 		}
 
 		version := versions[len(versions)-1]
-		logger.Log(ctx, slog.LevelDebug, "checking chart", slog.String("chart", chart))
 		if err := loadAndCheckIconPrefix(ctx, rootFs, chart, version); err != nil {
 			return err
 		}

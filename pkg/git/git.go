@@ -454,11 +454,6 @@ func (g *Git) ShowFileFromRemoteBranch(ctx context.Context, branch, filePath str
 //
 // Returns an error if the operation fails.
 func SparseCloneSubdirectory(ctx context.Context, url, commit, subdirectory string, fs billy.Filesystem, path string) error {
-	logger.Log(ctx, slog.LevelDebug, "sparse cloning",
-		slog.String("url", url),
-		slog.String("commit", commit),
-		slog.String("subdirectory", subdirectory))
-
 	// Get absolute path for Git CLI operations
 	absPath := filesystem.GetAbsPath(fs, path)
 

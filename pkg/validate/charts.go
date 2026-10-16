@@ -61,7 +61,6 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 	// Regenerate package.yaml charts
 	if !remoteModeOnly {
 		logger.Log(ctx, slog.LevelInfo, "local validation - regenerate package/<chart>/package.yaml")
-		logger.Log(ctx, slog.LevelInfo, "generating charts")
 		if err := generateChartsConcurrently(ctx, c, repoRoot, chart, csOptions, rootFs); err != nil {
 			return err
 		}
@@ -69,8 +68,6 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 		if err := isGitClean(ctx, repoRoot, true); err != nil {
 			return err
 		}
-
-		logger.Log(ctx, slog.LevelInfo, "successfully validated that current charts defined in the packages and assets are up-to-date")
 	}
 
 	if csOptions.ValidateOptions != nil {
@@ -96,7 +93,6 @@ func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, root
 					logger.Log(ctx, slog.LevelError, "unable to dump newly generated release.yaml", logger.Err(err))
 				}
 
-				logger.Log(ctx, slog.LevelInfo, "updating index.yaml")
 				if err := helm.CreateOrUpdateHelmIndex(ctx, rootFs); err != nil {
 					return err
 				}
@@ -172,7 +168,6 @@ func validateReleaseYaml(ctx context.Context, rootFs billy.Filesystem) error {
 		}
 	}
 
-	logger.Log(ctx, slog.LevelInfo, "release.yaml is valid")
 	return nil
 }
 
@@ -189,7 +184,6 @@ func validateIndexYaml(ctx context.Context, rootFs billy.Filesystem) error {
 	}
 
 	// Check 1:
-	logger.Log(ctx, slog.LevelInfo, "every asset must have an index entry")
 	assetsPath := path.RepositoryAssetsDir
 	if err := filesystem.WalkDir(ctx, rootFs, assetsPath, func(_ context.Context, fs billy.Filesystem, filePath string, isDir bool) error {
 		if isDir || filepath.Ext(filePath) != ".tgz" {
@@ -213,7 +207,6 @@ func validateIndexYaml(ctx context.Context, rootFs billy.Filesystem) error {
 	logger.Log(ctx, slog.LevelInfo, "all assets have index entries")
 
 	// Check 2:
-	logger.Log(ctx, slog.LevelInfo, "every index entry must have an asset file")
 	for chartName, versions := range indexFile.Entries {
 		for _, version := range versions {
 			assetTgz := chartName + "-" + version.Version + ".tgz"
@@ -228,7 +221,7 @@ func validateIndexYaml(ctx context.Context, rootFs billy.Filesystem) error {
 			}
 		}
 	}
-	logger.Log(ctx, slog.LevelInfo, "all index entries have assets")
+	logger.Log(ctx, slog.LevelInfo, "every index entry has an asset file")
 
 	return nil
 }
@@ -239,7 +232,6 @@ func generateChartsConcurrently(ctx context.Context, c *cli.Context, repoRoot, c
 		return err
 	}
 	if len(packages) == 0 {
-		logger.Log(ctx, slog.LevelError, "no packages found")
 		return errors.New("should have packages for validation")
 	}
 
@@ -279,7 +271,6 @@ func generateChartsConcurrently(ctx context.Context, c *cli.Context, repoRoot, c
 			defer wg.Done()
 			defer func() { <-semaphore }() // Release semaphore
 
-			logger.Log(ctx, slog.LevelInfo, "generating chart", slog.String("package", pkg.Name))
 			if err := pkg.GenerateCharts(ctx, csOptions.OmitBuildMetadataOnExport); err != nil {
 				mu.Lock()
 				errs = append(errs, fmt.Errorf("package %s: %w", pkg.Name, err))

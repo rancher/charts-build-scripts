@@ -626,7 +626,7 @@ func CopyDir(ctx context.Context, fs billy.Filesystem, srcDir string, dstDir str
 	return WalkDir(ctx, fs, srcDir, func(ctx context.Context, fs billy.Filesystem, srcPath string, isDir bool) error {
 		dstPath, err := MovePath(ctx, srcPath, srcDir, dstDir)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to move path from %s to %s - err: %w", srcDir, dstDir, err)
 		}
 
 		if isDir {
@@ -635,7 +635,7 @@ func CopyDir(ctx context.Context, fs billy.Filesystem, srcDir string, dstDir str
 
 		data, err := os.ReadFile(GetAbsPath(fs, srcPath))
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to read file from path %s - err: %w", srcPath, err)
 		}
 
 		return os.WriteFile(GetAbsPath(fs, dstPath), data, os.ModePerm)

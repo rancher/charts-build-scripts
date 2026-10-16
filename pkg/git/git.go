@@ -216,6 +216,22 @@ func (g *Git) FetchBranch(branch string) error {
 	return cmd.Run()
 }
 
+// FetchRemoteTrackingBranch force-updates the remote-tracking ref <upstream>/<branch> and leaves the local branch untouched.
+// It works on single-branch clones, with force-pushed upstream branches and when the local branch is checked out.
+// Use it before reading from <upstream>/<branch>, e.g. ShowFileFromRemoteBranch.
+func (g *Git) FetchRemoteTrackingBranch(branch string) error {
+	upstreamRemote, err := g.getUpstreamRemote()
+	if err != nil {
+		return err
+	}
+
+	refspec := "+refs/heads/" + branch + ":refs/remotes/" + upstreamRemote + "/" + branch
+	cmd := exec.Command("git", "-C", g.Dir, "fetch", upstreamRemote, refspec)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 // CheckoutBranch checks out a branch
 func (g *Git) CheckoutBranch(branch string) error {
 	cmd := exec.Command("git", "-C", g.Dir, "checkout", branch)

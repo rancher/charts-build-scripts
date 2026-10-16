@@ -45,7 +45,7 @@ func fetchBlocklistFromRemote(ctx context.Context) (*Blocklist, error) {
 	}
 
 	// Fetch latest automation-core branch
-	if err := repo.FetchBranch(path.AutoCoreBranch); err != nil {
+	if err := repo.FetchRemoteTrackingBranch(path.AutoCoreBranch); err != nil {
 		// If this repo doesn't have a rancher/charts upstream remote, return empty blocklist
 		if errors.Is(err, git.ErrNoUpstreamRemote) {
 			logger.Log(ctx, slog.LevelWarn, "blocklist unavailable in non-rancher/charts repo, using empty blocklist",

@@ -40,7 +40,7 @@ func fetchImageVersionListFromRemote(ctx context.Context) (*ImageVersionCheckOpt
 	}
 
 	// Fetch latest automation-core branch
-	if err := repo.FetchBranch(path.AutoCoreBranch); err != nil {
+	if err := repo.FetchRemoteTrackingBranch(path.AutoCoreBranch); err != nil {
 		return nil, errors.New("load image-version-check fetch branch: " + err.Error())
 	}
 

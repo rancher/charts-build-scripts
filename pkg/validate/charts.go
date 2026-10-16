@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/charts"
+	"github.com/rancher/charts-build-scripts/pkg/config"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/git"
 	"github.com/rancher/charts-build-scripts/pkg/helm"
@@ -30,7 +31,13 @@ import (
 //   - upstream/remote or local repository comparison
 //   - charts/ vs assets/ must match
 //   - helm index.yaml regeneration
-func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, rootFs billy.Filesystem, csOptions *options.ChartsScriptOptions, skip, remoteModeOnly, localModeOnly bool, chart string) error {
+//
+// blocklist: if the validation should enforce a blocklist which is non-empty (ony for rancher-charts)
+func ChartsRepository(ctx context.Context, c *cli.Context, repoRoot string, rootFs billy.Filesystem, csOptions *options.ChartsScriptOptions, skip, remoteModeOnly, localModeOnly, blocklist bool, chart string) error {
+	config.EnforceBlocklist = blocklist
+	if _, err := config.LoadBlockList(ctx); err != nil {
+		return err
+	}
 
 	if err := isGitClean(ctx, repoRoot, false); err != nil {
 		return err

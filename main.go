@@ -59,6 +59,8 @@ const (
 	defaultOciPassword   = "OCI_PASS"
 	// defaultSkipEnvironmentVariable is the default environment variable that indicates whether to skip execution
 	defaultSkipEnvironmentVariable = "SKIP"
+	// defaultEnforceBlocklistEnvironmentVariable is the environment variable that indicates that a blocklist must not be empty
+	defaultEnforceBlocklistEnvironmentVariable = "ENFORCE_BLOCKLIST"
 	// softErrorsEnvironmentVariable is the default environment variable that indicates if soft error mode is enabled
 	softErrorsEnvironmentVariable = "SOFT_ERRORS"
 	// defaultLogLevelEnvironmentVariable is the default environment variable that indicates the log level
@@ -120,6 +122,8 @@ var (
 	OciOverwrite bool
 	// Skip indicates whether to skip execution
 	Skip = false
+	// EnforceBlocklist indicates that the blocklist can't be empty and must be enforced
+	EnforceBlocklist = false
 	// SoftErrorMode indicates if certain non-fatal errors will be turned into warnings
 	SoftErrorMode = false
 	// RepoRoot represents the root path of the repository
@@ -379,6 +383,13 @@ func main() {
 		EnvVar:      defaultSkipEnvironmentVariable,
 		Destination: &Skip,
 	}
+	enforceBlocklistFlag := cli.BoolFlag{
+		Name:        "enforce-blocklist",
+		Usage:       "enforce a non-empty blocklist",
+		EnvVar:      defaultEnforceBlocklistEnvironmentVariable,
+		Destination: &EnforceBlocklist,
+		Required:    false,
+	}
 	softErrorsFlag := cli.BoolFlag{
 		Name:        "soft-errors",
 		Usage:       "Enables soft error mode - some non-fatal errors will become warnings",
@@ -477,7 +488,7 @@ func main() {
 			Name:   "validate",
 			Usage:  "Run validation to ensure that contents of assets and charts won't overwrite released charts",
 			Action: validateRepository,
-			Flags:  []cli.Flag{packageFlag, configFlag, localModeFlag, remoteModeFlag, skipFlag},
+			Flags:  []cli.Flag{packageFlag, configFlag, localModeFlag, remoteModeFlag, skipFlag, enforceBlocklistFlag},
 		},
 		{
 			Name:   "standardize",
@@ -746,7 +757,7 @@ func validateRepository(c *cli.Context) {
 		logger.Fatal(ctx, "cannot specify both local and remote validation")
 	}
 
-	if err := validate.ChartsRepository(ctx, c, RepoRoot, rootFs, parseScriptOptions(ctx), Skip, RemoteMode, LocalMode, CurrentPackage); err != nil {
+	if err := validate.ChartsRepository(ctx, c, RepoRoot, rootFs, parseScriptOptions(ctx), Skip, RemoteMode, LocalMode, EnforceBlocklist, CurrentPackage); err != nil {
 		logger.Fatal(ctx, err.Error())
 	}
 }

@@ -115,7 +115,7 @@ func loadHelmChart(fs billy.Filesystem, helmChartPath string) (*helmChart.Chart,
 }
 
 // parseChartVersion will parse the chart version based on the packageVersion, version, upstreamChartVersion, metadataVersion, and omitBuildMetadata unless autoGenBumpVersion is not nil, in this case it will use autoGenBumpVersion as the version
-func parseChartVersion(ctx context.Context, packageVersion *int, version *semver.Version, upstreamChartVersion string, metadataVersion string, autoGenBumpVersion *semver.Version, omitBuildMetadata bool) (string, error) {
+func parseChartVersion(ctx context.Context, packageVersion *int, version *semver.Version, upstreamChartVersion, metadataVersion string, autoGenBumpVersion *semver.Version, omitBuildMetadata bool) (string, error) {
 	if autoGenBumpVersion != nil {
 		return autoGenBumpVersion.String(), nil
 	}

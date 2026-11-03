@@ -49,7 +49,7 @@ func ExportHelmChart(ctx context.Context, rootFs, fs billy.Filesystem, helmChart
 	}
 
 	// Parse the chart version (if autoGenBumpVersion is not nil, it will be used as the version)
-	chartVersion, err := parseChartVersion(packageVersion, version, upstreamChartVersion, chart.Metadata.Version, autoGenBumpVersion, omitBuildMetadata)
+	chartVersion, err := parseChartVersion(ctx, packageVersion, version, upstreamChartVersion, chart.Metadata.Version, autoGenBumpVersion, omitBuildMetadata)
 	if err != nil {
 		return err
 	}
@@ -115,14 +115,18 @@ func loadHelmChart(fs billy.Filesystem, helmChartPath string) (*helmChart.Chart,
 }
 
 // parseChartVersion will parse the chart version based on the packageVersion, version, upstreamChartVersion, metadataVersion, and omitBuildMetadata unless autoGenBumpVersion is not nil, in this case it will use autoGenBumpVersion as the version
-func parseChartVersion(packageVersion *int, version *semver.Version, upstreamChartVersion string, metadataVersion string, autoGenBumpVersion *semver.Version, omitBuildMetadata bool) (string, error) {
+func parseChartVersion(ctx context.Context, packageVersion *int, version *semver.Version, upstreamChartVersion, metadataVersion string, autoGenBumpVersion *semver.Version, omitBuildMetadata bool) (string, error) {
 	if autoGenBumpVersion != nil {
 		return autoGenBumpVersion.String(), nil
 	}
 
 	metadataSemver, err := semver.Make(metadataVersion)
 	if err != nil {
-		return "", fmt.Errorf("cannot parse original chart version %s as valid semver", metadataVersion)
+		logger.Log(ctx, slog.LevelWarn, "strict chart version parsing failed; trying tolerant parsing", slog.String("version", metadataVersion), logger.Err(err))
+		metadataSemver, err = semver.ParseTolerant(metadataVersion)
+		if err != nil {
+			return "", fmt.Errorf("cannot parse original chart version %s as valid semver: %w", metadataVersion, err)
+		}
 	}
 
 	if version != nil {

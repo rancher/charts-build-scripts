@@ -35,6 +35,10 @@ type ChartOptions struct {
 	UpstreamOptions UpstreamOptions `yaml:",inline"`
 	// IgnoreDependencies drops certain dependencies from the list that is parsed from upstream
 	IgnoreDependencies []string `yaml:"ignoreDependencies"`
+	// VendoredDependencies opts in to treating dependencies declared with an empty repository ("") as charts
+	// vendored under charts/<name> in upstream, so they are loaded as generated-changes dependencies.
+	// By default such dependencies are left untouched in the main chart.
+	VendoredDependencies bool `yaml:"vendoredDependencies,omitempty"`
 	// ReplacePaths marks paths as those that should be replaced instead of patches. Consequently, these paths will exist in both generated-changes/excludes and generated-changes/overlay
 	ReplacePaths []string `yaml:"replacePaths"`
 }

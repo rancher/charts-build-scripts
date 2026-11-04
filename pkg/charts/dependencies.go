@@ -164,10 +164,27 @@ func getMainChartUpstreamOptions(ctx context.Context, pkgFs billy.Filesystem, gc
 	return nil, fmt.Errorf("generated changes root directory %s does not point to a valid additional chart", gcRootDir)
 }
 
+// vendoredDependenciesEnabled reports whether the package opted in to treating dependencies with an
+// empty repository as charts vendored under charts/<name>. Only the main chart can opt in.
+func vendoredDependenciesEnabled(ctx context.Context, pkgFs billy.Filesystem, gcRootDir string) (bool, error) {
+	if gcRootDir != path.GeneratedChangesDir {
+		return false, nil
+	}
+	packageOpts, err := options.LoadPackageOptionsFromFile(ctx, pkgFs, path.PackageOptionsFile)
+	if err != nil {
+		return false, fmt.Errorf("unable to read %s for PackageOptions: %w", path.PackageOptionsFile, err)
+	}
+	return packageOpts.MainChartOptions.VendoredDependencies, nil
+}
+
 // LoadDependencies takes all existing subcharts in the package and loads them into the gcRootDir as dependencies
 func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChartPath string, gcRootDir string, ignoreDependencyMap map[string]bool) error {
 	// Get main chart options
 	mainChartUpstreamOpts, err := getMainChartUpstreamOptions(ctx, pkgFs, gcRootDir)
+	if err != nil {
+		return err
+	}
+	vendoredDependencies, err := vendoredDependenciesEnabled(ctx, pkgFs, gcRootDir)
 	if err != nil {
 		return err
 	}
@@ -185,8 +202,10 @@ func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChart
 		}
 	}
 	// Handle local chart archives first since version numbers don't make a difference.
-	// This covers two cases: dependencies whose repository is explicitly a "file://"
-	// path, and dependencies with an empty repository field.
+	// This covers dependencies whose repository is explicitly a "file://" path and, only when the
+	// package opts in with vendoredDependencies, dependencies with an empty repository field.
+	// Empty repositories are ignored by default to keep existing packages (e.g. kube-prometheus-stack's
+	// "crds" dependency, managed through additionalCharts) unchanged.
 	//
 	// An empty repository means the chart isn't fetched from anywhere at all: it is
 	// expected to already live at charts/<name> within the parent chart itself
@@ -196,7 +215,7 @@ func LoadDependencies(ctx context.Context, pkgFs billy.Filesystem, mainHelmChart
 		switch {
 		case strings.HasPrefix(dependency.Repository, "file://"):
 			relativeDependencyPath = strings.TrimPrefix(dependency.Repository, "file://")
-		case dependency.Repository == "":
+		case vendoredDependencies && dependency.Repository == "":
 			relativeDependencyPath = filepath.Join("charts", dependency.Name)
 		default:
 			continue

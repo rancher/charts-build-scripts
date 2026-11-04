@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/go-git/go-billy/v5"
 	"github.com/rancher/charts-build-scripts/pkg/filesystem"
 	"github.com/rancher/charts-build-scripts/pkg/options"
 	"github.com/rancher/charts-build-scripts/pkg/path"
@@ -78,10 +79,11 @@ generated: "2023-01-01T00:00:00Z"
 	})
 }
 
-// TestLoadDependencies_LocalPathDependency whose Chart.yaml/Chart.lock declare a
-// dependency with an empty "repository" field to indicate that the subchart is
-// already vendored locally under charts/<name>, rather than fetched from anywhere.
-func TestLoadDependencies_LocalPathDependency(t *testing.T) {
+// writeLocalPathDependencyChart sets up a package whose Chart.yaml/Chart.lock declare a
+// dependency with an empty "repository" field (a subchart vendored under charts/<name>),
+// alongside a regular "file://" dependency.
+func writeLocalPathDependencyChart(t *testing.T, vendoredDependencies bool) billy.Filesystem {
+	t.Helper()
 	ctx := context.Background()
 	root := t.TempDir()
 	pkgFs := filesystem.GetFilesystem(root)
@@ -94,6 +96,7 @@ func TestLoadDependencies_LocalPathDependency(t *testing.T) {
 			UpstreamOptions: options.UpstreamOptions{
 				URL: "https://github.com/example/example-repo.git",
 			},
+			VendoredDependencies: vendoredDependencies,
 		},
 	}
 	require.NoError(t, packageOpts.WriteToFile(ctx, pkgFs, path.PackageOptionsFile))
@@ -123,12 +126,25 @@ generated: "2024-01-01T00:00:00Z"
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "charts"), os.ModePerm))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "charts", "Chart.yaml"), []byte(chartYaml), os.ModePerm))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "charts", "Chart.lock"), []byte(chartLock), os.ModePerm))
+	return pkgFs
+}
+
+func dependencyOptionsPath(name string) string {
+	return filepath.Join(path.GeneratedChangesDir, path.GeneratedChangesDependenciesDir, name, path.DependencyOptionsFile)
+}
+
+// TestLoadDependencies_EmptyRepositoryDependency_VendoredOptIn verifies that, when a package
+// opts in with VendoredDependencies, a dependency with an empty "repository" field is treated
+// as vendored under charts/<name> within the main chart's upstream.
+func TestLoadDependencies_EmptyRepositoryDependency_VendoredOptIn(t *testing.T) {
+	ctx := context.Background()
+	pkgFs := writeLocalPathDependencyChart(t, true)
 
 	err := LoadDependencies(ctx, pkgFs, "charts", path.GeneratedChangesDir, map[string]bool{})
 	require.NoError(t, err)
 
 	// The "file://" dependency should be resolved relative to the main chart's upstream, unchanged.
-	sharedOpts, err := options.LoadChartOptionsFromFile(ctx, pkgFs, filepath.Join(path.GeneratedChangesDir, path.GeneratedChangesDependenciesDir, "shared", path.DependencyOptionsFile))
+	sharedOpts, err := options.LoadChartOptionsFromFile(ctx, pkgFs, dependencyOptionsPath("shared"))
 	require.NoError(t, err)
 	assert.Equal(t, "https://github.com/example/example-repo.git", sharedOpts.UpstreamOptions.URL)
 	require.NotNil(t, sharedOpts.UpstreamOptions.Subdirectory)
@@ -136,9 +152,29 @@ generated: "2024-01-01T00:00:00Z"
 
 	// The empty-repository dependency should be treated as vendored under charts/<name>
 	// within the main chart itself, not sent to helm's repo index resolver.
-	subchartOpts, err := options.LoadChartOptionsFromFile(ctx, pkgFs, filepath.Join(path.GeneratedChangesDir, path.GeneratedChangesDependenciesDir, "bundled-sub-chart", path.DependencyOptionsFile))
+	subchartOpts, err := options.LoadChartOptionsFromFile(ctx, pkgFs, dependencyOptionsPath("bundled-sub-chart"))
 	require.NoError(t, err)
 	assert.Equal(t, "https://github.com/example/example-repo.git", subchartOpts.UpstreamOptions.URL)
 	require.NotNil(t, subchartOpts.UpstreamOptions.Subdirectory)
 	assert.Equal(t, filepath.Join("charts", "bundled-sub-chart"), *subchartOpts.UpstreamOptions.Subdirectory)
+}
+
+// TestLoadDependencies_EmptyRepositoryDependency_DefaultIgnored verifies backwards compatibility:
+// without opting in, a dependency with an empty "repository" field is left untouched (e.g.
+// kube-prometheus-stack's "crds" dependency) and no generated-changes dependency is created for it.
+func TestLoadDependencies_EmptyRepositoryDependency_DefaultIgnored(t *testing.T) {
+	ctx := context.Background()
+	pkgFs := writeLocalPathDependencyChart(t, false)
+
+	err := LoadDependencies(ctx, pkgFs, "charts", path.GeneratedChangesDir, map[string]bool{})
+	require.NoError(t, err)
+
+	// "file://" dependencies are still loaded as before.
+	exists, err := filesystem.PathExists(ctx, pkgFs, dependencyOptionsPath("shared"))
+	require.NoError(t, err)
+	assert.True(t, exists, "file:// dependency should still be loaded")
+
+	exists, err = filesystem.PathExists(ctx, pkgFs, dependencyOptionsPath("bundled-sub-chart"))
+	require.NoError(t, err)
+	assert.False(t, exists, "empty-repository dependency must not be loaded unless vendoredDependencies is set")
 }

@@ -633,12 +633,17 @@ func CopyDir(ctx context.Context, fs billy.Filesystem, srcDir string, dstDir str
 			return fs.MkdirAll(dstPath, os.ModePerm)
 		}
 
+		srcInfo, err := os.Stat(GetAbsPath(fs, srcPath))
+		if err != nil {
+			return fmt.Errorf("failed to get file info from path %s - err: %w", srcPath, err)
+		}
+
 		data, err := os.ReadFile(GetAbsPath(fs, srcPath))
 		if err != nil {
 			return fmt.Errorf("failed to read file from path %s - err: %w", srcPath, err)
 		}
 
-		return os.WriteFile(GetAbsPath(fs, dstPath), data, os.ModePerm)
+		return os.WriteFile(GetAbsPath(fs, dstPath), data, srcInfo.Mode().Perm())
 	})
 }
 

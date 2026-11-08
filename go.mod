@@ -30,7 +30,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli v1.22.17
 	go.yaml.in/yaml/v2 v2.4.4
-	go.yaml.in/yaml/v3 v3.0.5
+	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/oauth2 v0.37.0
 	helm.sh/helm/v3 v3.19.3 // Upgraded for oras-go v2 compatibility, semver v3.3.0 pinned below
 	sigs.k8s.io/yaml v1.6.0

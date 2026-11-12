@@ -10,7 +10,7 @@ import (
 
 	"github.com/rancher/charts-build-scripts/pkg/logger"
 	yamlV2 "go.yaml.in/yaml/v2"
-	yamlV3 "go.yaml.in/yaml/v3"
+	yamlV3 "go.yaml.in/yaml/v4"
 )
 
 // StreamReader func() type is callback function for custom filesystem file loading behavior

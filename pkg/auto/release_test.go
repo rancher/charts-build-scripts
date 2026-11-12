@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 func Test_UpdateReleaseYaml(t *testing.T) {

@@ -24,7 +24,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.22.1
-	github.com/google/go-github/v85 v85.0.0
+	github.com/google/go-github/v93 v93.0.0
 	github.com/lmittmann/tint v1.2.1
 	github.com/rancherlabs/slsactl v0.1.43
 	github.com/stretchr/testify v1.12.1

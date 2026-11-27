@@ -42,9 +42,9 @@ jobs:
         shell: bash
         run: |-
           # renovate-local: goreleaser-x86_64
-          GORELEASER_VERSION="v2.18.2"
-          # renovate-local: goreleaser-x86_64=v2.18.2
-          GORELEASER_CHECKSUM_x86_64="0a96edc9d9bc594e4a41cc4d59467c182062910ab24d9d1f6dd7b667d32606d3"
+          GORELEASER_VERSION="v2.20.3"
+          # renovate-local: goreleaser-x86_64=v2.20.3
+          GORELEASER_CHECKSUM_x86_64="a36d5d7d07a5e538e052cef2a9f93f1cd4af493cf5a3712b9177c1ebe360f0e7"
           OS="Linux"
           if [[ ${RUNNER_OS} != "Linux" ]]; then
           	echo "Unsupported OS: ${RUNNER_OS}"
